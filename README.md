@@ -1,6 +1,6 @@
-# Ovira Open-Core VPN Panel
+# XProtocol Open-Core VPN Panel
 
-Clean-room, extensible multi-protocol VPN management panel built with TypeScript, Node.js (`node:sqlite` WAL), React, Vite, and Tailwind CSS.
+Clean-room, extensible multi-protocol VPN management panel (Ovira-compatible architecture) built with TypeScript, Node.js (`node:sqlite` WAL), React, Vite, and Tailwind CSS.
 
 ## Quick Start (Development & Production)
 
@@ -33,4 +33,4 @@ npm run dev
 - **Certificates**: Internal CA & Let's Encrypt certificate tracking, renewal, and deletion guards.
 - **Panel Accounts & Roles (Resellers)**: Owner, Admin, Reseller, and custom roles with granular permission matrix, reseller traffic pools, expiry, and per-client limits.
 - **Settings**: General branding & 8 panel accent colors, dark/light themes, English (LTR) & Persian (RTL), Subscription Page builder with 6 Looks (`Night shift`, `Aurora`, `Pop`, `Ticket`, `Orbit`, `Mono`), Secret path guard, Scoped API tokens + OpenAPI 3.0 spec, TOTP 2FA + recovery codes + session management, SQLite backup download/restore, and Activity log.
-- **Ubuntu 22.04+ Deployment**: See `deploy/install.sh` and `deploy/ovira.service`.
+- **Ubuntu 22.04+ Deployment**: See `deploy/install.sh` and `deploy/xprotocol.service`.

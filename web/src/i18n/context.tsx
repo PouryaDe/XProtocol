@@ -36,10 +36,10 @@ interface UiContextValue {
 const UiContext = createContext<UiContextValue | null>(null);
 
 export function UiProvider({ children }: { children: React.ReactNode }) {
-  const [lang, setLangState] = useState<Lang>(() => (localStorage.getItem('ovira_lang') as Lang) || 'en');
-  const [theme, setThemeState] = useState<ThemeMode>(() => (localStorage.getItem('ovira_theme') as ThemeMode) || 'dark');
-  const [accent, setAccentState] = useState<AccentName>(() => (localStorage.getItem('ovira_accent') as AccentName) || 'mint');
-  const [brandName, setBrandName] = useState<string>('Ovira');
+  const [lang, setLangState] = useState<Lang>(() => (localStorage.getItem('xprotocol_lang') as Lang) || 'en');
+  const [theme, setThemeState] = useState<ThemeMode>(() => (localStorage.getItem('xprotocol_theme') as ThemeMode) || 'dark');
+  const [accent, setAccentState] = useState<AccentName>(() => (localStorage.getItem('xprotocol_accent') as AccentName) || 'mint');
+  const [brandName, setBrandName] = useState<string>('XProtocol');
   const [supportTelegram, setSupportTelegram] = useState<string>('');
   const [systemDark, setSystemDark] = useState(() =>
     typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)').matches : true,
@@ -57,17 +57,17 @@ export function UiProvider({ children }: { children: React.ReactNode }) {
 
   const setLang = (l: Lang) => {
     setLangState(l);
-    localStorage.setItem('ovira_lang', l);
+    localStorage.setItem('xprotocol_lang', l);
   };
 
   const setTheme = (t: ThemeMode) => {
     setThemeState(t);
-    localStorage.setItem('ovira_theme', t);
+    localStorage.setItem('xprotocol_theme', t);
   };
 
   const setAccent = (a: AccentName) => {
     setAccentState(a);
-    localStorage.setItem('ovira_accent', a);
+    localStorage.setItem('xprotocol_accent', a);
   };
 
   useEffect(() => {

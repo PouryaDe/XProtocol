@@ -26,7 +26,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
 
   // General
   const [general, setGeneral] = useState({
-    brandName: 'Ovira',
+    brandName: 'XProtocol',
     publicAddress: '127.0.0.1',
     subscriptionLinkAddress: '',
     supportTelegram: '',
@@ -213,7 +213,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
                 setGeneral({ ...general, supportTelegram: e.target.value });
                 setSupportTelegram(e.target.value);
               }}
-              placeholder="@ovira_support"
+              placeholder="@xprotocol_support"
             />
             <Select
               label="Default client page language"
@@ -679,7 +679,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
           <Card className="space-y-4 p-5">
             <h2 className="text-sm font-semibold text-(--text-primary)">Database Backup & Restore</h2>
             <p className="text-xs text-(--text-secondary)">
-              Download a hot snapshot of your SQLite database (`ovira.db`) containing clients, groups, inbounds, nodes, accounts, and settings.
+              Download a hot snapshot of your SQLite database (`xprotocol.db`) containing clients, groups, inbounds, nodes, accounts, and settings.
             </p>
             <div className="flex flex-wrap gap-3">
               <a

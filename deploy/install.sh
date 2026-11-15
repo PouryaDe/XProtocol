@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ovira Open-Core Panel — Ubuntu 22.04+ Interactive & Scriptable Installer
+# XProtocol Open-Core Panel — Ubuntu 22.04+ Interactive & Scriptable Installer
 set -euo pipefail
 
 HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,12 +10,12 @@ if [[ "${1:-}" == "node" ]]; then
   exec bash "$HERE/node.sh" "$@"
 fi
 
-PORT="${OVIRA_PORT:-2053}"
-SUB_PORT="${OVIRA_SUB_PORT:-}"
-SECRET_PATH="${OVIRA_SECRET_PATH:-}"
-SUB_PATH="${OVIRA_SUB_PATH:-sub}"
-ADMIN_USER="${OVIRA_ADMIN_USER:-admin}"
-ADMIN_PASS="${OVIRA_ADMIN_PASS:-}"
+PORT="${XPROTOCOL_PORT:-2053}"
+SUB_PORT="${XPROTOCOL_SUB_PORT:-}"
+SECRET_PATH="${XPROTOCOL_SECRET_PATH:-}"
+SUB_PATH="${XPROTOCOL_SUB_PATH:-sub}"
+ADMIN_USER="${XPROTOCOL_ADMIN_USER:-admin}"
+ADMIN_PASS="${XPROTOCOL_ADMIN_PASS:-}"
 LOCAL_NODE=1
 SSL_MODE="none"
 DOMAIN=""
@@ -63,14 +63,14 @@ done
 [[ -r /etc/os-release ]] && . /etc/os-release || true
 [[ "${ID:-}" == "ubuntu" || "${ID_LIKE:-}" == *"debian"* ]] || echo "Warning: Tested on Ubuntu 22.04+."
 
-# shellcheck source=deploy/ovira-tui.sh
-source "$HERE/ovira-tui.sh"
+# shellcheck source=deploy/xprotocol-tui.sh
+source "$HERE/xprotocol-tui.sh"
 ui_init
 trap ui_restore_terminal EXIT
 
-INSTALL_DIR="/opt/ovira-open"
-DATA_DIR="/var/lib/ovira-open"
-SERVICE_NAME="ovira-open.service"
+INSTALL_DIR="/opt/xprotocol"
+DATA_DIR="/var/lib/xprotocol"
+SERVICE_NAME="xprotocol.service"
 
 ui_header big "Ubuntu 22.04+ Panel Setup"
 
@@ -87,7 +87,7 @@ if ui_has_input; then
   ask PORT "Panel port" "$PORT"
   ask SUB_PORT "Separate subscription port (optional, blank = same as panel)" "$SUB_PORT"
   if [[ -z "$SECRET_PATH" ]]; then
-    SECRET_PATH="/$(tr -dc 'a-z0-9' </dev/urandom | head -c 10 || echo 'ovira')"
+    SECRET_PATH="/$(tr -dc 'a-z0-9' </dev/urandom | head -c 10 || echo 'xprotocol')"
   fi
   ask SECRET_PATH "Secret panel path (blank for root /)" "$SECRET_PATH"
   ask ADMIN_USER "First admin username" "$ADMIN_USER"
@@ -118,10 +118,10 @@ if ui_has_input; then
 fi
 
 if [[ -z "$ADMIN_PASS" ]]; then
-  ADMIN_PASS="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 16 || echo 'OviraAdmin1234')"
+  ADMIN_PASS="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 16 || echo 'XProtocolAdmin1234')"
 fi
 
-section "INSTALLING OVIRA OPEN-CORE"
+section "INSTALLING XPROTOCOL OPEN-CORE"
 export DEBIAN_FRONTEND=noninteractive
 
 info "Installing base Ubuntu packages..."
@@ -134,7 +134,7 @@ apt-get install -y -qq "${PKGS[@]}" >/dev/null
 ok "System packages installed"
 
 info "Configuring kernel IPv4 forwarding and BBR..."
-cat >/etc/sysctl.d/99-ovira.conf <<'EOF'
+cat >/etc/sysctl.d/99-xprotocol.conf <<'EOF'
 net.ipv4.ip_forward = 1
 net.core.default_qdisc = fq
 net.ipv4.tcp_congestion_control = bbr
@@ -197,19 +197,19 @@ EOF
 
 cat >"/etc/systemd/system/${SERVICE_NAME}" <<EOF
 [Unit]
-Description=Ovira Open-Core VPN Panel
+Description=XProtocol Open-Core VPN Panel
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 WorkingDirectory=${INSTALL_DIR}/server
-Environment=OVIRA_DATA_DIR=${DATA_DIR}
-Environment=OVIRA_PORT=${PORT}
-Environment=OVIRA_SECRET_PATH=${SECRET_PATH}
-Environment=OVIRA_SUB_PATH=${SUB_PATH}
-Environment=OVIRA_ADMIN_USER=${ADMIN_USER}
-Environment=OVIRA_ADMIN_PASS=${ADMIN_PASS}
+Environment=XPROTOCOL_DATA_DIR=${DATA_DIR}
+Environment=XPROTOCOL_PORT=${PORT}
+Environment=XPROTOCOL_SECRET_PATH=${SECRET_PATH}
+Environment=XPROTOCOL_SUB_PATH=${SUB_PATH}
+Environment=XPROTOCOL_ADMIN_USER=${ADMIN_USER}
+Environment=XPROTOCOL_ADMIN_PASS=${ADMIN_PASS}
 ExecStart=/usr/bin/node ${INSTALL_DIR}/server/dist/index.js
 Restart=always
 RestartSec=3
@@ -218,8 +218,8 @@ RestartSec=3
 WantedBy=multi-user.target
 EOF
 
-install -m 0755 "$INSTALL_DIR/deploy/ovira-cli.sh" /usr/local/bin/ovira
-chmod +x "$INSTALL_DIR/deploy/ovira-tui.sh" "$INSTALL_DIR/deploy/node.sh"
+install -m 0755 "$INSTALL_DIR/deploy/xprotocol-cli.sh" /usr/local/bin/xprotocol
+chmod +x "$INSTALL_DIR/deploy/xprotocol-tui.sh" "$INSTALL_DIR/deploy/node.sh"
 
 if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
   ufw allow "${PORT}/tcp" >/dev/null || true
@@ -237,7 +237,7 @@ HOST="${DOMAIN:-$PUBLIC_IP}"
 CLEAN_SECRET="${SECRET_PATH#/}"; CLEAN_SECRET="${CLEAN_SECRET%/}"
 PANEL_URL="${SCHEME}://${HOST}:${PORT}${CLEAN_SECRET:+/$CLEAN_SECRET}/"
 
-card_top "READY · Ovira Open-Core v1.0.4"
+card_top "READY · XProtocol Open-Core v1.0.4"
 card_kv "Username" "$ADMIN_USER" "$BOLD"
 card_kv "Local node" "$( (( LOCAL_NODE )) && echo "enabled (create inbounds in Inbounds)" || echo "panel-only" )"
 card_sep "Panel address (open in browser)"
@@ -245,6 +245,6 @@ card_copy "$PANEL_URL"
 card_sep "Initial password (change inside Settings -> My account)"
 card_copy "$ADMIN_PASS"
 card_sep "Quick guide"
-card_text "Run ${BOLD}ovira${RST} any time for the interactive menu (status, password, ssl, logs, backup)."
+card_text "Run ${BOLD}xprotocol${RST} any time for the interactive menu (status, password, ssl, logs, backup)."
 card_text "Turn on 2FA under Settings ${G_FLOW} My account."
 card_end

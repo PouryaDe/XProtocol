@@ -1,5 +1,5 @@
 {
-  "name": "ovira-panel",
+  "name": "xprotocol-panel",
   "version": "1.0.4",
   "private": true,
   "description": "Self-hosted multi-protocol VPN management panel with multi-node, outbound routing, resellers, and subscription pages",

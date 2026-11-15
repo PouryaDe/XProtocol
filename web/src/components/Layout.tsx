@@ -180,13 +180,13 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
                     onNavigate(item.key);
                     setMobileOpen(false);
                   }}
-                  className={`ovira-nav-item flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium ${
+                  className={`xp-nav-item flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium ${
                     isActive
-                      ? 'ovira-nav-active text-(--text-primary) font-semibold'
+                      ? 'xp-nav-active text-(--text-primary) font-semibold'
                       : 'text-(--text-secondary) hover:bg-(--bg-hover)/60 hover:text-(--text-primary)'
                   }`}
                 >
-                  {isActive && <span className="ovira-led" />}
+                  {isActive && <span className="xp-led" />}
                   <span className={isActive ? 'text-(--accent)' : ''}>{item.icon}</span>
                   <span>{item.label}</span>
                 </button>
@@ -280,7 +280,7 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
     <div className="flex min-h-screen">
       {/* Desktop Floating Glassmorphic Sidebar */}
       <aside className="hidden w-64 shrink-0 p-3.5 lg:block">
-        <div className="ovira-sidebar sticky top-3.5 h-[calc(100dvh-1.75rem)] overflow-y-auto">
+        <div className="xp-sidebar sticky top-3.5 h-[calc(100dvh-1.75rem)] overflow-y-auto">
           {navBody}
         </div>
       </aside>
@@ -288,8 +288,8 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
       {/* Mobile Drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-40 flex lg:hidden">
-          <div className="ovira-backdrop fixed inset-0" onClick={() => setMobileOpen(false)} />
-          <aside className="ovira-sidebar relative z-50 m-3 w-64 rounded-2xl shadow-xl">{navBody}</aside>
+          <div className="xp-backdrop fixed inset-0" onClick={() => setMobileOpen(false)} />
+          <aside className="xp-sidebar relative z-50 m-3 w-64 rounded-2xl shadow-xl">{navBody}</aside>
         </div>
       )}
 
@@ -317,7 +317,7 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
           </div>
         )}
 
-        <main key={active} className="ovira-stagger mx-auto w-full max-w-7xl flex-1 p-5 sm:p-6">
+        <main key={active} className="xp-stagger mx-auto w-full max-w-7xl flex-1 p-5 sm:p-6">
           {children}
         </main>
       </div>

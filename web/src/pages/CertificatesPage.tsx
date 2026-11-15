@@ -126,7 +126,7 @@ export function CertificatesPage() {
           </Select>
           <Select label="Type" value={certType} onChange={(e) => setCertType(e.target.value as 'letsencrypt' | 'ca')}>
             <option value="letsencrypt">Let's Encrypt</option>
-            <option value="ca">Ovira Internal CA</option>
+            <option value="ca">XProtocol Internal CA</option>
           </Select>
           <Input
             label="Domain or leave empty for node IPv4"

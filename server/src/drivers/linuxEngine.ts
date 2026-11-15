@@ -104,7 +104,7 @@ export async function syncOpenConnectPasswd(inbound: InboundRow, clients: { name
 
 export async function syncL2tpSecrets(clients: { name: string; vpnPassword: string }[]): Promise<void> {
   if (process.platform !== 'linux') return;
-  const lines = ['# Managed by Ovira Open-Core', ...clients.map((c) => `"${c.name}" * "${c.vpnPassword}" *`)];
+  const lines = ['# Managed by XProtocol Open-Core', ...clients.map((c) => `"${c.name}" * "${c.vpnPassword}" *`)];
   fs.writeFileSync('/etc/ppp/chap-secrets', lines.join('\n') + '\n', { mode: 0o600 });
 }
 
@@ -208,7 +208,7 @@ export async function collectLinuxLiveTunnels(
         }
       }
     } else if (ib.protocol === 'openvpn') {
-      const statusFile = `/var/run/ovira-${ib.name}.status`;
+      const statusFile = `/var/run/xprotocol-${ib.name}.status`;
       if (!fs.existsSync(statusFile)) continue;
       const raw = fs.readFileSync(statusFile, 'utf-8');
       for (const line of raw.split('\n')) {
@@ -238,10 +238,10 @@ export async function collectLinuxLiveTunnels(
 }
 
 export async function updateXrayGeoAssets(): Promise<{ ok: boolean; message: string }> {
-  if (process.env.OVIRA_SKIP_NET_FETCH === '1') {
+  if (process.env.XPROTOCOL_SKIP_NET_FETCH === '1') {
     return { ok: true, message: 'Skipped external download in test mode' };
   }
-  const dir = process.platform === 'linux' ? '/usr/local/lib/ovira/xray' : path.join(os.tmpdir(), 'ovira-xray');
+  const dir = process.platform === 'linux' ? '/usr/local/lib/xprotocol/xray' : path.join(os.tmpdir(), 'xprotocol-xray');
   fs.mkdirSync(dir, { recursive: true });
   const files = [
     { name: 'geosite.dat', url: 'https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat' },

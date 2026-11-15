@@ -102,7 +102,7 @@ export function generateClientProfile(p: ClientProfileParams): {
     lines.push(
       `<ca>`,
       `-----BEGIN CERTIFICATE-----`,
-      `# Server CA managed by Ovira Open-Core`,
+      `# Server CA managed by XProtocol Open-Core`,
       `-----END CERTIFICATE-----`,
       `</ca>`,
     );

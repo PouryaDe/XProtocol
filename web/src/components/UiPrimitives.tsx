@@ -7,7 +7,7 @@ export function Card({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <div className={`ovira-card ${className}`}>{children}</div>;
+  return <div className={`xp-card ${className}`}>{children}</div>;
 }
 
 export function Button({
@@ -22,7 +22,7 @@ export function Button({
 }) {
   const sizes = size === 'sm' ? 'h-8 px-2.5 text-xs' : 'h-9 px-3.5 text-sm';
   const variants = {
-    primary: 'ovira-btn-primary',
+    primary: 'xp-btn-primary',
     secondary:
       'border border-(--border-strong) bg-gradient-to-b from-(--bg-elevated) to-(--bg-surface) text-(--text-primary) shadow-[inset_0_1px_0_var(--edge)] hover:bg-(--bg-hover)',
     danger: 'border border-red-500/30 bg-red-500/15 text-red-400 hover:bg-red-500/25',
@@ -32,7 +32,7 @@ export function Button({
   return (
     <button
       {...rest}
-      className={`ovira-btn inline-flex items-center justify-center gap-1.5 font-medium disabled:opacity-50 disabled:cursor-not-allowed ${sizes} ${variants} ${className}`}
+      className={`xp-btn inline-flex items-center justify-center gap-1.5 font-medium disabled:opacity-50 disabled:cursor-not-allowed ${sizes} ${variants} ${className}`}
     >
       {children}
     </button>
@@ -91,7 +91,7 @@ export function StatusPill({
   };
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${styles[tone]}`}>
-      <span className={`h-1.5 w-1.5 rounded-full bg-current ${tone === 'lime' || tone === 'green' ? 'ovira-status-live' : ''}`} />
+      <span className={`h-1.5 w-1.5 rounded-full bg-current ${tone === 'lime' || tone === 'green' ? 'xp-status-live' : ''}`} />
       {label}
     </span>
   );

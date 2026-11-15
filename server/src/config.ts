@@ -15,7 +15,7 @@ export interface RuntimeConfig {
   machineId: string;
 }
 
-const DATA_DIR = path.resolve(process.env.OVIRA_DATA_DIR || path.join(process.cwd(), 'data'));
+const DATA_DIR = path.resolve(process.env.XPROTOCOL_DATA_DIR || path.join(process.cwd(), 'data'));
 const CONFIG_PATH = path.join(DATA_DIR, 'config.json');
 
 function formatMachineId(): string {
@@ -39,21 +39,21 @@ export function getDataDir(): string {
 }
 
 export function getDbPath(): string {
-  return path.join(getDataDir(), 'ovira.db');
+  return path.join(getDataDir(), 'xprotocol.db');
 }
 
 export function loadRuntimeConfig(): RuntimeConfig {
   getDataDir();
   const defaults: RuntimeConfig = {
-    port: Number(process.env.OVIRA_PORT || 2053),
-    bindAddress: process.env.OVIRA_BIND || '',
-    subPort: process.env.OVIRA_SUB_PORT ? Number(process.env.OVIRA_SUB_PORT) : null,
-    secretPath: normalizeSecretPath(process.env.OVIRA_SECRET_PATH || ''),
-    subPath: normalizeSubPath(process.env.OVIRA_SUB_PATH || 'sub'),
+    port: Number(process.env.XPROTOCOL_PORT || 2053),
+    bindAddress: process.env.XPROTOCOL_BIND || '',
+    subPort: process.env.XPROTOCOL_SUB_PORT ? Number(process.env.XPROTOCOL_SUB_PORT) : null,
+    secretPath: normalizeSecretPath(process.env.XPROTOCOL_SECRET_PATH || ''),
+    subPath: normalizeSubPath(process.env.XPROTOCOL_SUB_PATH || 'sub'),
     tlsCertFile: '',
     tlsKeyFile: '',
     trustProxy: false,
-    driverMode: (process.env.OVIRA_DRIVER as RuntimeConfig['driverMode']) || 'auto',
+    driverMode: (process.env.XPROTOCOL_DRIVER as RuntimeConfig['driverMode']) || 'auto',
     machineId: formatMachineId(),
   };
 

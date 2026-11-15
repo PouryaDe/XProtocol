@@ -44,7 +44,7 @@ function PanelRoot() {
       const root = document.documentElement;
       root.style.setProperty('--cx', `${e.clientX}px`);
       root.style.setProperty('--cy', `${e.clientY}px`);
-      const card = (e.target as HTMLElement | null)?.closest('.ovira-card') as HTMLElement | null;
+      const card = (e.target as HTMLElement | null)?.closest('.xp-card') as HTMLElement | null;
       if (card) {
         const rect = card.getBoundingClientRect();
         card.style.setProperty('--mx', `${e.clientX - rect.left}px`);

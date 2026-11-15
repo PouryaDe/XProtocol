@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ovira Open-Core — Remote Ubuntu 22.04+ VPN Node Provisioner
+# XProtocol Open-Core — Remote Ubuntu 22.04+ VPN Node Provisioner
 set -euo pipefail
 
 HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,8 +18,8 @@ done
 
 [[ $EUID -eq 0 ]] || { echo "Run as root: sudo bash deploy/node.sh" >&2; exit 1; }
 
-if [[ -f "$HERE/ovira-tui.sh" ]]; then
-  source "$HERE/ovira-tui.sh"
+if [[ -f "$HERE/xprotocol-tui.sh" ]]; then
+  source "$HERE/xprotocol-tui.sh"
   ui_init
   trap ui_restore_terminal EXIT
   ui_header big "Remote VPN Node Setup"
@@ -30,7 +30,7 @@ echo "  Installing WireGuard, OpenVPN, OpenConnect, strongSwan, xl2tpd..."
 apt-get update -qq
 apt-get install -y -qq wireguard wireguard-tools openvpn ocserv strongswan strongswan-pki xl2tpd iptables ufw curl >/dev/null
 
-cat >/etc/sysctl.d/99-ovira-node.conf <<'EOF'
+cat >/etc/sysctl.d/99-xprotocol-node.conf <<'EOF'
 net.ipv4.ip_forward = 1
 net.core.default_qdisc = fq
 net.ipv4.tcp_congestion_control = bbr
@@ -43,5 +43,5 @@ fi
 
 PUBLIC_IP="$(curl -fsSL --max-time 4 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')"
 echo ""
-echo "  Node '$NODE_NAME' (${PUBLIC_IP}) is provisioned for Ovira VPN engines."
+echo "  Node '$NODE_NAME' (${PUBLIC_IP}) is provisioned for XProtocol VPN engines."
 echo "  Add ${PUBLIC_IP}:${NODE_PORT} under Nodes -> Connect a node in your panel."

@@ -40,7 +40,7 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
     case 'amneziawg': {
       const baseNet = inbound.subnet.split('/')[0].split('.').slice(0, 3).join('.');
       const lines = [
-        `# Managed by Ovira Open-Core (${inbound.name})`,
+        `# Managed by XProtocol Open-Core (${inbound.name})`,
         `[Interface]`,
         `Address = ${baseNet}.1/24`,
         `ListenPort = ${inbound.port}`,
@@ -82,15 +82,15 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
       return {
         path: `/etc/openvpn/server/${inbound.name}.conf`,
         content: [
-          `# Managed by Ovira Open-Core (${inbound.name})`,
+          `# Managed by XProtocol Open-Core (${inbound.name})`,
           `port ${inbound.port}`,
           `proto ${proto}`,
           `dev tun-${inbound.name}`,
           `topology subnet`,
           `server ${netIp} 255.255.255.0`,
-          `ca /var/lib/ovira/pki/ca.crt`,
-          `cert /var/lib/ovira/pki/server.crt`,
-          `key /var/lib/ovira/pki/server.key`,
+          `ca /var/lib/xprotocol/pki/ca.crt`,
+          `cert /var/lib/xprotocol/pki/server.crt`,
+          `key /var/lib/xprotocol/pki/server.key`,
           `dh none`,
           `cipher ${cipher}`,
           `data-ciphers ${cipher}:CHACHA20-POLY1305`,
@@ -99,7 +99,7 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
           `keepalive 10 60`,
           `persist-key`,
           `persist-tun`,
-          `status /var/run/ovira-${inbound.name}.status 5`,
+          `status /var/run/xprotocol-${inbound.name}.status 5`,
           `verb 3`,
           inbound.auth_mode === 'certificate_password' ? `verify-client-cert require` : `# certificate auth`,
         ].join('\n') + '\n',
@@ -110,13 +110,13 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
       return {
         path: `/etc/ocserv/${inbound.name}.conf`,
         content: [
-          `# Managed by Ovira Open-Core (${inbound.name})`,
+          `# Managed by XProtocol Open-Core (${inbound.name})`,
           `auth = "plain[passwd=/etc/ocserv/${inbound.name}.passwd]"`,
           `tcp-port = ${inbound.port}`,
           `udp-port = ${inbound.port}`,
           `run-as-user = ocserv`,
-          `server-cert = /var/lib/ovira/certs/cert-${inbound.cert_id || 'default'}.pem`,
-          `server-key = /var/lib/ovira/certs/key-${inbound.cert_id || 'default'}.pem`,
+          `server-cert = /var/lib/xprotocol/certs/cert-${inbound.cert_id || 'default'}.pem`,
+          `server-key = /var/lib/xprotocol/certs/key-${inbound.cert_id || 'default'}.pem`,
           `ipv4-network = ${inbound.subnet}`,
           `dns = ${dns.split(',')[0].trim()}`,
           `try-mtu-discovery = true`,
@@ -130,7 +130,7 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
       return {
         path: `/etc/swanctl/conf.d/${inbound.name}.conf`,
         content: [
-          `# Managed by Ovira Open-Core (${inbound.name})`,
+          `# Managed by XProtocol Open-Core (${inbound.name})`,
           `connections {`,
           `  ${inbound.name} {`,
           `    version = 2`,
@@ -162,7 +162,7 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
       return {
         path: `/etc/xl2tpd/${inbound.name}.conf`,
         content: [
-          `# Managed by Ovira Open-Core (${inbound.name})`,
+          `# Managed by XProtocol Open-Core (${inbound.name})`,
           `[global]`,
           `port = ${inbound.port}`,
           `[lns default]`,

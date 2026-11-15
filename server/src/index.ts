@@ -33,7 +33,7 @@ function applyPendingRestore(): void {
       fs.renameSync(dbPath, backupOld);
     }
     fs.renameSync(pending, dbPath);
-    console.log('[ovira] Restored pending database backup.');
+    console.log('[xprotocol] Restored pending database backup.');
   }
 }
 
@@ -121,7 +121,7 @@ export function createApp(initialConfig: RuntimeConfig) {
     });
   } else {
     app.get('/', (_req, res) => {
-      res.json({ message: 'Ovira API running. Start Vite dev server in /web for UI.', version: '1.0.4' });
+      res.json({ message: 'XProtocol API running. Start Vite dev server in /web for UI.', version: '1.0.4' });
     });
   }
 
@@ -140,7 +140,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const host = runtimeConfig.bindAddress || '0.0.0.0';
   server.listen(runtimeConfig.port, host, () => {
     const base = `http://localhost:${runtimeConfig.port}${runtimeConfig.secretPath}/`;
-    console.log(`◆ Ovira Open-Core Panel v1.0.4`);
+    console.log(`◆ XProtocol Open-Core Panel v1.0.4`);
     console.log(`◆ Panel URL: ${base}`);
     console.log(`◆ Driver mode: ${detectDriverMode(runtimeConfig.driverMode)}`);
     if (initialPasswordGenerated) {

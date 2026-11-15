@@ -5,10 +5,10 @@ import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 
-const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ovira-test-'));
-process.env.OVIRA_DATA_DIR = tempDir;
-process.env.OVIRA_ADMIN_PASS = 'test-pass-1234';
-process.env.OVIRA_SKIP_NET_FETCH = '1';
+const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'xprotocol-test-'));
+process.env.XPROTOCOL_DATA_DIR = tempDir;
+process.env.XPROTOCOL_ADMIN_PASS = 'test-pass-1234';
+process.env.XPROTOCOL_SKIP_NET_FETCH = '1';
 
 const { loadRuntimeConfig } = await import('../src/config.ts');
 const { initDatabase, closeDb } = await import('../src/db/database.ts');

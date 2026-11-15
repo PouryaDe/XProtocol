@@ -114,7 +114,7 @@ export function requireAuth(trustProxy: () => boolean) {
 
     // 2. Check session cookie
     const cookies = parseCookies(req.headers.cookie);
-    const sid = cookies['ovira_session'];
+    const sid = cookies['xprotocol_session'];
     if (!sid) {
       res.status(401).json({ error: 'Authentication required' });
       return;

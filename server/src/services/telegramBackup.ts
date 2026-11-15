@@ -49,8 +49,8 @@ export async function sendTelegramBackupNow(botToken: string, chatId: string): P
     const fileBytes = fs.readFileSync(tmpFile);
     const form = new FormData();
     form.append('chat_id', chatId);
-    form.append('caption', `Ovira Panel Backup — ${new Date().toISOString()}`);
-    form.append('document', new Blob([fileBytes]), `ovira-backup-${new Date().toISOString().slice(0, 10)}.db`);
+    form.append('caption', `XProtocol Panel Backup — ${new Date().toISOString()}`);
+    form.append('document', new Blob([fileBytes]), `xprotocol-backup-${new Date().toISOString().slice(0, 10)}.db`);
 
     const res = await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
       method: 'POST',

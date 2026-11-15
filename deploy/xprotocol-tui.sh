@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared clean-room terminal UI library for Ovira Open-Core Ubuntu scripts
+# Shared clean-room terminal UI library for XProtocol Open-Core Ubuntu scripts
 
 UI_FD=""
 UI_ROWS=24
@@ -87,21 +87,21 @@ die()  { err "$*"; exit 1; }
 
 ui_logo() {
   local -a art=(
-    '  ___  __     __ ___  ____      _    '
-    ' / _ \ \ \   / /|_ _||  _ \    / \   '
-    '| | | | \ \ / /  | | | |_) |  / _ \  '
-    '| |_| |  \ V /   | | |  _ <  / ___ \ '
-    ' \___/    \_/   |___||_| \_\/_/   \_\'
+    '__  __ ____  ____   ___  _____ ___   ____ ___  _     '
+    '\ \/ /|  _ \|  _ \ / _ \|_   _/ _ \ / ___/ _ \| |    '
+    ' \  / | |_) | |_) | | | | | || | | | |  | | | | |    '
+    ' /  \ |  __/|  _ <| |_| | | || |_| | |__| |_| | |___ '
+    '/_/\_\|_|   |_| \_\\___/  |_| \___/ \____\___/|_____|'
   )
   local i
   for i in "${!art[@]}"; do
     printf '  %s%s%s\n' "$BOLD${LOGO_TINT[i]}" "${art[i]}" "$RST"
   done
-  printf '  %sOvira Open-Core VPN Control Panel%s  %s·  v1.0.4  ·  Ubuntu 22.04+%s\n' "$PURPLE" "$RST" "$GRAY" "$RST"
+  printf '  %sXProtocol Open-Core VPN Control Panel%s  %s·  v1.0.4  ·  Ubuntu 22.04+%s\n' "$PURPLE" "$RST" "$GRAY" "$RST"
 }
 
 ui_title_bar() {
-  local w inner title="Ovira" tag="${1:-Open-Core Panel}" pad
+  local w inner title="XProtocol" tag="${1:-Open-Core Panel}" pad
   w=$(ui_width); inner=$(( w - 2 ))
   pad=$(( inner - 4 - ${#title} - 2 - ${#tag} - 8 ))
   (( pad < 1 )) && pad=1

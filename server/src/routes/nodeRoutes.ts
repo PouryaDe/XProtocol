@@ -52,7 +52,7 @@ export function createNodeRouter(): Router {
           diskPct: Number(n.disk_pct),
           uptimeSec: Number(n.uptime_sec),
           realTrafficBytes: Number(n.real_traffic_bytes),
-          oviraVersion: String(n.ovira_version),
+          xprotocolVersion: String(n.xprotocol_version ?? n.ovira_version ?? '1.0.4'),
           openvpnVersion: String(n.openvpn_version),
           wireguardReady: Boolean(n.wireguard_ready),
           openconnectVersion: String(n.openconnect_version),

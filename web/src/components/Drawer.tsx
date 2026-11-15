@@ -33,13 +33,13 @@ export function Drawer({
 
   return (
     <div
-      className="ovira-backdrop fixed inset-0 z-50 flex justify-end"
+      className="xp-backdrop fixed inset-0 z-50 flex justify-end"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className={`ovira-sheet flex h-full w-full ${widthClass} flex-col border-s border-(--border-strong) bg-(--bg-surface)`}
+        className={`xp-sheet flex h-full w-full ${widthClass} flex-col border-s border-(--border-strong) bg-(--bg-surface)`}
       >
         <div className="flex items-start justify-between border-b border-(--border-subtle) px-6 py-4">
           <div>

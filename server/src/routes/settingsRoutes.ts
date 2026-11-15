@@ -151,7 +151,7 @@ export function createSettingsRouter(
     res.json({
       openapi: '3.0.3',
       info: {
-        title: 'Ovira Open-Core Panel API',
+        title: 'XProtocol Open-Core Panel API',
         version: '1.0.4',
         description: 'Self-hosted VPN panel API with scoped Bearer token authentication.',
       },
@@ -198,10 +198,10 @@ export function createSettingsRouter(
         accountId: req.auth!.account.id,
         username: req.auth!.account.username,
         action: 'backup.download',
-        target: 'ovira.db',
+        target: 'xprotocol.db',
         ip: req.clientIp,
       });
-      res.download(tmpBackup, `ovira-${new Date().toISOString().slice(0, 10)}.db`, () => {
+      res.download(tmpBackup, `xprotocol-${new Date().toISOString().slice(0, 10)}.db`, () => {
         fs.unlink(tmpBackup, () => undefined);
       });
     } catch (err) {

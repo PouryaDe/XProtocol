@@ -34,7 +34,7 @@ interface NodeItem {
   memPct: number;
   uptimeSec: number;
   realTrafficBytes: number;
-  oviraVersion: string;
+  xprotocolVersion: string;
   openvpnVersion: string;
   wireguardReady: boolean;
   openconnectVersion: string;
@@ -341,7 +341,7 @@ export function NodesPage() {
             </div>
 
             <div className="text-xs text-(--text-secondary)">
-              Ovira {n.oviraVersion} · OpenVPN {n.openvpnVersion} ·{' '}
+              XProtocol {n.xprotocolVersion} · OpenVPN {n.openvpnVersion} ·{' '}
               {n.wireguardReady ? 'WireGuard ready' : 'No TUN'} · OpenConnect {n.openconnectVersion}
             </div>
 
@@ -453,8 +453,8 @@ export function NodesPage() {
                 </div>
                 <div className="rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-3.5 text-xs space-y-1.5">
                   <div className="flex justify-between">
-                    <span className="text-(--text-muted)">Ovira Core</span>
-                    <span className="font-mono text-(--text-primary)">{detailNode.oviraVersion}</span>
+                    <span className="text-(--text-muted)">XProtocol Core</span>
+                    <span className="font-mono text-(--text-primary)">{detailNode.xprotocolVersion}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-(--text-muted)">{t.nodes.realTraffic}</span>

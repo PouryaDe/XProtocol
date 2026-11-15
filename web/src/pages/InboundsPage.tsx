@@ -218,7 +218,7 @@ export function InboundsPage() {
     } else if (protocol === 'ikev2') {
       settings.fqdn = ikeFqdn.trim();
     } else if (protocol === 'l2tp') {
-      settings.psk = l2tpPsk.trim() || 'ovira-ipsec-psk';
+      settings.psk = l2tpPsk.trim() || 'xprotocol-ipsec-psk';
     }
 
     try {

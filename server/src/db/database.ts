@@ -67,7 +67,7 @@ export interface SubscriptionPageSettings {
 }
 
 export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
-  brandName: 'Ovira',
+  brandName: 'XProtocol',
   publicAddress: '127.0.0.1',
   subscriptionLinkAddress: '',
   supportTelegram: '',
@@ -84,7 +84,7 @@ export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
 export const DEFAULT_SUB_SETTINGS: SubscriptionPageSettings = {
   look: 'night_shift',
   accentColor: 'theme',
-  shopName: 'Ovira VPN',
+  shopName: 'XProtocol VPN',
   supportLink: '',
   supportButtonText: '',
   channelLink: '',
@@ -240,7 +240,7 @@ export function initDatabase(): { initialPasswordGenerated?: string } {
       disk_pct REAL NOT NULL DEFAULT 0,
       uptime_sec INTEGER NOT NULL DEFAULT 0,
       real_traffic_bytes INTEGER NOT NULL DEFAULT 0,
-      ovira_version TEXT NOT NULL DEFAULT '1.0.4',
+      xprotocol_version TEXT NOT NULL DEFAULT '1.0.4',
       openvpn_version TEXT NOT NULL DEFAULT '2.6.9',
       wireguard_ready INTEGER NOT NULL DEFAULT 1,
       openconnect_version TEXT NOT NULL DEFAULT '1.2.2',
@@ -454,7 +454,7 @@ export function initDatabase(): { initialPasswordGenerated?: string } {
   let initialPasswordGenerated: string | undefined;
   const accountCount = (db.prepare('SELECT COUNT(*) as cnt FROM accounts').get() as { cnt: number }).cnt;
   if (accountCount === 0) {
-    const defaultPass = process.env.OVIRA_ADMIN_PASS || 'admin123456';
+    const defaultPass = process.env.XPROTOCOL_ADMIN_PASS || 'admin123456';
     initialPasswordGenerated = defaultPass;
     db.prepare(
       'INSERT INTO accounts (username, password_hash, role_id, active, note, created_at) VALUES (?, ?, ?, 1, ?, ?)',
@@ -469,15 +469,15 @@ export function initDatabase(): { initialPasswordGenerated?: string } {
        VALUES (1, 'This server', '127.0.0.1', 62060, ?, 1.0, 1, 'connected', ?, 14.2, 32.8, 24.5, 432100)`,
     ).run(crypto.randomBytes(16).toString('hex'), now);
 
-    // Seed internal Ovira CA certificate
+    // Seed internal XProtocol CA certificate
     const caExpiry = new Date(Date.now() + 3650 * 86400_000).toISOString();
     db.prepare(
       `INSERT INTO certificates (node_id, name, domain_or_ip, cert_type, status, expires_at, auto_renew, created_at)
-       VALUES (1, 'Ovira Internal CA', 'local-ca', 'ca', 'valid', ?, 1, ?)`,
+       VALUES (1, 'XProtocol Internal CA', 'local-ca', 'ca', 'valid', ?, 1, ?)`,
     ).run(caExpiry, now);
 
-    // Seed starter inbounds, group, traffic history, and sample clients unless OVIRA_NO_DEMO=1
-    if (process.env.OVIRA_NO_DEMO !== '1') {
+    // Seed starter inbounds, group, traffic history, and sample clients unless XPROTOCOL_NO_DEMO=1
+    if (process.env.XPROTOCOL_NO_DEMO !== '1') {
       const wgKeys = generateWireGuardKeypair();
       const awgKeys = generateWireGuardKeypair();
       const insertInbound = db.prepare(

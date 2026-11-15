@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# Ovira Open-Core Management CLI (/usr/local/bin/ovira)
+# XProtocol Open-Core Management CLI (/usr/local/bin/xprotocol)
 set -euo pipefail
 
-SERVICE="ovira-open.service"
-DATA_DIR="${OVIRA_DATA_DIR:-/var/lib/ovira-open}"
-INSTALL_DIR="${OVIRA_INSTALL_DIR:-/opt/ovira-open}"
+SERVICE="xprotocol.service"
+DATA_DIR="${XPROTOCOL_DATA_DIR:-/var/lib/xprotocol}"
+INSTALL_DIR="${XPROTOCOL_INSTALL_DIR:-/opt/xprotocol}"
 
-# shellcheck source=/opt/ovira-open/deploy/ovira-tui.sh
-if [[ -f "$INSTALL_DIR/deploy/ovira-tui.sh" ]]; then
-  source "$INSTALL_DIR/deploy/ovira-tui.sh"
-elif [[ -f "$(dirname "${BASH_SOURCE[0]}")/ovira-tui.sh" ]]; then
-  source "$(dirname "${BASH_SOURCE[0]}")/ovira-tui.sh"
+# shellcheck source=/opt/xprotocol/deploy/xprotocol-tui.sh
+if [[ -f "$INSTALL_DIR/deploy/xprotocol-tui.sh" ]]; then
+  source "$INSTALL_DIR/deploy/xprotocol-tui.sh"
+elif [[ -f "$(dirname "${BASH_SOURCE[0]}")/xprotocol-tui.sh" ]]; then
+  source "$(dirname "${BASH_SOURCE[0]}")/xprotocol-tui.sh"
 fi
 ui_init
 trap ui_restore_terminal EXIT
 
-require_root() { [[ $EUID -eq 0 ]] || die "Run as root: sudo ovira $*"; }
+require_root() { [[ $EUID -eq 0 ]] || die "Run as root: sudo xprotocol $*"; }
 
 cmd_status() {
   ui_header "" "Service Status"
@@ -41,15 +41,15 @@ cmd_password() {
     echo ""
   fi
   (( ${#new_pass} >= 8 )) || die "Password must be at least 8 characters."
-  OVIRA_TARGET_USER="$user" OVIRA_NEW_PASS="$new_pass" OVIRA_DATA_DIR="$DATA_DIR" node --input-type=module -e '
+  XPROTOCOL_TARGET_USER="$user" XPROTOCOL_NEW_PASS="$new_pass" XPROTOCOL_DATA_DIR="$DATA_DIR" node --input-type=module -e '
     import crypto from "node:crypto";
     import path from "node:path";
     import { DatabaseSync } from "node:sqlite";
-    const db = new DatabaseSync(path.join(process.env.OVIRA_DATA_DIR, "ovira.db"));
+    const db = new DatabaseSync(path.join(process.env.XPROTOCOL_DATA_DIR, "xprotocol.db"));
     const salt = crypto.randomBytes(16).toString("hex");
-    const hash = crypto.scryptSync(process.env.OVIRA_NEW_PASS, salt, 64).toString("hex");
+    const hash = crypto.scryptSync(process.env.XPROTOCOL_NEW_PASS, salt, 64).toString("hex");
     const stored = `scrypt$${salt}$${hash}`;
-    const info = db.prepare("UPDATE accounts SET password_hash = ? WHERE username = ? OR is_owner = 1").run(stored, process.env.OVIRA_TARGET_USER);
+    const info = db.prepare("UPDATE accounts SET password_hash = ? WHERE username = ? OR is_owner = 1").run(stored, process.env.XPROTOCOL_TARGET_USER);
     db.close();
     console.log("  Updated account rows:", info.changes);
   '
@@ -67,9 +67,9 @@ cmd_ssl() {
   fi
   case "$sub" in
     off)
-      OVIRA_DATA_DIR="$DATA_DIR" node --input-type=module -e '
+      XPROTOCOL_DATA_DIR="$DATA_DIR" node --input-type=module -e '
         import fs from "node:fs"; import path from "node:path";
-        const p = path.join(process.env.OVIRA_DATA_DIR, "config.json");
+        const p = path.join(process.env.XPROTOCOL_DATA_DIR, "config.json");
         const cfg = JSON.parse(fs.readFileSync(p, "utf-8"));
         cfg.tlsCertFile = ""; cfg.tlsKeyFile = "";
         fs.writeFileSync(p, JSON.stringify(cfg, null, 2));
@@ -81,19 +81,19 @@ cmd_ssl() {
       if [[ -z "$domain" ]]; then ask domain "Domain pointing to this server (e.g. panel.example.com)" ""; fi
       [[ -n "$domain" ]] || die "Domain is required."
       certbot certonly --standalone -d "$domain" --non-interactive --agree-tos --register-unsafely-without-email
-      OVIRA_CERT="/etc/letsencrypt/live/${domain}/fullchain.pem"
-      OVIRA_KEY="/etc/letsencrypt/live/${domain}/privkey.pem"
-      OVIRA_DATA_DIR="$DATA_DIR" node --input-type=module -e '
+      XPROTOCOL_CERT="/etc/letsencrypt/live/${domain}/fullchain.pem"
+      XPROTOCOL_KEY="/etc/letsencrypt/live/${domain}/privkey.pem"
+      XPROTOCOL_DATA_DIR="$DATA_DIR" node --input-type=module -e '
         import fs from "node:fs"; import path from "node:path";
-        const p = path.join(process.env.OVIRA_DATA_DIR, "config.json");
+        const p = path.join(process.env.XPROTOCOL_DATA_DIR, "config.json");
         const cfg = JSON.parse(fs.readFileSync(p, "utf-8"));
-        cfg.tlsCertFile = process.env.OVIRA_CERT; cfg.tlsKeyFile = process.env.OVIRA_KEY;
+        cfg.tlsCertFile = process.env.XPROTOCOL_CERT; cfg.tlsKeyFile = process.env.XPROTOCOL_KEY;
         fs.writeFileSync(p, JSON.stringify(cfg, null, 2));
       '
       systemctl restart "$SERVICE"
       ok "HTTPS enabled for $domain."
       ;;
-    *) echo "Usage: ovira ssl [domain <host> | off]" ;;
+    *) echo "Usage: xprotocol ssl [domain <host> | off]" ;;
   esac
 }
 
@@ -105,12 +105,12 @@ cmd_ocserv() {
 
 cmd_backup() {
   require_root "$@"
-  local out="${1:-/root/ovira-backup-$(date +%Y%m%d-%H%M%S).db}"
-  OVIRA_DATA_DIR="$DATA_DIR" OVIRA_BACKUP_OUT="$out" node --input-type=module -e '
+  local out="${1:-/root/xprotocol-backup-$(date +%Y%m%d-%H%M%S).db}"
+  XPROTOCOL_DATA_DIR="$DATA_DIR" XPROTOCOL_BACKUP_OUT="$out" node --input-type=module -e '
     import path from "node:path";
     import { DatabaseSync } from "node:sqlite";
-    const db = new DatabaseSync(path.join(process.env.OVIRA_DATA_DIR, "ovira.db"));
-    const safe = process.env.OVIRA_BACKUP_OUT.replace(/'\''/g, '\'''\''\'');
+    const db = new DatabaseSync(path.join(process.env.XPROTOCOL_DATA_DIR, "xprotocol.db"));
+    const safe = process.env.XPROTOCOL_BACKUP_OUT.replace(/'\''/g, '\'''\''\'');
     db.exec(`VACUUM INTO '\''${safe}'\''`);
     db.close();
   '
@@ -137,11 +137,11 @@ cmd_uninstall() {
     fi
   fi
   systemctl disable --now "$SERVICE" >/dev/null 2>&1 || true
-  rm -f "/etc/systemd/system/$SERVICE" /usr/local/bin/ovira
+  rm -f "/etc/systemd/system/$SERVICE" /usr/local/bin/xprotocol
   systemctl daemon-reload
   rm -rf "$INSTALL_DIR"
   (( purge )) && rm -rf "$DATA_DIR"
-  ok "Ovira panel removed."
+  ok "XProtocol panel removed."
 }
 
 show_menu() {
@@ -159,7 +159,7 @@ show_menu() {
       "View live logs (Ctrl+C exits logs)" \
       "Restart panel service" \
       "Stop panel service" \
-      "Uninstall Ovira" \
+      "Uninstall XProtocol" \
       "Exit" || break
 
     MENU_ACTIVE=0
@@ -193,7 +193,7 @@ case "${1:-}" in
   uninstall) shift; cmd_uninstall "$@" ;;
   "") show_menu ;;
   *)
-    echo "Usage: ovira {status|password|ssl|ocserv|backup|logs [-f]|start|stop|restart|uninstall [--purge]}"
+    echo "Usage: xprotocol {status|password|ssl|ocserv|backup|logs [-f]|start|stop|restart|uninstall [--purge]}"
     exit 1
     ;;
 esac

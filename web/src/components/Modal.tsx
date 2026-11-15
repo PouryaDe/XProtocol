@@ -24,13 +24,13 @@ export function Modal({ open, onClose, title, subtitle, maxWidth = 'max-w-xl', c
 
   return (
     <div
-      className="ovira-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="xp-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className={`ovira-dialog w-full ${maxWidth} max-h-[90vh] overflow-hidden border border-(--border-strong) bg-(--bg-surface) flex flex-col`}
+        className={`xp-dialog w-full ${maxWidth} max-h-[90vh] overflow-hidden border border-(--border-strong) bg-(--bg-surface) flex flex-col`}
       >
         <div className="flex items-start justify-between border-b border-(--border-subtle) px-5 py-4">
           <div>

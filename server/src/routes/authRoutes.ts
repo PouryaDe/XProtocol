@@ -91,7 +91,7 @@ export function createAuthRouter(
 
     recordAudit({ accountId: row.id, username: row.username, action: 'login', target: row.username, ip });
 
-    res.cookie('ovira_session', sessionId, {
+    res.cookie('xprotocol_session', sessionId, {
       httpOnly: true,
       sameSite: 'lax',
       path: '/',
@@ -113,7 +113,7 @@ export function createAuthRouter(
     if (req.auth?.sessionId) {
       getDb().prepare('DELETE FROM sessions WHERE id = ?').run(req.auth.sessionId);
     }
-    res.clearCookie('ovira_session', { path: '/' });
+    res.clearCookie('xprotocol_session', { path: '/' });
     res.json({ ok: true });
   });
 
@@ -180,7 +180,7 @@ export function createAuthRouter(
 
   router.post('/me/2fa/setup', authMiddleware, (req: AuthedRequest, res) => {
     const secret = generateTotpSecret();
-    const uri = buildTotpUri(req.auth!.account.username, 'Ovira', secret);
+    const uri = buildTotpUri(req.auth!.account.username, 'XProtocol', secret);
     res.json({ secret, uri });
   });
 
