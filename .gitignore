@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+server/dist/
+web/dist/
+
+# Runtime SQLite databases & secrets
+server/data/
+data/
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*
+
+# Logs & OS artifacts
+*.log
+.DS_Store
+Thumbs.db
+
+# Graphify ephemeral caches (keep graph.json, GRAPH_REPORT.md, graph.html)
+graphify-out/.graphify_python
+graphify-out/.graphify_root
+graphify-out/.graphify_labels.json
+graphify-out/.graphify_detect.json
+graphify-out/.graphify_extract.json
+graphify-out/.graphify_ast.json
+graphify-out/.graphify_semantic.json
+graphify-out/.graphify_analysis.json
+graphify-out/.needs_update
