@@ -15,6 +15,7 @@ const KNOWN_SEGMENTS = [
   'groups',
   'accounts',
   'admins',
+  'updates',
   'settings',
   'servers',
 ];

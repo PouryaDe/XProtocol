@@ -91,6 +91,12 @@ function PanelRoot() {
       .finally(() => setChecking(false));
   }, [Boolean(subMatch), setAccent, setBrandName, setSupportTelegram]);
 
+  useEffect(() => {
+    if (!checking && account && !subMatch && route.unknown) {
+      navigate('/', { replace: true });
+    }
+  }, [checking, Boolean(account), Boolean(subMatch), route.unknown, navigate]);
+
   if (subMatch) {
     return (
       <>
@@ -130,12 +136,6 @@ function PanelRoot() {
     setCsrfToken(null);
     setAccount(null);
   };
-
-  useEffect(() => {
-    if (!subMatch && route.unknown) {
-      navigate('/', { replace: true });
-    }
-  }, [Boolean(subMatch), route.unknown, navigate]);
 
   return (
     <>
