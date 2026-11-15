@@ -191,6 +191,24 @@ test('Full panel API workflow: auth, 2FA, clients, subscription, RBAC, routing',
     assert.equal(tgAfter.telegram.enabled, true);
     assert.equal(tgAfter.telegram.chatId, '-100123456');
     assert.equal(tgAfter.telegram.intervalHours, 12);
+
+    // 13. Static assets under /sub/assets/* must never return HTML fallback
+    const missingAsset = await fetch(`${baseUrl}/sub/assets/does-not-exist.js`);
+    if (missingAsset.status === 200) {
+      // web/dist absent fallback returns JSON root only when webDist does not exist
+      const ct = missingAsset.headers.get('content-type') || '';
+      assert.ok(!ct.includes('text/html'), 'Missing asset under /sub/assets must not serve text/html');
+    } else {
+      assert.equal(missingAsset.status, 404);
+    }
+    const subHtmlRes = await fetch(`${baseUrl}/sub/test-token`);
+    const subHtmlText = await subHtmlRes.text();
+    const jsMatch = subHtmlText.match(/assets\/(index-[^"']+\.js)/);
+    if (jsMatch) {
+      const subAssetRes = await fetch(`${baseUrl}/sub/assets/${jsMatch[1]}`);
+      assert.equal(subAssetRes.status, 200);
+      assert.match(subAssetRes.headers.get('content-type') || '', /javascript/);
+    }
   } finally {
     server.close();
   }

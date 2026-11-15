@@ -115,8 +115,30 @@ export function createApp(initialConfig: RuntimeConfig) {
   // Serve built frontend when available
   const webDist = path.resolve(__dirname, '../../web/dist');
   if (fs.existsSync(webDist)) {
+    // Allow relative ./assets/* requests from nested paths like /sub/:token or /:secretPath/
+    app.use((req, _res, next) => {
+      const m = req.url.match(/(\/assets\/[^?#]+(?:\?[^#]*)?)$/);
+      if (m && !req.url.startsWith('/api/')) {
+        req.url = m[1];
+      }
+      next();
+    });
     app.use(express.static(webDist));
-    app.get('*', (_req, res) => {
+    app.get('*', (req, res) => {
+      if (req.path.startsWith('/assets/')) {
+        res.status(404).end();
+        return;
+      }
+      const subPrefix = `/${runtimeConfig.subPath}`;
+      if (req.path === subPrefix || req.path.startsWith(`${subPrefix}/`)) {
+        const html = fs.readFileSync(path.join(webDist, 'index.html'), 'utf-8');
+        const injected = html.replace(
+          '</head>',
+          `<script>window.__XP_SUB_PATH__=${JSON.stringify(runtimeConfig.subPath)};</script></head>`,
+        );
+        res.type('html').send(injected);
+        return;
+      }
       res.sendFile(path.join(webDist, 'index.html'));
     });
   } else {

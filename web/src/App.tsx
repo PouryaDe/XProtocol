@@ -23,11 +23,12 @@ function PanelRoot() {
   const [nav, setNav] = useState<NavKey>('overview');
   const [newClientSignal, setNewClientSignal] = useState(0);
 
-  // Detect public subscription route: /sub/:token
-  const subMatch = window.location.pathname.match(/\/sub\/([^/]+)\/?$/);
-  if (subMatch) {
-    return <SubscriptionPage token={subMatch[1]} />;
-  }
+  // Detect public subscription route: /<subPath>/:token
+  const rawSubPath = ((window as unknown as { __XP_SUB_PATH__?: string }).__XP_SUB_PATH__ || 'sub').replace(
+    /[.*+?^${}()|[\]\\]/g,
+    '\\$&',
+  );
+  const subMatch = window.location.pathname.match(new RegExp(`/(?:${rawSubPath}|sub)/([^/]+)/?$`));
 
   const loadGeneralBranding = (isOwner: boolean) => {
     if (!isOwner) return;
@@ -41,6 +42,7 @@ function PanelRoot() {
   };
 
   useEffect(() => {
+    if (subMatch) return;
     apiFetch<{ csrfToken: string | null; account: CurrentAccount }>('/auth/me')
       .then((res) => {
         setCsrfToken(res.csrfToken);
@@ -49,7 +51,16 @@ function PanelRoot() {
       })
       .catch(() => setAccount(null))
       .finally(() => setChecking(false));
-  }, [setAccent, setBrandName, setSupportTelegram]);
+  }, [Boolean(subMatch), setAccent, setBrandName, setSupportTelegram]);
+
+  if (subMatch) {
+    return (
+      <>
+        <Ambient />
+        <SubscriptionPage token={subMatch[1]} />
+      </>
+    );
+  }
 
   if (checking) {
     return (
