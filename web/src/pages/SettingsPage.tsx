@@ -1,896 +1,1340 @@
 import React, { useEffect, useState } from 'react';
-import { Copy, Download, ExternalLink, Key, Plus, Search, Send, ShieldCheck, Trash2, Upload } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  Copy,
+  Download,
+  ExternalLink,
+  Key,
+  Layers,
+  Plus,
+  Search,
+  Send,
+  ShieldCheck,
+  Trash2,
+  Upload,
+} from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { formatDateTime } from '../lib/format';
+import { toPanelUrl } from '../lib/router';
 import { ACCENT_PALETTES, useUi, type AccentName } from '../i18n/context';
-import { Button, Card, Input, Select, StatusPill } from '../components/UiPrimitives';
+import { Button, EmptySonar, Input, PageHead, Select, StatusPill, Tabs, type TabItem } from '../components/UiPrimitives';
 import { QrCode } from '../components/QrCode';
 import type { CurrentAccount } from '../components/Layout';
 
-type SettingsTab = 'general' | 'subscription' | 'panelAccess' | 'api' | 'myAccount' | 'backup' | 'audit';
+type SettingsTab = 'general' | 'subscription' | 'panelAccess' | 'myAccount' | 'api' | 'backup' | 'audit';
+type SubBuilderTab = 'look' | 'shop' | 'proto';
 
 const ACCENTS: AccentName[] = ['lime', 'cyan', 'mint', 'amber', 'coral', 'rose', 'violet', 'sky'];
+const SUB_SWATCHES = ['#34d399', '#22d3ee', '#c4f82a', '#fbbf24', '#fb7185', '#a78bfa', '#38bdf8'];
+
 const LOOKS = [
-    { id: 'night_shift', mockClass: 'tc-night', name: 'Night shift', desc: 'Dark control room with glowing lamps' },
-    { id: 'aurora', mockClass: 'tc-aurora', name: 'Aurora', desc: 'Soft colour glow & frosted-glass cards' },
-    { id: 'pop', mockClass: 'tc-pop', name: 'Pop', desc: 'Playful cards with bold outlines' },
-    { id: 'ticket', mockClass: 'tc-ticket', name: 'Ticket', desc: 'Clean paper boarding pass' },
-    { id: 'orbit', mockClass: 'tc-orbit', name: 'Orbit', desc: 'Deep space with glowing accent ring' },
-    { id: 'mono', mockClass: 'tc-mono', name: 'Mono', desc: 'Quiet editorial layout with crisp typography' },
+  { id: 'night_shift', mockClass: 'tc-night', defaultHex: '#34d399', name: 'Night shift', faName: 'شیفت شب', desc: 'Dark control room with glowing lamps', faDesc: 'حالت تیره با نشانگرهای نئونی' },
+  { id: 'aurora', mockClass: 'tc-aurora', defaultHex: '#6366f1', name: 'Aurora', faName: 'شفق', desc: 'Soft colour glow & frosted-glass cards', faDesc: 'گرادیان نرم و کارت‌های شیشه‌ای' },
+  { id: 'pop', mockClass: 'tc-pop', defaultHex: '#ec4899', name: 'Pop', faName: 'پاپ', desc: 'Playful cards with bold outlines', faDesc: 'کارت‌های شاد با حاشیه ضخیم' },
+  { id: 'ticket', mockClass: 'tc-ticket', defaultHex: '#0ea5e9', name: 'Ticket', faName: 'بلیط', desc: 'Clean paper boarding pass', faDesc: 'کارت کاغذی تمیز و خوانا' },
+  { id: 'orbit', mockClass: 'tc-orbit', defaultHex: '#818cf8', name: 'Orbit', faName: 'مدار', desc: 'Deep space with glowing accent ring', faDesc: 'فضای عمیق با حلقه درخشان' },
+  { id: 'mono', mockClass: 'tc-mono', defaultHex: '#111110', name: 'Mono', faName: 'مونو', desc: 'Quiet editorial layout with crisp typography', faDesc: 'چیدمان مینیمال و تایپوگرافی کلاسیک' },
 ] as const;
 
 export function SettingsPage({ account }: { account: CurrentAccount }) {
-    const { t, lang, setAccent, setBrandName, setSupportTelegram } = useUi();
-    const [tab, setTab] = useState<SettingsTab>(account.isOwner ? 'general' : 'myAccount');
-    const [notice, setNotice] = useState('');
+  const { t, lang, accent, setAccent, setBrandName, setSupportTelegram } = useUi();
+  const isFa = lang === 'fa';
+  const [tab, setTab] = useState<SettingsTab>(account.isOwner ? 'general' : 'myAccount');
+  const [subTab, setSubTab] = useState<SubBuilderTab>('look');
+  const [openProto, setOpenProto] = useState<string | null>(null);
+  const [notice, setNotice] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [copiedKey, setCopiedKey] = useState('');
 
-    // General
-    const [general, setGeneral] = useState({
-        brandName: 'XProtocol',
-        publicAddress: '127.0.0.1',
-        subscriptionLinkAddress: '',
-        supportTelegram: '',
-        defaultSubLanguage: 'en',
-        panelColor: 'mint' as AccentName,
-        warnExpiresWithinDays: 5,
-        warnTrafficPercent: 85,
-        inactivityTimeoutHours: 72,
+  // General
+  const [general, setGeneral] = useState({
+    brandName: 'XProtocol',
+    publicAddress: '127.0.0.1',
+    subscriptionLinkAddress: '',
+    supportTelegram: '',
+    defaultSubLanguage: 'en',
+    panelColor: 'mint' as AccentName,
+    warnExpiresWithinDays: 5,
+    warnTrafficPercent: 85,
+    inactivityTimeoutHours: 72,
+  });
+  const [sysInfo, setSysInfo] = useState({ version: '1.0.4', platform: '', machineId: '' });
+
+  // Telegram Backup
+  const [tgBackup, setTgBackup] = useState({
+    enabled: false,
+    botToken: '',
+    chatId: '',
+    intervalHours: 24,
+    proxyUrl: '',
+    lastSentAt: null as string | null,
+  });
+  const [hasTgToken, setHasTgToken] = useState(false);
+  const [foundChats, setFoundChats] = useState<{ chatId: string; title: string }[]>([]);
+  const [tgBusy, setTgBusy] = useState(false);
+
+  // Subscription page settings
+  const [subSettings, setSubSettings] = useState<{
+    look: string;
+    accentColor: string;
+    shopName: string;
+    supportLink: string;
+    supportButtonText: string;
+    channelLink: string;
+    protocols: { id: string; shown: boolean; tabName: string; guideNote: string; useRecommendedApps: boolean }[];
+  } | null>(null);
+  const [previewToken, setPreviewToken] = useState<string | null>(null);
+
+  // Panel access
+  const [panelAccess, setPanelAccess] = useState({
+    port: 2053,
+    bindAddress: '',
+    subPort: '' as string | number,
+    secretPath: '',
+    subPath: 'sub',
+    tlsCertFile: '',
+    tlsKeyFile: '',
+    trustProxy: false,
+  });
+
+  // API Tokens
+  const [tokens, setTokens] = useState<{ id: string; name: string; prefix: string; createdAt: string; lastUsedAt: string | null }[]>([]);
+  const [newTokenName, setNewTokenName] = useState('');
+  const [createdSecret, setCreatedSecret] = useState<string | null>(null);
+
+  // My Account (password, 2FA, sessions)
+  const [curPass, setCurPass] = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [totpEnabled, setTotpEnabled] = useState(false);
+  const [totpSetup, setTotpSetup] = useState<{ secret: string; uri: string } | null>(null);
+  const [totpCode, setTotpCode] = useState('');
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
+  const [sessions, setSessions] = useState<{ id: string; ip: string; userAgent: string; lastSeenAt: string; current: boolean }[]>([]);
+
+  // Audit
+  const [auditEntries, setAuditEntries] = useState<{ id: number; ts: string; username: string; action: string; target: string; ip: string }[]>([]);
+
+  const flash = (msg: string) => {
+    setNotice(msg);
+    setTimeout(() => setNotice(''), 3000);
+  };
+
+  const copyText = (key: string, text: string) => {
+    navigator.clipboard?.writeText(text).catch(() => undefined);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(''), 1500);
+  };
+
+  useEffect(() => {
+    if (account.isOwner) {
+      apiFetch<{ general: typeof general; system: typeof sysInfo }>('/settings/general')
+        .then((r) => {
+          setGeneral({ ...r.general, supportTelegram: r.general.supportTelegram || '' });
+          setSysInfo(r.system);
+        })
+        .catch(() => undefined);
+      apiFetch<{ telegram: typeof tgBackup; hasToken: boolean }>('/settings/telegram-backup')
+        .then((r) => {
+          setTgBackup(r.telegram);
+          setHasTgToken(r.hasToken);
+        })
+        .catch(() => undefined);
+      apiFetch<{ settings: typeof subSettings; previewToken: string | null }>('/settings/subscription-page')
+        .then((r) => {
+          setSubSettings(r.settings);
+          setPreviewToken(r.previewToken);
+        })
+        .catch(() => undefined);
+      apiFetch<{ panelAccess: typeof panelAccess }>('/settings/panel-access')
+        .then((r) => setPanelAccess({ ...r.panelAccess, subPort: r.panelAccess.subPort ?? '' }))
+        .catch(() => undefined);
+      apiFetch<{ entries: typeof auditEntries }>('/settings/audit-log')
+        .then((r) => setAuditEntries(r.entries))
+        .catch(() => undefined);
+    }
+    apiFetch<{ tokens: typeof tokens }>('/settings/api-tokens').then((r) => setTokens(r.tokens)).catch(() => undefined);
+    apiFetch<{ account: { totpEnabled: boolean }; sessions: typeof sessions }>('/auth/me')
+      .then((r) => {
+        setTotpEnabled(r.account.totpEnabled);
+        setSessions(r.sessions);
+      })
+      .catch(() => undefined);
+  }, [account.isOwner]);
+
+  const availableTabs: TabItem<SettingsTab>[] = [
+    ...(account.isOwner
+      ? [
+          { id: 'general' as const, label: t.settings.tabs.general },
+          { id: 'subscription' as const, label: t.settings.tabs.subscription },
+          { id: 'panelAccess' as const, label: t.settings.tabs.panelAccess },
+        ]
+      : []),
+    { id: 'myAccount' as const, label: t.settings.tabs.myAccount },
+    { id: 'api' as const, label: t.settings.tabs.api },
+    ...(account.isOwner ? [{ id: 'backup' as const, label: t.settings.tabs.backup }] : []),
+    ...(account.isOwner || account.permissions.clients.view === 'all'
+      ? [{ id: 'audit' as const, label: t.settings.tabs.audit }]
+      : []),
+  ];
+
+  const handleRestoreUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const buf = await file.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    const base64Db = btoa(binary);
+    const res = await apiFetch<{ message: string }>('/settings/backup/restore', {
+      method: 'POST',
+      body: JSON.stringify({ base64Db }),
     });
-    const [sysInfo, setSysInfo] = useState({ version: '1.0.4', platform: '', machineId: '' });
+    flash(res.message);
+  };
 
-    // Telegram Backup
-    const [tgBackup, setTgBackup] = useState({
-        enabled: false,
-        botToken: '',
-        chatId: '',
-        intervalHours: 24,
-        proxyUrl: '',
-        lastSentAt: null as string | null,
-    });
-    const [hasTgToken, setHasTgToken] = useState(false);
-    const [foundChats, setFoundChats] = useState<{ chatId: string; title: string }[]>([]);
-    const [tgBusy, setTgBusy] = useState(false);
+  const cleanSubPath = (panelAccess.subPath || 'sub').replace(/^\/+|\/+$/g, '') || 'sub';
+  const previewUrl = previewToken ? `/${cleanSubPath}/${previewToken}` : '';
 
-    // Subscription page settings
-    const [subSettings, setSubSettings] = useState<{
-        look: string;
-        accentColor: string;
-        shopName: string;
-        supportLink: string;
-        supportButtonText: string;
-        channelLink: string;
-        protocols: { id: string; shown: boolean; tabName: string; guideNote: string; useRecommendedApps: boolean }[];
-    } | null>(null);
-    const [previewToken, setPreviewToken] = useState<string | null>(null);
+  const saveGeneral = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await apiFetch('/settings/general', { method: 'PUT', body: JSON.stringify(general) });
+      flash(isFa ? 'تنظیمات عمومی ذخیره شد.' : 'General settings saved.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
-    // Panel access
-    const [panelAccess, setPanelAccess] = useState({
-        port: 2053,
-        bindAddress: '',
-        subPort: '' as string | number,
-        secretPath: '',
-        subPath: 'sub',
-        tlsCertFile: '',
-        tlsKeyFile: '',
-        trustProxy: false,
-    });
+  const saveSubSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subSettings) return;
+    setSaving(true);
+    try {
+      await apiFetch('/settings/subscription-page', { method: 'PUT', body: JSON.stringify(subSettings) });
+      flash(isFa ? 'تنظیمات صفحه اشتراک ذخیره شد.' : 'Subscription page settings saved.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
-    // API Tokens
-    const [tokens, setTokens] = useState<{ id: string; name: string; prefix: string; createdAt: string; lastUsedAt: string | null }[]>([]);
-    const [newTokenName, setNewTokenName] = useState('');
-    const [createdSecret, setCreatedSecret] = useState<string | null>(null);
+  const savePanelAccess = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await apiFetch('/settings/panel-access', { method: 'PUT', body: JSON.stringify(panelAccess) });
+      flash(isFa ? 'ذخیره شد. برای اعمال تغییرات پورت/مسیر سرویس را ریستارت کنید.' : 'Saved. Restart panel process to apply port/path changes.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
-    // My Account (password, 2FA, sessions)
-    const [curPass, setCurPass] = useState('');
-    const [newPass, setNewPass] = useState('');
-    const [totpEnabled, setTotpEnabled] = useState(false);
-    const [totpSetup, setTotpSetup] = useState<{ secret: string; uri: string } | null>(null);
-    const [totpCode, setTotpCode] = useState('');
-    const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
-    const [sessions, setSessions] = useState<{ id: string; ip: string; userAgent: string; lastSeenAt: string; current: boolean }[]>([]);
+  const cleanSecretPath = (panelAccess.secretPath || '').replace(/^\/+|\/+$/g, '');
+  const computedPanelUrl = `${panelAccess.tlsCertFile ? 'https' : 'http'}://${general.publicAddress || window.location.hostname}:${panelAccess.port || 2053}${cleanSecretPath ? `/${cleanSecretPath}/` : '/'}`;
+  const selectedLook = LOOKS.find((l) => l.id === subSettings?.look) || LOOKS[0];
+  const effectiveSubAccent = subSettings?.accentColor || selectedLook.defaultHex || ACCENT_PALETTES[accent].dark.accent;
 
-    // Audit
-    const [auditEntries, setAuditEntries] = useState<{ id: number; ts: string; username: string; action: string; target: string; ip: string }[]>([]);
+  return (
+    <div className="page">
+      <PageHead
+        title={t.settings.title}
+        sub={isFa ? 'پیکربندی پنل، صفحه اشتراک، امنیت و پشتیبان‌گیری' : 'Panel configuration, client portal, access security and backups'}
+        actions={notice ? <StatusPill tone="green" label={notice} /> : undefined}
+      />
 
-    const flash = (msg: string) => {
-        setNotice(msg);
-        setTimeout(() => setNotice(''), 3000);
-    };
+      <Tabs items={availableTabs} value={tab} onChange={setTab} />
 
-    useEffect(() => {
-        if (account.isOwner) {
-            apiFetch<{ general: typeof general; system: typeof sysInfo }>('/settings/general')
-                .then((r) => {
-                    setGeneral({ ...r.general, supportTelegram: r.general.supportTelegram || '' });
-                    setSysInfo(r.system);
-                })
-                .catch(() => undefined);
-            apiFetch<{ telegram: typeof tgBackup; hasToken: boolean }>('/settings/telegram-backup')
-                .then((r) => {
-                    setTgBackup(r.telegram);
-                    setHasTgToken(r.hasToken);
-                })
-                .catch(() => undefined);
-            apiFetch<{ settings: typeof subSettings; previewToken: string | null }>('/settings/subscription-page')
-                .then((r) => {
-                    setSubSettings(r.settings);
-                    setPreviewToken(r.previewToken);
-                })
-                .catch(() => undefined);
-            apiFetch<{ panelAccess: typeof panelAccess }>('/settings/panel-access')
-                .then((r) => setPanelAccess({ ...r.panelAccess, subPort: r.panelAccess.subPort ?? '' }))
-                .catch(() => undefined);
-            apiFetch<{ entries: typeof auditEntries }>('/settings/audit-log')
-                .then((r) => setAuditEntries(r.entries))
-                .catch(() => undefined);
-        }
-        apiFetch<{ tokens: typeof tokens }>('/settings/api-tokens').then((r) => setTokens(r.tokens)).catch(() => undefined);
-        apiFetch<{ account: { totpEnabled: boolean }; sessions: typeof sessions }>('/auth/me')
-            .then((r) => {
-                setTotpEnabled(r.account.totpEnabled);
-                setSessions(r.sessions);
-            })
-            .catch(() => undefined);
-    }, [account.isOwner]);
-
-    const availableTabs: { id: SettingsTab; label: string; show: boolean }[] = [
-        { id: 'general', label: t.settings.tabs.general, show: account.isOwner },
-        { id: 'subscription', label: t.settings.tabs.subscription, show: account.isOwner },
-        { id: 'panelAccess', label: t.settings.tabs.panelAccess, show: account.isOwner },
-        { id: 'api', label: t.settings.tabs.api, show: true },
-        { id: 'myAccount', label: t.settings.tabs.myAccount, show: true },
-        { id: 'backup', label: t.settings.tabs.backup, show: account.isOwner },
-        { id: 'audit', label: t.settings.tabs.audit, show: account.isOwner || account.permissions.clients.view === 'all' },
-    ];
-
-    const handleRestoreUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        const buf = await file.arrayBuffer();
-        const bytes = new Uint8Array(buf);
-        let binary = '';
-        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-        const base64Db = btoa(binary);
-        const res = await apiFetch<{ message: string }>('/settings/backup/restore', {
-            method: 'POST',
-            body: JSON.stringify({ base64Db }),
-        });
-        flash(res.message);
-    };
-
-    return (
-        <div className="space-y-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <h1 className="text-xl font-bold text-(--text-primary)">{t.settings.title}</h1>
-                {notice && <StatusPill tone="green" label={notice} />}
+      {tab === 'general' && (
+        <form className="editor" onSubmit={saveGeneral}>
+          <section className="ed-section">
+            <div>
+              <h2>{isFa ? 'آدرس عمومی و برند' : 'Public address & branding'}</h2>
+              <p className="ed-lede">
+                {isFa ? 'نام برند و دامنه‌ای که در لینک‌های اتصال کاربران قرار می‌گیرد.' : 'Brand identity and public host placed in exported links.'}
+              </p>
             </div>
-
-            <div className="flex flex-wrap gap-1.5">
-                {availableTabs
-                    .filter((x) => x.show)
-                    .map((item) => (
-                        <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => setTab(item.id)}
-                            className={`rounded-xl px-3 py-1.5 text-xs font-medium transition ${tab === item.id
-                                ? 'bg-(--accent) text-(--accent-fg)'
-                                : 'bg-(--bg-surface) text-(--text-secondary) hover:text-(--text-primary) border border-(--border-subtle)'
-                                }`}
-                        >
-                            {item.label}
-                        </button>
-                    ))}
+            <div className="ed-fields">
+              <div className="form-row">
+                <Input
+                  label={isFa ? 'نام برند پنل' : 'Brand name'}
+                  value={general.brandName}
+                  onChange={(e) => {
+                    setGeneral({ ...general, brandName: e.target.value });
+                    setBrandName(e.target.value);
+                  }}
+                />
+                <Input
+                  label={isFa ? 'آدرس عمومی (IP یا دامنه)' : 'Public address (IP or domain)'}
+                  dir="ltr"
+                  value={general.publicAddress}
+                  onChange={(e) => setGeneral({ ...general, publicAddress: e.target.value })}
+                />
+              </div>
+              <Input
+                label={isFa ? 'آدرس پایه لینک اشتراک (اختیاری)' : 'Subscription base URL (optional)'}
+                dir="ltr"
+                value={general.subscriptionLinkAddress}
+                onChange={(e) => setGeneral({ ...general, subscriptionLinkAddress: e.target.value })}
+                placeholder="https://sub.example.com"
+              />
+              <Input
+                label={isFa ? 'پشتیبانی تلگرام (@handle یا لینک)' : 'Support Telegram (@handle or URL)'}
+                dir="ltr"
+                value={general.supportTelegram}
+                onChange={(e) => {
+                  setGeneral({ ...general, supportTelegram: e.target.value });
+                  setSupportTelegram(e.target.value);
+                }}
+                placeholder="@xprotocol_support"
+              />
             </div>
+          </section>
 
-            {tab === 'general' && (
-                <Card className="space-y-5 p-5">
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <Input
-                            label="Brand name"
-                            value={general.brandName}
-                            onChange={(e) => {
-                                setGeneral({ ...general, brandName: e.target.value });
-                                setBrandName(e.target.value);
-                            }}
-                        />
-                        <Input
-                            label="Public address (IP or domain)"
-                            value={general.publicAddress}
-                            onChange={(e) => setGeneral({ ...general, publicAddress: e.target.value })}
-                        />
-                        <Input
-                            label="Subscription link address (optional)"
-                            value={general.subscriptionLinkAddress}
-                            onChange={(e) => setGeneral({ ...general, subscriptionLinkAddress: e.target.value })}
-                            placeholder="https://sub.example.com"
-                        />
-                        <Input
-                            label="Support Telegram (@handle or URL)"
-                            value={general.supportTelegram}
-                            onChange={(e) => {
-                                setGeneral({ ...general, supportTelegram: e.target.value });
-                                setSupportTelegram(e.target.value);
-                            }}
-                            placeholder="@xprotocol_support"
-                        />
-                        <Select
-                            label="Default client page language"
-                            value={general.defaultSubLanguage}
-                            onChange={(e) => setGeneral({ ...general, defaultSubLanguage: e.target.value })}
-                        >
-                            <option value="en">English</option>
-                            <option value="fa">فارسی (Persian)</option>
-                        </Select>
-                        <Input
-                            label="Warn when plan ends within (days)"
-                            type="number"
-                            value={general.warnExpiresWithinDays}
-                            onChange={(e) => setGeneral({ ...general, warnExpiresWithinDays: Number(e.target.value) })}
-                        />
-                        <Input
-                            label="Warn when traffic reaches (%)"
-                            type="number"
-                            value={general.warnTrafficPercent}
-                            onChange={(e) => setGeneral({ ...general, warnTrafficPercent: Number(e.target.value) })}
-                        />
-                    </div>
+          <section className="ed-section">
+            <div>
+              <h2>{isFa ? 'زبان پیش‌فرض کاربران' : 'Default client language'}</h2>
+              <p className="ed-lede">
+                {isFa ? 'زبان اولیه صفحه اشتراک برای کاربرانی که برای اولین بار لینک را باز می‌کنند.' : 'Initial language shown on public subscription pages.'}
+              </p>
+            </div>
+            <div className="ed-fields">
+              <Select
+                label={isFa ? 'زبان صفحه اشتراک' : 'Client page language'}
+                value={general.defaultSubLanguage}
+                onChange={(e) => setGeneral({ ...general, defaultSubLanguage: e.target.value })}
+              >
+                <option value="en">English</option>
+                <option value="fa">فارسی (Persian)</option>
+              </Select>
+            </div>
+          </section>
 
-                    <div>
-                        <div className="mb-2 text-xs font-medium text-(--text-secondary)">Panel accent colour</div>
-                        <div className="flex flex-wrap gap-2">
-                            {ACCENTS.map((c) => {
-                                const swatch = ACCENT_PALETTES[c].dark.accent;
-                                const active = general.panelColor === c;
-                                return (
-                                    <button
-                                        key={c}
-                                        type="button"
-                                        onClick={() => {
-                                            setGeneral({ ...general, panelColor: c });
-                                            setAccent(c);
-                                        }}
-                                        className={`inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs capitalize transition ${active
-                                            ? 'border-(--accent) bg-(--accent-soft) text-(--accent) font-semibold'
-                                            : 'border-(--border-subtle) bg-(--bg-elevated) text-(--text-secondary) hover:border-(--border-default)'
-                                            }`}
-                                    >
-                                        <span
-                                            className="h-3 w-3 shrink-0 rounded-full border border-black/20"
-                                            style={{ background: swatch, boxShadow: active ? `0 0 10px ${swatch}` : undefined }}
-                                        />
-                                        {c}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-(--border-subtle) pt-4 text-xs text-(--text-muted)">
-                        <span>
-                            Version: {sysInfo.version} · {sysInfo.platform} · Machine ID:{' '}
-                            <code className="font-mono text-(--text-primary)">{sysInfo.machineId}</code>
-                        </span>
-                        <Button
-                            variant="primary"
-                            onClick={async () => {
-                                await apiFetch('/settings/general', { method: 'PUT', body: JSON.stringify(general) });
-                                flash('General settings saved.');
-                            }}
-                        >
-                            {t.common.save}
-                        </Button>
-                    </div>
-                </Card>
-            )}
-
-            {tab === 'subscription' && subSettings && (
-                <div className="grid gap-4 lg:grid-cols-2">
-                    <Card className="space-y-4 p-5">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-sm font-semibold text-(--text-primary)">Appearance & Look</h2>
-                            {previewToken && (
-                                <a
-                                    href={`/sub/${previewToken}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-1 text-xs font-medium text-(--accent) hover:underline"
-                                >
-                                    <ExternalLink className="h-3.5 w-3.5" />
-                                    Live preview
-                                </a>
-                            )}
-                        </div>
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                            {LOOKS.map((l) => (
-                                <button
-                                    key={l.id}
-                                    type="button"
-                                    onClick={() => setSubSettings({ ...subSettings, look: l.id })}
-                                    className={`theme-card ${subSettings.look === l.id ? 'on' : ''}`}
-                                >
-                                    <span
-                                        className={`tc-mock ${l.mockClass}`}
-                                        style={{ '--mock': 'var(--accent)' } as React.CSSProperties}
-                                        aria-hidden="true"
-                                    >
-                                        <b>24</b>
-                                        <i />
-                                        <i />
-                                    </span>
-                                    <div className="px-1 text-xs font-bold text-(--text-primary)">{l.name}</div>
-                                    <div className="px-1 text-[11px] leading-snug text-(--text-muted)">{l.desc}</div>
-                                </button>
-                            ))}
-                        </div>
-
-                        <div className="grid gap-3 sm:grid-cols-2">
-                            <Input
-                                label="Shop / Brand name"
-                                value={subSettings.shopName}
-                                onChange={(e) => setSubSettings({ ...subSettings, shopName: e.target.value })}
-                            />
-                            <Input
-                                label="Support link (t.me/..., https://..., tel:+98...)"
-                                value={subSettings.supportLink}
-                                onChange={(e) => setSubSettings({ ...subSettings, supportLink: e.target.value })}
-                            />
-                            <Input
-                                label="Support button text"
-                                value={subSettings.supportButtonText}
-                                onChange={(e) => setSubSettings({ ...subSettings, supportButtonText: e.target.value })}
-                            />
-                            <Input
-                                label="Channel link"
-                                value={subSettings.channelLink}
-                                onChange={(e) => setSubSettings({ ...subSettings, channelLink: e.target.value })}
-                            />
-                        </div>
-
-                        <div className="flex justify-end">
-                            <Button
-                                variant="primary"
-                                onClick={async () => {
-                                    await apiFetch('/settings/subscription-page', { method: 'PUT', body: JSON.stringify(subSettings) });
-                                    flash('Subscription page settings saved.');
-                                }}
-                            >
-                                {t.common.save}
-                            </Button>
-                        </div>
-                    </Card>
-
-                    <Card className="space-y-4 p-5">
-                        <h2 className="text-sm font-semibold text-(--text-primary)">Protocol Tabs</h2>
-                        {subSettings.protocols.map((p, idx) => (
-                            <div
-                                key={p.id}
-                                className="space-y-2 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-3 text-xs"
-                            >
-                                <div className="flex items-center justify-between">
-                                    <span className="font-bold uppercase text-(--text-primary)">{p.id}</span>
-                                    <label className="flex items-center gap-1.5">
-                                        <input
-                                            type="checkbox"
-                                            checked={p.shown}
-                                            onChange={(e) => {
-                                                const next = [...subSettings.protocols];
-                                                next[idx] = { ...p, shown: e.target.checked };
-                                                setSubSettings({ ...subSettings, protocols: next });
-                                            }}
-                                        />
-                                        <span>Shown</span>
-                                    </label>
-                                </div>
-                                <div className="grid gap-2 sm:grid-cols-2">
-                                    <Input
-                                        placeholder="Custom tab name"
-                                        value={p.tabName}
-                                        onChange={(e) => {
-                                            const next = [...subSettings.protocols];
-                                            next[idx] = { ...p, tabName: e.target.value };
-                                            setSubSettings({ ...subSettings, protocols: next });
-                                        }}
-                                    />
-                                    <Input
-                                        placeholder="Guide note"
-                                        value={p.guideNote}
-                                        onChange={(e) => {
-                                            const next = [...subSettings.protocols];
-                                            next[idx] = { ...p, guideNote: e.target.value };
-                                            setSubSettings({ ...subSettings, protocols: next });
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                        ))}
-
-                        {previewToken && (
-                            <div className="space-y-2 border-t border-(--border-subtle) pt-3">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs font-semibold text-(--text-secondary)">Live Preview</span>
-                                    <a
-                                        href={`/sub/${previewToken}`}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="inline-flex items-center gap-1 text-xs font-medium text-(--accent) hover:underline"
-                                    >
-                                        <ExternalLink className="h-3.5 w-3.5" />
-                                        Open in tab
-                                    </a>
-                                </div>
-                                <iframe
-                                    title="Subscription page live preview"
-                                    src={`/sub/${previewToken}`}
-                                    className="h-80 w-full rounded-xl border border-(--border-subtle) bg-(--bg-app)"
-                                />
-                            </div>
-                        )}
-                    </Card>
-                </div>
-            )}
-
-            {tab === 'panelAccess' && (
-                <Card className="space-y-4 p-5">
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <Input
-                            label="Panel port"
-                            type="number"
-                            value={panelAccess.port}
-                            onChange={(e) => setPanelAccess({ ...panelAccess, port: Number(e.target.value) })}
-                        />
-                        <Input
-                            label="Bind address (empty = all interfaces)"
-                            value={panelAccess.bindAddress}
-                            onChange={(e) => setPanelAccess({ ...panelAccess, bindAddress: e.target.value })}
-                        />
-                        <Input
-                            label="Secret path (empty = root /)"
-                            value={panelAccess.secretPath}
-                            onChange={(e) => setPanelAccess({ ...panelAccess, secretPath: e.target.value })}
-                            placeholder="/my-secret-panel"
-                        />
-                        <Input
-                            label="Subscription path"
-                            value={panelAccess.subPath}
-                            onChange={(e) => setPanelAccess({ ...panelAccess, subPath: e.target.value })}
-                        />
-                    </div>
-                    <label className="flex items-center gap-2 text-xs text-(--text-primary)">
-                        <input
-                            type="checkbox"
-                            checked={panelAccess.trustProxy}
-                            onChange={(e) => setPanelAccess({ ...panelAccess, trustProxy: e.target.checked })}
-                        />
-                        <span>Behind a reverse proxy (trust X-Forwarded-For)</span>
+          <section className="ed-section">
+            <div>
+              <h2>{isFa ? 'رنگ اصلی پنل' : 'Panel accent colour'}</h2>
+              <p className="ed-lede">
+                {isFa ? 'رنگ شاخص دکمه‌ها، نمودارها و نورپردازی محیط پنل.' : 'Highlight colour used across charts, buttons and active indicators.'}
+              </p>
+            </div>
+            <div className="ed-fields">
+              <div className="accent-picker" role="radiogroup" aria-label="Panel accent">
+                {ACCENTS.map((c) => {
+                  const swatch = ACCENT_PALETTES[c].dark.accent;
+                  return (
+                    <label key={c} className="accent-opt">
+                      <input
+                        type="radio"
+                        name="panelAccent"
+                        value={c}
+                        checked={general.panelColor === c}
+                        onChange={() => {
+                          setGeneral({ ...general, panelColor: c });
+                          setAccent(c);
+                        }}
+                      />
+                      <span className="swatch" style={{ background: swatch }} aria-hidden="true" />
+                      <span className="capitalize">{c}</span>
                     </label>
-                    <div className="flex justify-end">
-                        <Button
-                            variant="primary"
-                            onClick={async () => {
-                                await apiFetch('/settings/panel-access', { method: 'PUT', body: JSON.stringify(panelAccess) });
-                                flash('Saved. Restart panel process to apply port/path changes.');
-                            }}
-                        >
-                            {t.common.save}
-                        </Button>
-                    </div>
-                </Card>
-            )}
+                  );
+                })}
+              </div>
+            </div>
+          </section>
 
-            {tab === 'api' && (
-                <Card className="space-y-4 p-5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                            <h2 className="text-sm font-semibold text-(--text-primary)">API Tokens</h2>
-                            <p className="text-xs text-(--text-muted)">
-                                Base URL: <code className="font-mono">{window.location.origin}/api</code>
-                            </p>
-                        </div>
-                        <a
-                            href="./api/settings/openapi.json"
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-xs font-medium text-(--accent) hover:underline"
-                        >
-                            OpenAPI 3.0 Document →
-                        </a>
-                    </div>
+          <section className="ed-section">
+            <div>
+              <h2>{isFa ? 'آستانه‌های هشدار' : 'Needs attention thresholds'}</h2>
+              <p className="ed-lede">
+                {isFa ? 'معیارهایی که اشتراک‌های در حال اتمام را در داشبورد علامت‌گذاری می‌کنند.' : 'When clients surface in the Needs attention list.'}
+              </p>
+            </div>
+            <div className="ed-fields">
+              <div className="form-row">
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
+                    {isFa ? 'هشدار نزدیک شدن به انقضا' : 'Warn when plan ends within'}
+                  </span>
+                  <div className="input-group">
+                    <input
+                      type="number"
+                      className="input"
+                      dir="ltr"
+                      value={general.warnExpiresWithinDays}
+                      onChange={(e) => setGeneral({ ...general, warnExpiresWithinDays: Number(e.target.value) })}
+                    />
+                    <span className="suffix">{isFa ? 'روز' : 'days'}</span>
+                  </div>
+                </label>
 
-                    <div className="flex gap-2">
-                        <Input
-                            placeholder="Token name (e.g. Telegram shop bot)"
-                            value={newTokenName}
-                            onChange={(e) => setNewTokenName(e.target.value)}
-                            className="max-w-xs"
-                        />
-                        <Button
-                            variant="primary"
-                            onClick={async () => {
-                                if (!newTokenName.trim()) return;
-                                const res = await apiFetch<{ secret: string }>('/settings/api-tokens', {
-                                    method: 'POST',
-                                    body: JSON.stringify({ name: newTokenName }),
-                                });
-                                setCreatedSecret(res.secret);
-                                setNewTokenName('');
-                                const list = await apiFetch<{ tokens: typeof tokens }>('/settings/api-tokens');
-                                setTokens(list.tokens);
-                            }}
-                        >
-                            <Plus className="h-4 w-4" />
-                            Create token
-                        </Button>
-                    </div>
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
+                    {isFa ? 'هشدار مصرف حجم' : 'Warn when traffic reaches'}
+                  </span>
+                  <div className="input-group">
+                    <input
+                      type="number"
+                      className="input"
+                      dir="ltr"
+                      value={general.warnTrafficPercent}
+                      onChange={(e) => setGeneral({ ...general, warnTrafficPercent: Number(e.target.value) })}
+                    />
+                    <span className="suffix">%</span>
+                  </div>
+                </label>
+              </div>
 
-                    {createdSecret && (
-                        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs">
-                            <div className="font-semibold text-emerald-400">Copy this secret now — it will not be shown again:</div>
-                            <div className="mt-1 flex items-center gap-2">
-                                <code className="font-mono text-(--text-primary)">{createdSecret}</code>
-                                <Button size="sm" onClick={() => navigator.clipboard.writeText(createdSecret)}>
-                                    <Copy className="h-3 w-3" />
-                                </Button>
-                            </div>
-                        </div>
+              <label className="block max-w-xs">
+                <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
+                  {isFa ? 'زمان بیکاری نشست مدیر' : 'Admin session inactivity'}
+                </span>
+                <div className="input-group">
+                  <input
+                    type="number"
+                    className="input"
+                    dir="ltr"
+                    value={general.inactivityTimeoutHours}
+                    onChange={(e) => setGeneral({ ...general, inactivityTimeoutHours: Number(e.target.value) })}
+                  />
+                  <span className="suffix">{isFa ? 'ساعت' : 'hours'}</span>
+                </div>
+              </label>
+            </div>
+          </section>
+
+          <section className="ed-section">
+            <div>
+              <h2>{isFa ? 'نسخه و سیستم' : 'Version & system'}</h2>
+            </div>
+            <div className="ed-fields">
+              <dl className="kv">
+                <div>
+                  <dt>{isFa ? 'نسخه نصب‌شده' : 'Version'}</dt>
+                  <dd className="num" dir="ltr">
+                    XProtocol v{sysInfo.version} {sysInfo.platform ? `· ${sysInfo.platform}` : ''}
+                  </dd>
+                </div>
+                <div>
+                  <dt>{isFa ? 'شناسه سرور' : 'Machine ID'}</dt>
+                  <dd className="num" dir="ltr">
+                    <code>{sysInfo.machineId || '—'}</code>
+                    {sysInfo.machineId && (
+                      <Button type="button" size="sm" variant="ghost" onClick={() => copyText('mid', sysInfo.machineId)}>
+                        {copiedKey === 'mid' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                      </Button>
                     )}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </section>
 
-                    <div className="space-y-2">
-                        {tokens.map((tok) => (
-                            <div
-                                key={tok.id}
-                                className="flex items-center justify-between rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3 py-2 text-xs"
-                            >
-                                <div className="flex items-center gap-2">
-                                    <Key className="h-3.5 w-3.5 text-(--accent)" />
-                                    <span className="font-semibold text-(--text-primary)">{tok.name}</span>
-                                    <code className="font-mono text-(--text-muted)">{tok.prefix}…</code>
-                                </div>
-                                <Button
-                                    size="sm"
-                                    variant="danger"
-                                    onClick={async () => {
-                                        await apiFetch(`/settings/api-tokens/${tok.id}`, { method: 'DELETE' });
-                                        setTokens((prev) => prev.filter((x) => x.id !== tok.id));
-                                    }}
-                                >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                            </div>
-                        ))}
-                    </div>
-                </Card>
-            )}
+          <div className="savebar">
+            <span className="text-xs text-(--text-muted)">
+              {notice || (isFa ? 'تغییرات بلافاصله اعمال می‌شوند.' : 'Changes apply immediately after saving.')}
+            </span>
+            <Button type="submit" variant="primary" disabled={saving}>
+              {t.common.save}
+            </Button>
+          </div>
+        </form>
+      )}
 
-            {tab === 'myAccount' && (
-                <div className="grid gap-4 lg:grid-cols-2">
-                    <Card className="space-y-4 p-5">
-                        <h2 className="text-sm font-semibold text-(--text-primary)">Change password</h2>
-                        <Input
-                            label="Current password"
-                            type="password"
-                            value={curPass}
-                            onChange={(e) => setCurPass(e.target.value)}
-                        />
-                        <Input
-                            label="New password (min 10 chars)"
-                            type="password"
-                            value={newPass}
-                            onChange={(e) => setNewPass(e.target.value)}
-                        />
-                        <Button
-                            variant="primary"
-                            onClick={async () => {
-                                await apiFetch('/auth/me/password', {
-                                    method: 'POST',
-                                    body: JSON.stringify({ currentPassword: curPass, newPassword: newPass }),
-                                });
-                                setCurPass('');
-                                setNewPass('');
-                                flash('Password updated.');
-                            }}
+      {tab === 'subscription' && subSettings && (
+        <div className="sp-layout">
+          <form className="editor" onSubmit={saveSubSettings}>
+            <div className="ed-tabs">
+              <Tabs<SubBuilderTab>
+                value={subTab}
+                onChange={setSubTab}
+                items={[
+                  { id: 'look', label: isFa ? 'ظاهر صفحه' : 'Appearance' },
+                  { id: 'shop', label: isFa ? 'برند و پشتیبانی' : 'Brand & support' },
+                  { id: 'proto', label: isFa ? 'پروتکل‌ها' : 'Protocols', count: subSettings.protocols.filter((p) => p.shown).length },
+                ]}
+              />
+            </div>
+
+            {subTab === 'look' && (
+              <>
+                <section className="ed-section">
+                  <div>
+                    <h2>{isFa ? 'قالب صفحه اشتراک' : 'Theme'}</h2>
+                    <p className="ed-lede">
+                      {isFa ? 'ظاهری که کاربر هنگام باز کردن لینک اشتراک می‌بیند.' : 'Visual style clients see when opening their subscription URL.'}
+                    </p>
+                  </div>
+                  <div className="ed-fields">
+                    <div className="theme-picks" role="radiogroup" aria-label="Subscription theme">
+                      {LOOKS.map((l) => (
+                        <button
+                          key={l.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={subSettings.look === l.id}
+                          onClick={() => setSubSettings({ ...subSettings, look: l.id })}
+                          className={`theme-card ${subSettings.look === l.id ? 'on' : ''}`}
                         >
-                            Update password
-                        </Button>
-                    </Card>
-
-                    <Card className="space-y-4 p-5">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-sm font-semibold text-(--text-primary)">Two-factor authentication (TOTP)</h2>
-                            <StatusPill tone={totpEnabled ? 'green' : 'gray'} label={totpEnabled ? 'Enabled' : 'Off'} />
-                        </div>
-
-                        {!totpEnabled && !totpSetup && (
-                            <Button
-                                onClick={async () => {
-                                    const res = await apiFetch<{ secret: string; uri: string }>('/auth/me/2fa/setup', { method: 'POST' });
-                                    setTotpSetup(res);
-                                }}
-                            >
-                                <ShieldCheck className="h-4 w-4" />
-                                Turn on 2FA
-                            </Button>
-                        )}
-
-                        {totpSetup && (
-                            <div className="space-y-3">
-                                <QrCode value={totpSetup.uri} size={160} />
-                                <div className="font-mono text-xs text-(--text-secondary)">Secret: {totpSetup.secret}</div>
-                                <div className="flex gap-2">
-                                    <Input
-                                        placeholder="6-digit code"
-                                        value={totpCode}
-                                        onChange={(e) => setTotpCode(e.target.value)}
-                                    />
-                                    <Button
-                                        variant="primary"
-                                        onClick={async () => {
-                                            const res = await apiFetch<{ recoveryCodes: string[] }>('/auth/me/2fa/enable', {
-                                                method: 'POST',
-                                                body: JSON.stringify({ secret: totpSetup.secret, code: totpCode }),
-                                            });
-                                            setRecoveryCodes(res.recoveryCodes);
-                                            setTotpSetup(null);
-                                            setTotpEnabled(true);
-                                        }}
-                                    >
-                                        Confirm
-                                    </Button>
-                                </div>
-                            </div>
-                        )}
-
-                        {recoveryCodes.length > 0 && (
-                            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
-                                <div className="font-semibold text-amber-400">Save your recovery codes:</div>
-                                <div className="mt-1 grid grid-cols-2 gap-1 font-mono text-(--text-primary)">
-                                    {recoveryCodes.map((rc) => (
-                                        <span key={rc}>{rc}</span>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="border-t border-(--border-subtle) pt-3">
-                            <div className="mb-2 text-xs font-semibold text-(--text-secondary)">Signed-in devices</div>
-                            <div className="space-y-1.5">
-                                {sessions.map((s) => (
-                                    <div
-                                        key={s.id}
-                                        className="flex items-center justify-between rounded-xl bg-(--bg-elevated) px-3 py-2 text-xs"
-                                    >
-                                        <div>
-                                            <span className="font-mono text-(--text-primary)">{s.ip}</span>
-                                            {s.current && <span className="ms-2 text-(--accent)">(this device)</span>}
-                                            <div className="text-[11px] text-(--text-muted)">
-                                                {formatDateTime(s.lastSeenAt, lang)}
-                                            </div>
-                                        </div>
-                                        {!s.current && (
-                                            <Button
-                                                size="sm"
-                                                onClick={async () => {
-                                                    await apiFetch(`/auth/me/sessions/${s.id}`, { method: 'DELETE' });
-                                                    setSessions((prev) => prev.filter((x) => x.id !== s.id));
-                                                }}
-                                            >
-                                                Sign out
-                                            </Button>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </Card>
-                </div>
-            )}
-
-            {tab === 'backup' && (
-                <div className="grid gap-4 lg:grid-cols-2">
-                    <Card className="space-y-4 p-5">
-                        <h2 className="text-sm font-semibold text-(--text-primary)">Database Backup & Restore</h2>
-                        <p className="text-xs text-(--text-secondary)">
-                            Download a hot snapshot of your SQLite database (`xprotocol.db`) containing clients, groups, inbounds, nodes, accounts, and settings.
-                        </p>
-                        <div className="flex flex-wrap gap-3">
-                            <a
-                                href="./api/settings/backup/download"
-                                className="inline-flex items-center gap-2 rounded-xl bg-(--accent) px-4 py-2 text-sm font-semibold text-(--accent-fg)"
-                            >
-                                <Download className="h-4 w-4" />
-                                Download backup (.db)
-                            </a>
-                            <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-4 py-2 text-sm font-medium text-(--text-primary) hover:bg-(--bg-hover)">
-                                <Upload className="h-4 w-4" />
-                                <span>Restore from .db</span>
-                                <input type="file" accept=".db" className="hidden" onChange={handleRestoreUpload} />
-                            </label>
-                        </div>
-                    </Card>
-
-                    <Card className="space-y-4 p-5">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-sm font-semibold text-(--text-primary)">
-                                {lang === 'fa' ? 'پشتیبان‌گیری از طریق تلگرام' : 'Backups over Telegram'}
-                            </h2>
-                            <StatusPill
-                                tone={tgBackup.enabled ? 'green' : 'gray'}
-                                label={tgBackup.enabled ? 'Active' : 'Off'}
-                            />
-                        </div>
-
-                        <label className="flex items-center justify-between rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3.5 py-2.5 text-xs text-(--text-primary) cursor-pointer">
-                            <span>{lang === 'fa' ? 'ارسال خودکار بکاپ به تلگرام' : 'Enable scheduled Telegram backups'}</span>
-                            <input
-                                type="checkbox"
-                                checked={tgBackup.enabled}
-                                onChange={(e) => setTgBackup({ ...tgBackup, enabled: e.target.checked })}
-                                className="rounded accent-(--accent)"
-                            />
-                        </label>
-
-                        <Input
-                            label="Bot token"
-                            type="password"
-                            value={tgBackup.botToken}
-                            onChange={(e) => setTgBackup({ ...tgBackup, botToken: e.target.value })}
-                            placeholder={hasTgToken ? 'Token configured (leave blank to keep)' : '123456:ABC-DEF...'}
-                        />
-
-                        <div className="flex flex-wrap items-end gap-2">
-                            <div className="flex-1 min-w-40">
-                                <Input
-                                    label="Chat ID"
-                                    value={tgBackup.chatId}
-                                    onChange={(e) => setTgBackup({ ...tgBackup, chatId: e.target.value })}
-                                    placeholder="-100123456789"
-                                />
-                            </div>
-                            <Button
-                                type="button"
-                                disabled={tgBusy}
-                                onClick={async () => {
-                                    setTgBusy(true);
-                                    try {
-                                        const res = await apiFetch<{ chats: { chatId: string; title: string }[] }>(
-                                            '/settings/telegram-backup/find-chat',
-                                            {
-                                                method: 'POST',
-                                                body: JSON.stringify({ botToken: tgBackup.botToken || undefined }),
-                                            },
-                                        );
-                                        setFoundChats(res.chats);
-                                        if (res.chats.length > 0 && !tgBackup.chatId) {
-                                            setTgBackup((prev) => ({ ...prev, chatId: res.chats[0].chatId }));
-                                        }
-                                        flash(res.chats.length > 0 ? `Found ${res.chats.length} chat(s).` : 'No recent messages found; send /start to your bot first.');
-                                    } catch (err) {
-                                        flash(err instanceof Error ? err.message : 'Failed to inspect bot updates');
-                                    } finally {
-                                        setTgBusy(false);
-                                    }
-                                }}
-                            >
-                                <Search className="h-3.5 w-3.5" />
-                                Find chat
-                            </Button>
-                        </div>
-
-                        {foundChats.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5">
-                                {foundChats.map((c) => (
-                                    <button
-                                        key={c.chatId}
-                                        type="button"
-                                        onClick={() => setTgBackup({ ...tgBackup, chatId: c.chatId })}
-                                        className="rounded-lg border border-(--border-subtle) bg-(--bg-elevated) px-2.5 py-1 text-[11px] text-(--text-primary) hover:border-(--accent)"
-                                    >
-                                        {c.title} ({c.chatId})
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-
-                        <div className="grid gap-3 sm:grid-cols-2">
-                            <Select
-                                label="Send every"
-                                value={String(tgBackup.intervalHours)}
-                                onChange={(e) => setTgBackup({ ...tgBackup, intervalHours: Number(e.target.value) })}
-                            >
-                                <option value="1">1 hour</option>
-                                <option value="6">6 hours</option>
-                                <option value="12">12 hours</option>
-                                <option value="24">24 hours</option>
-                                <option value="72">3 days</option>
-                                <option value="168">7 days</option>
-                            </Select>
-                            <Input
-                                label="Proxy URL (optional)"
-                                value={tgBackup.proxyUrl}
-                                onChange={(e) => setTgBackup({ ...tgBackup, proxyUrl: e.target.value })}
-                                placeholder="socks5://127.0.0.1:1080"
-                            />
-                        </div>
-
-                        {tgBackup.lastSentAt && (
-                            <div className="text-[11px] text-(--text-muted)">
-                                Last sent: {formatDateTime(tgBackup.lastSentAt, lang)}
-                            </div>
-                        )}
-
-                        <div className="flex flex-wrap justify-between gap-2 pt-1">
-                            <Button
-                                type="button"
-                                disabled={tgBusy}
-                                onClick={async () => {
-                                    setTgBusy(true);
-                                    try {
-                                        await apiFetch('/settings/telegram-backup/send-now', {
-                                            method: 'POST',
-                                            body: JSON.stringify({
-                                                botToken: tgBackup.botToken || undefined,
-                                                chatId: tgBackup.chatId || undefined,
-                                            }),
-                                        });
-                                        flash('Telegram backup sent.');
-                                    } catch (err) {
-                                        flash(err instanceof Error ? err.message : 'Telegram send failed');
-                                    } finally {
-                                        setTgBusy(false);
-                                    }
-                                }}
-                            >
-                                <Send className="h-3.5 w-3.5" />
-                                Send now
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="primary"
-                                onClick={async () => {
-                                    await apiFetch('/settings/telegram-backup', {
-                                        method: 'PUT',
-                                        body: JSON.stringify(tgBackup),
-                                    });
-                                    flash('Telegram backup settings saved.');
-                                }}
-                            >
-                                {t.common.save}
-                            </Button>
-                        </div>
-                    </Card>
-                </div>
-            )}
-
-            {tab === 'audit' && (
-                <Card className="overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-start text-xs">
-                            <thead className="border-b border-(--border-subtle) bg-(--bg-elevated) text-(--text-secondary)">
-                                <tr>
-                                    <th className="px-4 py-3 text-start">When</th>
-                                    <th className="px-4 py-3 text-start">Who</th>
-                                    <th className="px-4 py-3 text-start">Action</th>
-                                    <th className="px-4 py-3 text-start">Target</th>
-                                    <th className="px-4 py-3 text-start">IP</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-(--border-subtle)">
-                                {auditEntries.map((e) => (
-                                    <tr key={e.id}>
-                                        <td className="px-4 py-2.5 text-(--text-secondary)">{formatDateTime(e.ts, lang)}</td>
-                                        <td className="px-4 py-2.5 font-medium text-(--text-primary)">{e.username}</td>
-                                        <td className={`px-4 py-2.5 font-mono ${e.action.includes('failed') ? 'text-red-400' : 'text-(--accent)'}`}>
-                                            {e.action}
-                                        </td>
-                                        <td className="px-4 py-2.5 text-(--text-secondary)">{e.target}</td>
-                                        <td className="px-4 py-2.5 font-mono text-(--text-muted)">{e.ip}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                          <span
+                            className={`tc-mock ${l.mockClass}`}
+                            style={{ '--mock': subSettings.accentColor || l.defaultHex } as React.CSSProperties}
+                            aria-hidden="true"
+                          >
+                            <b>36.4</b>
+                            <i />
+                            <i />
+                          </span>
+                          <strong>{isFa ? l.faName : l.name}</strong>
+                          <span className="muted small">{isFa ? l.faDesc : l.desc}</span>
+                        </button>
+                      ))}
                     </div>
-                </Card>
+                  </div>
+                </section>
+
+                <section className="ed-section">
+                  <div>
+                    <h2>{isFa ? 'رنگ شاخص قالب' : 'Theme accent'}</h2>
+                    <p className="ed-lede">
+                      {isFa ? 'رنگ پیش‌فرض قالب را با رنگ دلخواه بازنویسی کنید.' : 'Override the default template accent colour.'}
+                    </p>
+                  </div>
+                  <div className="ed-fields">
+                    <div className="swatches" role="group" aria-label="Subscription accent">
+                      <button
+                        type="button"
+                        className={`swatch auto ${!subSettings.accentColor ? 'on' : ''}`}
+                        style={{ '--c': selectedLook.defaultHex } as React.CSSProperties}
+                        onClick={() => setSubSettings({ ...subSettings, accentColor: '' })}
+                        title={isFa ? 'پیش‌فرض قالب' : 'Theme default'}
+                      />
+                      {SUB_SWATCHES.map((hex) => (
+                        <button
+                          key={hex}
+                          type="button"
+                          className={`swatch ${subSettings.accentColor.toLowerCase() === hex ? 'on' : ''}`}
+                          style={{ '--c': hex } as React.CSSProperties}
+                          onClick={() => setSubSettings({ ...subSettings, accentColor: hex })}
+                          aria-label={hex}
+                        />
+                      ))}
+                    </div>
+                    <div className="accent-row">
+                      <label className="color-pick">
+                        <input
+                          type="color"
+                          value={/^#[0-9a-f]{6}$/i.test(effectiveSubAccent) ? effectiveSubAccent : '#34d399'}
+                          onChange={(e) => setSubSettings({ ...subSettings, accentColor: e.target.value })}
+                        />
+                        <span>{isFa ? 'رنگ دلخواه' : 'Custom colour'}</span>
+                      </label>
+                      <input
+                        className="input accent-hex"
+                        dir="ltr"
+                        maxLength={7}
+                        placeholder={selectedLook.defaultHex}
+                        value={subSettings.accentColor}
+                        onChange={(e) => setSubSettings({ ...subSettings, accentColor: e.target.value.trim() })}
+                      />
+                    </div>
+                  </div>
+                </section>
+              </>
             )}
+
+            {subTab === 'shop' && (
+              <section className="ed-section">
+                <div>
+                  <h2>{isFa ? 'اطلاعات فروشگاه و پشتیبانی' : 'Storefront & support'}</h2>
+                  <p className="ed-lede">
+                    {isFa ? 'نام نمایشی، دکمه پشتیبانی و لینک کانال در صفحه اشتراک.' : 'Display name, support link and channel link on the subscription page.'}
+                  </p>
+                </div>
+                <div className="ed-fields">
+                  <Input
+                    label={isFa ? 'نام فروشگاه / برند' : 'Shop / Brand name'}
+                    value={subSettings.shopName}
+                    onChange={(e) => setSubSettings({ ...subSettings, shopName: e.target.value })}
+                  />
+                  <Input
+                    label={isFa ? 'لینک پشتیبانی (t.me/... یا https://...)' : 'Support link (t.me/..., https://..., tel:+98...)'}
+                    dir="ltr"
+                    value={subSettings.supportLink}
+                    onChange={(e) => setSubSettings({ ...subSettings, supportLink: e.target.value })}
+                  />
+                  <Input
+                    label={isFa ? 'متن دکمه پشتیبانی' : 'Support button text'}
+                    value={subSettings.supportButtonText}
+                    onChange={(e) => setSubSettings({ ...subSettings, supportButtonText: e.target.value })}
+                  />
+                  <Input
+                    label={isFa ? 'لینک کانال / اطلاع‌رسانی' : 'Channel link'}
+                    dir="ltr"
+                    value={subSettings.channelLink}
+                    onChange={(e) => setSubSettings({ ...subSettings, channelLink: e.target.value })}
+                  />
+                </div>
+              </section>
+            )}
+
+            {subTab === 'proto' && (
+              <section className="ed-section">
+                <div>
+                  <h2>{isFa ? 'پروتکل‌ها و راهنمای اتصال' : 'Protocols & client apps'}</h2>
+                  <p className="ed-lede">
+                    {isFa ? 'انتخاب کنید کدام پروتکل‌ها و با چه نام و راهنمایی نمایش داده شوند.' : 'Choose which protocols appear and customize their tab name and setup note.'}
+                  </p>
+                </div>
+                <div className="ed-fields">
+                  <ul className="proto-list">
+                    {subSettings.protocols.map((p, idx) => {
+                      const isOpen = openProto === p.id;
+                      return (
+                        <li key={p.id} className={`proto-card ${isOpen ? 'open' : ''} ${p.shown ? '' : 'off'}`}>
+                          <div className="proto-head">
+                            <button
+                              type="button"
+                              className="proto-toggle"
+                              onClick={() => setOpenProto(isOpen ? null : p.id)}
+                            >
+                              <span className="proto-ico" aria-hidden="true">
+                                <Layers className="h-4 w-4" />
+                              </span>
+                              <span className="proto-title">
+                                <span className="proto-name">{p.tabName || p.id.toUpperCase()}</span>
+                                <span className="proto-badge">{p.id.toUpperCase()}</span>
+                              </span>
+                              <ChevronDown className="proto-chev" />
+                            </button>
+                          </div>
+
+                          {isOpen && (
+                            <div className="proto-body">
+                              <label className="switch">
+                                <input
+                                  type="checkbox"
+                                  checked={p.shown}
+                                  onChange={(e) => {
+                                    const next = [...subSettings.protocols];
+                                    next[idx] = { ...p, shown: e.target.checked };
+                                    setSubSettings({ ...subSettings, protocols: next });
+                                  }}
+                                />
+                                <span className="track" />
+                                <span className="sw-text">
+                                  <span>{isFa ? 'نمایش این پروتکل در صفحه اشتراک' : 'Show on subscription page'}</span>
+                                </span>
+                              </label>
+                              <div className="form-row">
+                                <Input
+                                  label={isFa ? 'نام دلخواه تب' : 'Custom tab name'}
+                                  value={p.tabName}
+                                  onChange={(e) => {
+                                    const next = [...subSettings.protocols];
+                                    next[idx] = { ...p, tabName: e.target.value };
+                                    setSubSettings({ ...subSettings, protocols: next });
+                                  }}
+                                />
+                                <Input
+                                  label={isFa ? 'متن راهنما' : 'Guide note'}
+                                  value={p.guideNote}
+                                  onChange={(e) => {
+                                    const next = [...subSettings.protocols];
+                                    next[idx] = { ...p, guideNote: e.target.value };
+                                    setSubSettings({ ...subSettings, protocols: next });
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              </section>
+            )}
+
+            <div className="savebar">
+              <span className="text-xs text-(--text-muted)">
+                {notice || (isFa ? 'پس از ذخیره، پیش‌نمایش سمت چپ/راست را بررسی کنید.' : 'Save changes to refresh live subscription pages.')}
+              </span>
+              <Button type="submit" variant="primary" disabled={saving}>
+                {t.common.save}
+              </Button>
+            </div>
+          </form>
+
+          <aside className="sp-preview">
+            <div className="phone">
+              {previewUrl ? (
+                <iframe title="Subscription page live preview" src={previewUrl} />
+              ) : (
+                <div className="phone-empty">
+                  {isFa
+                    ? 'برای پیش‌نمایش زنده، ابتدا حداقل یک کاربر بسازید.'
+                    : 'Create at least one client to preview the live subscription page.'}
+                </div>
+              )}
+            </div>
+            {previewUrl && (
+              <a
+                href={previewUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="link-sm inline-flex items-center gap-1.5 text-xs font-medium text-(--accent-text) hover:underline"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                {isFa ? 'باز کردن در تب جدید' : 'Open live preview in tab'}
+              </a>
+            )}
+          </aside>
         </div>
-    );
+      )}
+
+      {tab === 'panelAccess' && (
+        <div className="stack">
+          <section className="editor">
+            <div className="ed-section">
+              <div>
+                <h2>HTTPS</h2>
+                <p className="ed-lede">
+                  {isFa ? 'وضعیت گواهی SSL پنل وب و ساب‌لینک‌ها.' : 'TLS status for the panel and subscription endpoint.'}
+                </p>
+              </div>
+              <div className="ed-fields">
+                <div className="ssl-status">
+                  <span className={`dot ${panelAccess.tlsCertFile ? 'ok' : 'off'}`} aria-hidden="true" />
+                  <span>
+                    {panelAccess.tlsCertFile
+                      ? isFa
+                        ? `گواهی فعال: ${panelAccess.tlsCertFile}`
+                        : `Active TLS certificate: ${panelAccess.tlsCertFile}`
+                      : isFa
+                        ? 'HTTPS غیرفعال است (HTTP ساده)'
+                        : 'HTTPS is off (plain HTTP)'}
+                  </span>
+                </div>
+                <div className="form-row">
+                  <Input
+                    label={isFa ? 'مسیر فایل Certificate (PEM)' : 'TLS Certificate path'}
+                    dir="ltr"
+                    value={panelAccess.tlsCertFile}
+                    onChange={(e) => setPanelAccess({ ...panelAccess, tlsCertFile: e.target.value })}
+                    placeholder="/etc/letsencrypt/live/.../fullchain.pem"
+                  />
+                  <Input
+                    label={isFa ? 'مسیر کلید خصوصی (Key)' : 'TLS Private Key path'}
+                    dir="ltr"
+                    value={panelAccess.tlsKeyFile}
+                    onChange={(e) => setPanelAccess({ ...panelAccess, tlsKeyFile: e.target.value })}
+                    placeholder="/etc/letsencrypt/live/.../privkey.pem"
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <form className="editor" onSubmit={savePanelAccess}>
+            <section className="ed-section">
+              <div>
+                <h2>{t.settings.tabs.panelAccess}</h2>
+                <p className="ed-lede">
+                  {isFa ? 'پورت، مسیر مخفی پنل و مسیر لینک‌های اشتراک.' : 'Listening port, secret path prefix, and subscription path.'}
+                </p>
+              </div>
+              <div className="ed-fields">
+                <div className="form-row">
+                  <Input
+                    label={isFa ? 'پورت پنل' : 'Panel port'}
+                    type="number"
+                    dir="ltr"
+                    value={panelAccess.port}
+                    onChange={(e) => setPanelAccess({ ...panelAccess, port: Number(e.target.value) })}
+                  />
+                  <Input
+                    label={isFa ? 'آدرس بایند (خالی = همه اینترفیس‌ها)' : 'Bind address (empty = all)'}
+                    dir="ltr"
+                    value={panelAccess.bindAddress}
+                    onChange={(e) => setPanelAccess({ ...panelAccess, bindAddress: e.target.value })}
+                    placeholder="0.0.0.0"
+                  />
+                  <Input
+                    label={isFa ? 'پورت جداگانه ساب (اختیاری)' : 'Separate sub port (optional)'}
+                    type="number"
+                    dir="ltr"
+                    value={panelAccess.subPort}
+                    onChange={(e) => setPanelAccess({ ...panelAccess, subPort: e.target.value })}
+                    placeholder={String(panelAccess.port)}
+                  />
+                  <Input
+                    label={isFa ? 'مسیر مخفی پنل' : 'Secret panel path'}
+                    dir="ltr"
+                    value={panelAccess.secretPath}
+                    onChange={(e) => setPanelAccess({ ...panelAccess, secretPath: e.target.value })}
+                    placeholder="/my-secret-panel"
+                  />
+                </div>
+
+                <Input
+                  label={isFa ? 'پیشوند مسیر اشتراک' : 'Subscription path prefix'}
+                  dir="ltr"
+                  value={panelAccess.subPath}
+                  onChange={(e) => setPanelAccess({ ...panelAccess, subPath: e.target.value })}
+                  placeholder="sub"
+                />
+
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={panelAccess.trustProxy}
+                    onChange={(e) => setPanelAccess({ ...panelAccess, trustProxy: e.target.checked })}
+                  />
+                  <span className="track" />
+                  <span className="sw-text">
+                    <span>{isFa ? 'پشت Reverse Proxy (اعتماد به X-Forwarded-For)' : 'Behind a reverse proxy (trust X-Forwarded-For)'}</span>
+                  </span>
+                </label>
+
+                <div className="callout">
+                  <div className="text-xs text-(--text-muted)">{isFa ? 'آدرس دسترسی پنل:' : 'Panel access URL:'}</div>
+                  <code className="mt-1 block font-mono text-xs text-(--ink)" dir="ltr">
+                    {computedPanelUrl}
+                  </code>
+                </div>
+              </div>
+            </section>
+
+            <div className="savebar">
+              <span className="text-xs text-(--text-muted)">
+                {notice || (isFa ? 'پس از تغییر پورت یا مسیر، سرویس را ریستارت کنید.' : 'Restart service to apply port or path changes.')}
+              </span>
+              <Button type="submit" variant="primary" disabled={saving}>
+                {t.common.save}
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {tab === 'myAccount' && (
+        <div className="editor">
+          <section className="ed-section">
+            <div>
+              <h2>{isFa ? 'تغییر رمز عبور' : 'Change password'}</h2>
+              <p className="ed-lede">
+                {isFa ? 'رمز فعلی را وارد و یک رمز جدید حداقل ۱۰ کاراکتری انتخاب کنید.' : 'Minimum 10 characters. Invalidates older sessions cleanly.'}
+              </p>
+            </div>
+            <div className="ed-fields">
+              <div className="form-row">
+                <Input
+                  label={isFa ? 'رمز فعلی' : 'Current password'}
+                  type="password"
+                  dir="ltr"
+                  value={curPass}
+                  onChange={(e) => setCurPass(e.target.value)}
+                />
+                <Input
+                  label={isFa ? 'رمز جدید (حداقل ۱۰ کاراکتر)' : 'New password (min 10 chars)'}
+                  type="password"
+                  dir="ltr"
+                  value={newPass}
+                  onChange={(e) => setNewPass(e.target.value)}
+                />
+              </div>
+              <div>
+                <Button
+                  type="button"
+                  variant="primary"
+                  disabled={!curPass || !newPass}
+                  onClick={async () => {
+                    await apiFetch('/auth/me/password', {
+                      method: 'POST',
+                      body: JSON.stringify({ currentPassword: curPass, newPassword: newPass }),
+                    });
+                    setCurPass('');
+                    setNewPass('');
+                    flash(isFa ? 'رمز عبور تغییر کرد.' : 'Password updated.');
+                  }}
+                >
+                  {isFa ? 'به‌روزرسانی رمز عبور' : 'Update password'}
+                </Button>
+              </div>
+            </div>
+          </section>
+
+          <section className="ed-section">
+            <div>
+              <h2>{isFa ? 'احراز هویت دومرحله‌ای (2FA)' : 'Two-factor authentication'}</h2>
+              <p className="ed-lede">
+                {totpEnabled
+                  ? isFa
+                    ? 'TOTP روی این حساب فعال است.'
+                    : 'TOTP is enabled on this account.'
+                  : isFa
+                    ? 'یک لایه امنیتی اضافه هنگام ورود با اپلیکیشن Authenticator.'
+                    : 'Protect logins with a 6-digit authenticator code.'}
+              </p>
+            </div>
+            <div className="ed-fields">
+              <div className="flex items-center gap-3">
+                <StatusPill tone={totpEnabled ? 'green' : 'gray'} label={totpEnabled ? (isFa ? 'فعال' : 'Enabled') : (isFa ? 'غیرفعال' : 'Off')} />
+                {!totpEnabled && !totpSetup && (
+                  <Button
+                    type="button"
+                    onClick={async () => {
+                      const res = await apiFetch<{ secret: string; uri: string }>('/auth/me/2fa/setup', { method: 'POST' });
+                      setTotpSetup(res);
+                    }}
+                  >
+                    <ShieldCheck className="h-4 w-4" />
+                    {isFa ? 'فعال‌سازی 2FA' : 'Turn on 2FA'}
+                  </Button>
+                )}
+              </div>
+
+              {totpSetup && (
+                <div className="twofa-setup">
+                  <QrCode value={totpSetup.uri} size={172} />
+                  <div className="stack">
+                    <div className="callout">
+                      <span className="text-xs text-(--text-muted)">Secret:</span>{' '}
+                      <code className="font-mono text-xs text-(--ink)" dir="ltr">{totpSetup.secret}</code>
+                    </div>
+                    <div className="flex flex-wrap items-end gap-2">
+                      <Input
+                        label={isFa ? 'کد ۶ رقمی' : '6-digit code'}
+                        dir="ltr"
+                        value={totpCode}
+                        onChange={(e) => setTotpCode(e.target.value)}
+                      />
+                      <Button
+                        type="button"
+                        variant="primary"
+                        onClick={async () => {
+                          const res = await apiFetch<{ recoveryCodes: string[] }>('/auth/me/2fa/enable', {
+                            method: 'POST',
+                            body: JSON.stringify({ secret: totpSetup.secret, code: totpCode }),
+                          });
+                          setRecoveryCodes(res.recoveryCodes);
+                          setTotpSetup(null);
+                          setTotpEnabled(true);
+                          flash(isFa ? '2FA فعال شد.' : '2FA enabled.');
+                        }}
+                      >
+                        {isFa ? 'تأیید و فعال‌سازی' : 'Confirm'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {recoveryCodes.length > 0 && (
+                <div className="callout warn">
+                  <div className="mb-2 font-semibold">{isFa ? 'کدهای بازیابی را ذخیره کنید:' : 'Save your recovery codes:'}</div>
+                  <ol className="codes" dir="ltr">
+                    {recoveryCodes.map((rc) => (
+                      <li key={rc}>{rc}</li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="ed-section">
+            <div>
+              <h2>{isFa ? 'نشست‌های فعال' : 'Signed-in devices'}</h2>
+              <p className="ed-lede">
+                {isFa ? 'دستگاه‌هایی که با این حساب وارد شده‌اند.' : 'Browsers and devices currently holding an active session.'}
+              </p>
+            </div>
+            <div className="ed-fields">
+              <div className="stack-sm">
+                {sessions.map((s) => (
+                  <div
+                    key={s.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3.5 py-2.5 text-xs"
+                  >
+                    <div>
+                      <span className="font-mono font-semibold text-(--ink)" dir="ltr">{s.ip}</span>
+                      {s.current && (
+                        <span className="ms-2 text-(--accent-text) font-semibold">
+                          {isFa ? '(همین دستگاه)' : '(this device)'}
+                        </span>
+                      )}
+                      <div className="mt-0.5 text-[11px] text-(--ink-3)">{formatDateTime(s.lastSeenAt, lang)}</div>
+                    </div>
+                    {!s.current && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={async () => {
+                          await apiFetch(`/auth/me/sessions/${s.id}`, { method: 'DELETE' });
+                          setSessions((prev) => prev.filter((x) => x.id !== s.id));
+                        }}
+                      >
+                        {isFa ? 'خروج' : 'Sign out'}
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {tab === 'api' && (
+        <div className="stack">
+          <section className="editor">
+            <div className="ed-section">
+              <div>
+                <h2>{isFa ? 'مستندات و آدرس API' : 'REST API & OpenAPI'}</h2>
+                <p className="ed-lede">
+                  {isFa ? 'برای اتصال ربات تلگرام یا سیستم‌های خارجی استفاده کنید.' : 'Connect Telegram bots or external automation using bearer tokens.'}
+                </p>
+              </div>
+              <div className="ed-fields">
+                <div className="share-link">
+                  <span className="text-xs text-(--ink-2)">Base URL</span>
+                  <code dir="ltr">{`${window.location.origin}${toPanelUrl('/api')}`}</code>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => copyText('api', `${window.location.origin}${toPanelUrl('/api')}`)}>
+                    {copiedKey === 'api' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  </Button>
+                </div>
+                <div>
+                  <a
+                    href={toPanelUrl('/api/settings/openapi.json')}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="link-sm inline-flex items-center gap-1.5 text-xs font-semibold text-(--accent-text) hover:underline"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    OpenAPI 3.0 Document
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <div className="ed-section">
+              <div>
+                <h2>{isFa ? 'توکن‌های API' : 'API Tokens'}</h2>
+                <p className="ed-lede">
+                  {isFa ? 'هر توکن را می‌توان به‌صورت مستقل باطل کرد.' : 'Create scoped tokens and revoke them any time.'}
+                </p>
+              </div>
+              <div className="ed-fields">
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="min-w-56 flex-1">
+                    <Input
+                      placeholder={isFa ? 'نام توکن (مثلاً Telegram Bot)' : 'Token name (e.g. Telegram shop bot)'}
+                      value={newTokenName}
+                      onChange={(e) => setNewTokenName(e.target.value)}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={async () => {
+                      if (!newTokenName.trim()) return;
+                      const res = await apiFetch<{ secret: string }>('/settings/api-tokens', {
+                        method: 'POST',
+                        body: JSON.stringify({ name: newTokenName }),
+                      });
+                      setCreatedSecret(res.secret);
+                      setNewTokenName('');
+                      const list = await apiFetch<{ tokens: typeof tokens }>('/settings/api-tokens');
+                      setTokens(list.tokens);
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                    {isFa ? 'ساخت توکن' : 'Create token'}
+                  </Button>
+                </div>
+
+                {createdSecret && (
+                  <div className="callout good">
+                    <div className="font-semibold">
+                      {isFa ? 'این توکن را همین الان کپی کنید — مجدد نمایش داده نمی‌شود:' : 'Copy this secret now — it will not be shown again:'}
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <code className="flex-1 font-mono text-xs text-(--ink)" dir="ltr">{createdSecret}</code>
+                      <Button type="button" size="sm" onClick={() => copyText('secret', createdSecret)}>
+                        {copiedKey === 'secret' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="stack-sm">
+                  {tokens.map((tok) => (
+                    <div
+                      key={tok.id}
+                      className="flex items-center justify-between gap-2 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3.5 py-2.5 text-xs"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Key className="h-3.5 w-3.5 text-(--accent-text)" />
+                        <span className="font-semibold text-(--ink)">{tok.name}</span>
+                        <code className="font-mono text-(--ink-3)" dir="ltr">{tok.prefix}…</code>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="danger"
+                        onClick={async () => {
+                          await apiFetch(`/settings/api-tokens/${tok.id}`, { method: 'DELETE' });
+                          setTokens((prev) => prev.filter((x) => x.id !== tok.id));
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                  {tokens.length === 0 && (
+                    <p className="text-xs text-(--ink-3)">{isFa ? 'هنوز توکنی ساخته نشده است.' : 'No API tokens created yet.'}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {tab === 'backup' && (
+        <div className="editor">
+          <section className="ed-section">
+            <div>
+              <h2>{isFa ? 'دریافت فایل پشتیبان' : 'Download backup'}</h2>
+              <p className="ed-lede">
+                {isFa
+                  ? 'دریافت فایل دیتابیس SQLite شامل کاربران، گروه‌ها، اینباندها، نودها و تنظیمات.'
+                  : 'Download a hot snapshot of your SQLite database containing all clients, inbounds, nodes and settings.'}
+              </p>
+            </div>
+            <div className="ed-fields">
+              <div>
+                <a
+                  href={toPanelUrl('/api/settings/backup/download')}
+                  className="xp-btn xp-btn-primary inline-flex h-9 items-center gap-2 px-4 text-sm font-medium no-underline"
+                >
+                  <Download className="h-4 w-4" />
+                  {isFa ? 'دانلود بکاپ (.db)' : 'Download backup (.db)'}
+                </a>
+              </div>
+            </div>
+          </section>
+
+          <section className="ed-section">
+            <div>
+              <h2>{isFa ? 'بازیابی از فایل پشتیبان' : 'Restore from backup'}</h2>
+              <p className="ed-lede">
+                {isFa ? 'آپلود فایل .db و ریستارت سرویس برای بازگردانی.' : 'Upload a .db backup snapshot to stage a database restore.'}
+              </p>
+            </div>
+            <div className="ed-fields">
+              <div>
+                <label className="xp-btn inline-flex h-9 cursor-pointer items-center gap-2 border border-(--border-strong) bg-(--bg-elevated) px-4 text-sm font-medium text-(--ink) hover:bg-(--bg-hover)">
+                  <Upload className="h-4 w-4" />
+                  <span>{isFa ? 'انتخاب فایل .db' : 'Choose .db file'}</span>
+                  <input type="file" accept=".db" className="hidden" onChange={handleRestoreUpload} />
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <section className="ed-section">
+            <div>
+              <h2>{isFa ? 'پشتیبان‌گیری خودکار تلگرام' : 'Backups over Telegram'}</h2>
+              <p className="ed-lede">
+                {isFa ? 'ارسال دوره‌ای فایل بکاپ به چت یا کانال تلگرام شما.' : 'Send periodic SQLite snapshots straight to your Telegram bot.'}
+              </p>
+            </div>
+            <div className="ed-fields tg-backup">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={tgBackup.enabled}
+                    onChange={(e) => setTgBackup({ ...tgBackup, enabled: e.target.checked })}
+                  />
+                  <span className="track" />
+                  <span className="sw-text">
+                    <span>{isFa ? 'فعال‌سازی ارسال زمان‌بندی‌شده به تلگرام' : 'Enable scheduled Telegram backups'}</span>
+                  </span>
+                </label>
+                <StatusPill tone={tgBackup.enabled ? 'green' : 'gray'} label={tgBackup.enabled ? (isFa ? 'فعال' : 'Active') : (isFa ? 'خاموش' : 'Off')} />
+              </div>
+
+              <Input
+                label={isFa ? 'توکن ربات تلگرام (Bot Token)' : 'Bot token'}
+                type="password"
+                dir="ltr"
+                value={tgBackup.botToken}
+                onChange={(e) => setTgBackup({ ...tgBackup, botToken: e.target.value })}
+                placeholder={hasTgToken ? 'Token configured (leave blank to keep)' : '123456:ABC-DEF...'}
+              />
+
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="min-w-44 flex-1">
+                  <Input
+                    label={isFa ? 'شناسه چت (Chat ID)' : 'Chat ID'}
+                    dir="ltr"
+                    value={tgBackup.chatId}
+                    onChange={(e) => setTgBackup({ ...tgBackup, chatId: e.target.value })}
+                    placeholder="-100123456789"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  disabled={tgBusy}
+                  onClick={async () => {
+                    setTgBusy(true);
+                    try {
+                      const res = await apiFetch<{ chats: { chatId: string; title: string }[] }>(
+                        '/settings/telegram-backup/find-chat',
+                        {
+                          method: 'POST',
+                          body: JSON.stringify({ botToken: tgBackup.botToken || undefined }),
+                        },
+                      );
+                      setFoundChats(res.chats);
+                      if (res.chats.length > 0 && !tgBackup.chatId) {
+                        setTgBackup((prev) => ({ ...prev, chatId: res.chats[0].chatId }));
+                      }
+                      flash(res.chats.length > 0 ? `Found ${res.chats.length} chat(s).` : 'No recent messages found; send /start to your bot first.');
+                    } catch (err) {
+                      flash(err instanceof Error ? err.message : 'Failed to inspect bot updates');
+                    } finally {
+                      setTgBusy(false);
+                    }
+                  }}
+                >
+                  <Search className="h-3.5 w-3.5" />
+                  {isFa ? 'جستجوی چت' : 'Find chat'}
+                </Button>
+              </div>
+
+              {foundChats.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {foundChats.map((c) => (
+                    <button
+                      key={c.chatId}
+                      type="button"
+                      onClick={() => setTgBackup({ ...tgBackup, chatId: c.chatId })}
+                      className="rounded-lg border border-(--border-subtle) bg-(--bg-elevated) px-2.5 py-1 text-[11px] text-(--ink) hover:border-(--accent)"
+                    >
+                      {c.title} ({c.chatId})
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="form-row">
+                <Select
+                  label={isFa ? 'بازه ارسال' : 'Send every'}
+                  value={String(tgBackup.intervalHours)}
+                  onChange={(e) => setTgBackup({ ...tgBackup, intervalHours: Number(e.target.value) })}
+                >
+                  <option value="1">{isFa ? 'هر ۱ ساعت' : '1 hour'}</option>
+                  <option value="6">{isFa ? 'هر ۶ ساعت' : '6 hours'}</option>
+                  <option value="12">{isFa ? 'هر ۱۲ ساعت' : '12 hours'}</option>
+                  <option value="24">{isFa ? 'هر ۲۴ ساعت' : '24 hours'}</option>
+                  <option value="72">{isFa ? 'هر ۳ روز' : '3 days'}</option>
+                  <option value="168">{isFa ? 'هر ۷ روز' : '7 days'}</option>
+                </Select>
+                <Input
+                  label={isFa ? 'پروکسی (اختیاری)' : 'Proxy URL (optional)'}
+                  dir="ltr"
+                  value={tgBackup.proxyUrl}
+                  onChange={(e) => setTgBackup({ ...tgBackup, proxyUrl: e.target.value })}
+                  placeholder="socks5://127.0.0.1:1080"
+                />
+              </div>
+
+              {tgBackup.lastSentAt && (
+                <div className="text-xs text-(--ink-3)">
+                  {isFa ? 'آخرین ارسال:' : 'Last sent:'} {formatDateTime(tgBackup.lastSentAt, lang)}
+                </div>
+              )}
+
+              <div className="tg-actions">
+                <Button
+                  type="button"
+                  disabled={tgBusy}
+                  onClick={async () => {
+                    setTgBusy(true);
+                    try {
+                      await apiFetch('/settings/telegram-backup/send-now', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                          botToken: tgBackup.botToken || undefined,
+                          chatId: tgBackup.chatId || undefined,
+                        }),
+                      });
+                      flash(isFa ? 'بکاپ به تلگرام ارسال شد.' : 'Telegram backup sent.');
+                    } catch (err) {
+                      flash(err instanceof Error ? err.message : 'Telegram send failed');
+                    } finally {
+                      setTgBusy(false);
+                    }
+                  }}
+                >
+                  <Send className="h-3.5 w-3.5" />
+                  {isFa ? 'ارسال همین الان' : 'Send now'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={async () => {
+                    await apiFetch('/settings/telegram-backup', {
+                      method: 'PUT',
+                      body: JSON.stringify(tgBackup),
+                    });
+                    flash(isFa ? 'تنظیمات بکاپ تلگرام ذخیره شد.' : 'Telegram backup settings saved.');
+                  }}
+                >
+                  {t.common.save}
+                </Button>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {tab === 'audit' && (
+        auditEntries.length > 0 ? (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>{isFa ? 'زمان' : 'When'}</th>
+                  <th>{isFa ? 'کاربر' : 'Who'}</th>
+                  <th>{isFa ? 'عملیات' : 'Action'}</th>
+                  <th>{isFa ? 'هدف' : 'Target'}</th>
+                  <th>IP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditEntries.map((e, idx) => (
+                  <tr key={e.id} style={{ '--r': idx } as React.CSSProperties}>
+                    <td className="num">{formatDateTime(e.ts, lang)}</td>
+                    <td dir="ltr">{e.username || '—'}</td>
+                    <td>
+                      <code className={e.action.includes('failed') ? 'text-red-400' : 'text-(--accent-text)'}>{e.action}</code>
+                    </td>
+                    <td dir="ltr">{e.target}</td>
+                    <td className="num text-(--ink-3)" dir="ltr">{e.ip}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <EmptySonar text={isFa ? 'هنوز رویدادی ثبت نشده است.' : 'No audit entries yet.'} />
+        )
+      )}
+    </div>
+  );
 }

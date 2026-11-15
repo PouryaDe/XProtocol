@@ -1,6 +1,8 @@
-import React, { useEffect, useLayoutEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useUi } from '../i18n/context';
 
-const SPOTLIGHT_SELECTOR = '.xp-card, .xp-kpis, .node-card, .login-form-card';
+const SPOTLIGHT_SELECTOR =
+  '.xp-card, .xp-kpis, .node-card, .login-form-card, .panel, .kpis, .editor, .update-hero, .group-card';
 
 export function Ambient() {
   useEffect(() => {
@@ -319,16 +321,27 @@ export function PageHead({
   title,
   sub,
   actions,
+  docTitle,
 }: {
   title: React.ReactNode;
   sub?: React.ReactNode;
   actions?: React.ReactNode;
+  docTitle?: string;
 }) {
+  const { brandName } = useUi();
+  const resolvedDoc = docTitle ?? (typeof title === 'string' ? title : '');
+
+  useEffect(() => {
+    if (resolvedDoc) {
+      document.title = `${resolvedDoc} · ${brandName || 'XProtocol'}`;
+    }
+  }, [resolvedDoc, brandName]);
+
   return (
     <div className="pagehead">
       <div className="ph-text">
-        <h1>{title}</h1>
-        {sub ? <p className="sub">{sub}</p> : null}
+        {typeof title === 'string' ? <SplitHeading text={title} /> : <h1>{title}</h1>}
+        {sub ? <p className="muted">{sub}</p> : null}
       </div>
       {actions ? <div className="ph-actions">{actions}</div> : null}
     </div>
@@ -350,8 +363,11 @@ export function Tabs<T extends string = string>({
   value: T;
   onChange: (id: T) => void;
 }) {
+  const tabsRef = useRef<HTMLDivElement | null>(null);
+  useSlidingIndicator(tabsRef, '[aria-selected="true"]', value);
+
   return (
-    <div className="tabs" role="tablist">
+    <div ref={tabsRef} className="tabs" role="tablist">
       {items.map((item) => {
         const active = item.id === value;
         return (
@@ -364,7 +380,7 @@ export function Tabs<T extends string = string>({
             onClick={() => onChange(item.id)}
           >
             <span>{item.label}</span>
-            {item.count !== undefined ? <span className="t-count">{item.count}</span> : null}
+            {item.count !== undefined ? <span className="t-count count">{item.count}</span> : null}
           </button>
         );
       })}
