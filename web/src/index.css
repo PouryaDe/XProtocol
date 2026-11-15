@@ -1558,7 +1558,7 @@ h1 .w > span {
 }
 
 .pad {
-  padding: 6px 2px 4px;
+  padding: 4px 20px 20px;
 }
 .stack {
   display: grid;
@@ -1567,7 +1567,7 @@ h1 .w > span {
 .field {
   display: grid;
   gap: 8px;
-  justify-items: start;
+  justify-items: stretch;
 }
 .field .label {
   font-size: var(--t-sm);
@@ -1581,36 +1581,54 @@ h1 .w > span {
 }
 
 .segmented {
-  border-radius: calc(var(--r) - 2px);
+  border-radius: calc(var(--r) + 4px);
   background: var(--raise-2);
   border: 1px solid var(--line);
-  gap: 4px;
-  padding: 4px;
+  gap: 2px;
+  padding: 3px;
   display: flex;
   flex-wrap: wrap;
   width: 100%;
   position: relative;
 }
+.segmented::before {
+  content: "";
+  width: var(--ind-w, 0);
+  height: var(--ind-h, 0);
+  border-radius: var(--r);
+  background: var(--raise);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, var(--line-strong)), 0 4px 16px -6px var(--accent-glow);
+  transform: translate(var(--ind-x, 0), var(--ind-y, 0));
+  opacity: var(--ind-o, 0);
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+.segmented[data-ready]::before {
+  transition: transform 0.5s var(--spring), width 0.5s var(--spring), height 0.3s var(--ease), opacity var(--med) var(--ease);
+}
 .segmented button {
-  border-radius: calc(var(--r) - 6px);
+  border-radius: var(--r);
   height: 32px;
   color: var(--ink-2);
   font-size: var(--t-sm);
-  transition: color var(--fast) var(--ease), background var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+  transition: color var(--fast) var(--ease);
   background: transparent;
-  border: 1px solid transparent;
+  border: none;
   padding: 0 14px;
   font-weight: 560;
   cursor: pointer;
+  position: relative;
+  z-index: 1;
 }
-.segmented button:hover {
-  color: var(--ink);
-}
+.segmented button:hover,
 .segmented button[aria-pressed="true"] {
   color: var(--ink);
+}
+.segmented:not([data-ready]) button[aria-pressed="true"] {
   background: var(--raise);
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--line-strong));
-  box-shadow: 0 4px 16px -6px var(--accent-glow);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, var(--line-strong)), 0 4px 16px -6px var(--accent-glow);
 }
 
 .inline-select {
@@ -1704,6 +1722,16 @@ h1 .w > span {
 details.history > summary {
   cursor: pointer;
   list-style: none;
+  padding: 18px 20px;
+}
+details.history[open] > summary {
+  padding: 18px 20px 12px;
+}
+details.history > summary svg {
+  transition: transform var(--med) var(--ease);
+}
+details.history[open] > summary svg {
+  transform: rotate(180deg);
 }
 details.history > summary::-webkit-details-marker {
   display: none;

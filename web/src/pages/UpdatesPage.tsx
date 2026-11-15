@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, ChevronDown, Download, DownloadCloud, RefreshCw } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { formatDateTime } from '../lib/format';
 import { useUi } from '../i18n/context';
-import { Button, EqLoader, PageHead, Select, StatusPill } from '../components/UiPrimitives';
+import { Button, EqLoader, PageHead, Select, StatusPill, useSlidingIndicator } from '../components/UiPrimitives';
 
 interface ReleaseEntry {
   tag: string;
@@ -56,6 +56,19 @@ export function UpdatesPage() {
   const [checking, setChecking] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
+  const channelSegRef = useRef<HTMLDivElement | null>(null);
+  const autoSegRef = useRef<HTMLDivElement | null>(null);
+
+  useSlidingIndicator(
+    channelSegRef,
+    '[aria-pressed="true"]',
+    `${Boolean(state)}:${state?.settings.channel || 'stable'}`,
+  );
+  useSlidingIndicator(
+    autoSegRef,
+    '[aria-pressed="true"]',
+    `${Boolean(state)}:${state?.settings.autoUpdate || 'notify'}`,
+  );
 
   const load = useCallback(async () => {
     const res = await apiFetch<UpdateState>('/updates');
@@ -233,22 +246,24 @@ export function UpdatesPage() {
           <header className="panel-head">
             <h2>{lang === 'fa' ? 'تغییرات جدید' : "What's new"}</h2>
           </header>
-          <ol className="release-list">
-            {state.newer.map((r) => (
-              <li key={r.tag}>
-                <div className="rl-head">
-                  <strong dir="ltr" className="text-sm text-(--text-primary)">
-                    {r.name || r.tag}
-                  </strong>
-                  {r.prerelease && <span className="tag tag-pending">{lang === 'fa' ? 'بتا' : 'Beta'}</span>}
-                  <span className="text-xs text-(--text-muted)">{formatDateTime(r.published, lang)}</span>
-                </div>
-                <p className="text-xs whitespace-pre-line text-(--text-secondary)">
-                  {r.notes || (lang === 'fa' ? 'توضیحاتی ثبت نشده است.' : 'No release notes.')}
-                </p>
-              </li>
-            ))}
-          </ol>
+          <div className="pad">
+            <ol className="release-list">
+              {state.newer.map((r) => (
+                <li key={r.tag}>
+                  <div className="rl-head">
+                    <strong dir="ltr" className="text-sm text-(--text-primary)">
+                      {r.name || r.tag}
+                    </strong>
+                    {r.prerelease && <span className="tag tag-pending">{lang === 'fa' ? 'بتا' : 'Beta'}</span>}
+                    <span className="text-xs text-(--text-muted)">{formatDateTime(r.published, lang)}</span>
+                  </div>
+                  <p className="text-xs whitespace-pre-line text-(--text-secondary)">
+                    {r.notes || (lang === 'fa' ? 'توضیحاتی ثبت نشده است.' : 'No release notes.')}
+                  </p>
+                </li>
+              ))}
+            </ol>
+          </div>
         </section>
       )}
 
@@ -260,7 +275,7 @@ export function UpdatesPage() {
         <div className="pad stack">
           <div className="field">
             <span className="label">{lang === 'fa' ? 'کانال دریافت' : 'Channel'}</span>
-            <div className="segmented" role="group" aria-label="Channel">
+            <div ref={channelSegRef} className="segmented" role="group" aria-label="Channel">
               <button
                 type="button"
                 aria-pressed={state.settings.channel === 'stable'}
@@ -289,7 +304,7 @@ export function UpdatesPage() {
 
           <div className="field">
             <span className="label">{lang === 'fa' ? 'بروزرسانی خودکار' : 'Automatic updates'}</span>
-            <div className="segmented" role="group" aria-label="Automatic updates">
+            <div ref={autoSegRef} className="segmented" role="group" aria-label="Automatic updates">
               <button
                 type="button"
                 aria-pressed={state.settings.autoUpdate === 'off'}
@@ -363,37 +378,39 @@ export function UpdatesPage() {
           <h2>{lang === 'fa' ? 'نسخه‌ها و تغییرات اخیر' : 'Recent releases'}</h2>
           <ChevronDown className="h-4 w-4 text-(--text-muted)" />
         </summary>
-        {state.recent.length === 0 ? (
-          <p className="py-3 text-xs text-(--text-muted)">
-            {lang === 'fa' ? 'هنوز موردی دریافت نشده است.' : 'No releases or commits loaded yet.'}
-          </p>
-        ) : (
-          <ol className="release-list">
-            {state.recent.map((r) => {
-              const isInstalled =
-                r.tag.replace(/^v/, '') === state.installedVersion ||
-                (state.currentCommit && r.tag === state.currentCommit);
-              return (
-                <li key={r.tag}>
-                  <div className="rl-head">
-                    <strong dir="ltr" className="text-sm text-(--text-primary)">
-                      {r.name || r.tag}
-                    </strong>
-                    <span className="tag" dir="ltr">
-                      {r.tag}
-                    </span>
-                    {r.prerelease && <span className="tag tag-pending">{lang === 'fa' ? 'بتا' : 'Beta'}</span>}
-                    {isInstalled && <span className="tag tag-active">{lang === 'fa' ? 'نصب‌شده' : 'Installed'}</span>}
-                    <span className="text-xs text-(--text-muted)">{formatDateTime(r.published, lang)}</span>
-                  </div>
-                  {r.notes ? (
-                    <p className="text-xs whitespace-pre-line text-(--text-secondary)">{r.notes}</p>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ol>
-        )}
+        <div className="pad">
+          {state.recent.length === 0 ? (
+            <p className="py-2 text-xs text-(--text-muted)">
+              {lang === 'fa' ? 'هنوز موردی دریافت نشده است.' : 'No releases or commits loaded yet.'}
+            </p>
+          ) : (
+            <ol className="release-list">
+              {state.recent.map((r) => {
+                const isInstalled =
+                  r.tag.replace(/^v/, '') === state.installedVersion ||
+                  (state.currentCommit && r.tag === state.currentCommit);
+                return (
+                  <li key={r.tag}>
+                    <div className="rl-head">
+                      <strong dir="ltr" className="text-sm text-(--text-primary)">
+                        {r.name || r.tag}
+                      </strong>
+                      <span className="tag" dir="ltr">
+                        {r.tag}
+                      </span>
+                      {r.prerelease && <span className="tag tag-pending">{lang === 'fa' ? 'بتا' : 'Beta'}</span>}
+                      {isInstalled && <span className="tag tag-active">{lang === 'fa' ? 'نصب‌شده' : 'Installed'}</span>}
+                      <span className="text-xs text-(--text-muted)">{formatDateTime(r.published, lang)}</span>
+                    </div>
+                    {r.notes ? (
+                      <p className="text-xs whitespace-pre-line text-(--text-secondary)">{r.notes}</p>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </div>
       </details>
     </div>
   );
