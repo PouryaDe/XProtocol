@@ -4,6 +4,27 @@ set -euo pipefail
 
 HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 SRC_DIR="$(cd -- "$HERE/.." && pwd)"
+REPO_URL="${XPROTOCOL_REPO_URL:-https://github.com/PouryaDe/XProtocol.git}"
+REPO_BRANCH="${XPROTOCOL_BRANCH:-main}"
+
+# Support direct one-liner execution: bash <(curl -fsSL https://raw.githubusercontent.com/PouryaDe/XProtocol/main/deploy/install.sh)
+if [[ ! -d "$SRC_DIR/server" || ! -f "$HERE/xprotocol-tui.sh" ]]; then
+  if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    echo "XProtocol one-liner: sudo bash <(curl -fsSL https://raw.githubusercontent.com/PouryaDe/XProtocol/${REPO_BRANCH}/deploy/install.sh) [options]"
+    exit 0
+  fi
+  [[ $EUID -eq 0 ]] || { echo "Run as root: sudo bash <(curl -fsSL https://raw.githubusercontent.com/PouryaDe/XProtocol/${REPO_BRANCH}/deploy/install.sh)" >&2; exit 1; }
+  if ! command -v git >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1; then
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq && apt-get install -y -qq git ca-certificates curl >/dev/null
+  fi
+  BOOTSTRAP_TMP="$(mktemp -d)"
+  trap 'rm -rf "$BOOTSTRAP_TMP"' EXIT
+  echo "  Downloading XProtocol (${REPO_BRANCH}) from ${REPO_URL}..."
+  git clone --depth 1 --branch "$REPO_BRANCH" "$REPO_URL" "$BOOTSTRAP_TMP/xprotocol" >/dev/null
+  bash "$BOOTSTRAP_TMP/xprotocol/deploy/install.sh" "$@"
+  exit $?
+fi
 
 if [[ "${1:-}" == "node" ]]; then
   shift
