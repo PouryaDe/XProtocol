@@ -1,1 +1,21 @@
-{"0": "React Frontend Pages & Components", "1": "Express API Routes & SQLite DB", "2": "Linux VPN Engines & Collectors", "3": "Frontend Build & Tailwind Config", "4": "API Integration Test Suite", "5": "Server Dependencies & Manifest", "6": "Web TypeScript Configuration", "7": "UI Theme & i18n Context", "8": "Workspace Monorepo Scripts", "9": "Server TypeScript Configuration", "10": "Ovira Server Management CLI", "11": "Project Documentation & Architecture", "12": "Ubuntu Panel Installer Script", "13": "Remote Node Provisioner Script"}
+{
+  "0": "OverviewPage.tsx",
+  "1": "index.ts",
+  "2": "linuxEngine.ts",
+  "3": "web/package.json",
+  "4": "API Integration Test Suite",
+  "5": "Server Dependencies & Manifest",
+  "6": "Web TypeScript Configuration",
+  "7": "App.tsx",
+  "8": "Workspace Monorepo Scripts",
+  "9": "Server TypeScript Configuration",
+  "10": "settingsRoutes.ts",
+  "11": "Project Documentation & Architecture",
+  "12": "install.sh",
+  "13": "ClientsPage.tsx",
+  "14": "Button",
+  "15": "apiFetch",
+  "16": "SettingsPage.tsx",
+  "17": "en.ts",
+  "18": "node.sh"
+}
