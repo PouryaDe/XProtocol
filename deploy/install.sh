@@ -202,8 +202,12 @@ mkdir -p "$INSTALL_DIR" "$DATA_DIR"
 chmod 711 "$DATA_DIR"
 
 info "Copying source and building server + React dashboard..."
-rm -rf "$INSTALL_DIR/server" "$INSTALL_DIR/web" "$INSTALL_DIR/deploy"
+rm -rf "$INSTALL_DIR/server" "$INSTALL_DIR/web" "$INSTALL_DIR/deploy" "$INSTALL_DIR/.git"
 cp -r "$SRC_DIR/package.json" "$SRC_DIR/server" "$SRC_DIR/web" "$SRC_DIR/deploy" "$INSTALL_DIR/"
+if [[ -d "$SRC_DIR/.git" ]]; then
+  cp -r "$SRC_DIR/.git" "$INSTALL_DIR/"
+  git -C "$INSTALL_DIR" rev-parse --short HEAD >"$INSTALL_DIR/.xprotocol-commit" 2>/dev/null || true
+fi
 cd "$INSTALL_DIR"
 run_q npm install --prefix server --loglevel=error --no-audit --no-fund
 run_q npm install --prefix web --loglevel=error --no-audit --no-fund

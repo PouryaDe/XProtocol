@@ -9,6 +9,7 @@ export const en = {
     routing: 'Routing',
     certificates: 'Certificates',
     accounts: 'Panel accounts',
+    updates: 'Updates',
     settings: 'Settings',
     signOut: 'Sign out',
   },

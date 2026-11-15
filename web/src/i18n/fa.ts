@@ -11,6 +11,7 @@ export const fa: TranslationDict = {
     routing: 'مسیریابی خروجی',
     certificates: 'گواهی‌ها',
     accounts: 'اکانت‌های پنل',
+    updates: 'بروزرسانی‌ها',
     settings: 'تنظیمات',
     signOut: 'خروج',
   },

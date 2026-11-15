@@ -127,6 +127,89 @@ cmd_logs() {
   fi
 }
 
+cmd_update() {
+  require_root "$@"
+  local check_only=0 yes=0 no_restart=0
+  local repo_url="${XPROTOCOL_REPO_URL:-https://github.com/PouryaDe/XProtocol.git}"
+  local repo_branch="${XPROTOCOL_BRANCH:-main}"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --check) check_only=1; shift ;;
+      -y|--yes) yes=1; shift ;;
+      --no-restart) no_restart=1; shift ;;
+      *) shift ;;
+    esac
+  done
+
+  ui_header "" "Check & Install Update"
+  local cur_ver="unknown" cur_commit=""
+  if [[ -f "$INSTALL_DIR/package.json" ]]; then
+    cur_ver="$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('$INSTALL_DIR/package.json','utf8')).version)}catch{console.log('unknown')}" 2>/dev/null || echo "unknown")"
+  fi
+  if [[ -d "$INSTALL_DIR/.git" ]]; then
+    cur_commit="$(git -C "$INSTALL_DIR" rev-parse --short HEAD 2>/dev/null || true)"
+  elif [[ -f "$INSTALL_DIR/.xprotocol-commit" ]]; then
+    cur_commit="$(tr -d '[:space:]' <"$INSTALL_DIR/.xprotocol-commit" 2>/dev/null || true)"
+  fi
+
+  info "Installed version: v${cur_ver}${cur_commit:+ (${cur_commit})}"
+  info "Checking remote repository (${repo_branch})..."
+  local remote_sha
+  remote_sha="$(git ls-remote "$repo_url" "refs/heads/${repo_branch}" 2>/dev/null | awk '{print substr($1,1,7)}' || true)"
+  [[ -n "$remote_sha" ]] || die "Unable to reach ${repo_url}"
+
+  if [[ -n "$cur_commit" && "$cur_commit" == "$remote_sha" ]]; then
+    ok "XProtocol is already up to date (${cur_commit})."
+    (( check_only )) && return 0
+    if (( yes == 0 )) && ui_has_input; then
+      pick_yesno "Reinstall / rebuild anyway?" n || return 0
+    else
+      return 0
+    fi
+  else
+    ok "New build available on GitHub: ${remote_sha}"
+  fi
+
+  if (( check_only )); then
+    return 0
+  fi
+
+  if (( yes == 0 )) && ui_has_input; then
+    pick_yesno "Download, build, and apply update now?" y || { info "Cancelled."; return 0; }
+  fi
+
+  local tmp_dir
+  tmp_dir="$(mktemp -d)"
+  trap 'rm -rf "$tmp_dir"' RETURN
+  info "Downloading source from GitHub..."
+  git clone -q --depth 1 --branch "$repo_branch" "$repo_url" "$tmp_dir/src"
+
+  info "Copying updated files into ${INSTALL_DIR}..."
+  mkdir -p "$INSTALL_DIR"
+  rm -rf "$INSTALL_DIR/server" "$INSTALL_DIR/web" "$INSTALL_DIR/deploy" "$INSTALL_DIR/.git"
+  cp -r "$tmp_dir/src/package.json" "$tmp_dir/src/server" "$tmp_dir/src/web" "$tmp_dir/src/deploy" "$tmp_dir/src/.git" "$INSTALL_DIR/"
+  echo "$remote_sha" >"$INSTALL_DIR/.xprotocol-commit"
+
+  info "Installing dependencies and building..."
+  cd "$INSTALL_DIR"
+  npm install --prefix server --loglevel=error --no-audit --no-fund >/dev/null 2>&1
+  npm install --prefix web --loglevel=error --no-audit --no-fund >/dev/null 2>&1
+  npm run build --prefix server --loglevel=error >/dev/null 2>&1
+  npm run build --prefix web --loglevel=error >/dev/null 2>&1
+
+  cp "$INSTALL_DIR/deploy/xprotocol-cli.sh" /usr/local/bin/xprotocol
+  chmod +x /usr/local/bin/xprotocol
+
+  local new_ver
+  new_ver="$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('$INSTALL_DIR/package.json','utf8')).version)}catch{console.log('unknown')}" 2>/dev/null || echo "unknown")"
+  ok "Updated to XProtocol v${new_ver} (${remote_sha})"
+
+  if (( no_restart == 0 )); then
+    systemctl restart "$SERVICE"
+    ok "Restarted $SERVICE"
+  fi
+}
+
 cmd_uninstall() {
   require_root "$@"
   local purge=0
@@ -158,6 +241,7 @@ show_menu() {
       "Install OpenConnect (ocserv)" \
       "Create SQLite database backup" \
       "View live logs (Ctrl+C exits logs)" \
+      "Update XProtocol from GitHub" \
       "Restart panel service" \
       "Stop panel service" \
       "Uninstall XProtocol" \
@@ -172,10 +256,11 @@ show_menu() {
       3) cmd_ocserv ;;
       4) cmd_backup ;;
       5) cmd_logs -f || true ;;
-      6) require_root; systemctl restart "$SERVICE" && ok "Restarted $SERVICE" ;;
-      7) require_root; systemctl stop "$SERVICE" && warn "Stopped $SERVICE" ;;
-      8) cmd_uninstall; break ;;
-      9) break ;;
+      6) cmd_update ;;
+      7) require_root; systemctl restart "$SERVICE" && ok "Restarted $SERVICE" ;;
+      8) require_root; systemctl stop "$SERVICE" && warn "Stopped $SERVICE" ;;
+      9) cmd_uninstall; break ;;
+      10) break ;;
     esac
     echo ""
     read -r -p "  Press Enter to return to menu..." _ <&"$UI_FD" || break
@@ -190,11 +275,12 @@ case "${1:-}" in
   ocserv) shift; cmd_ocserv "$@" ;;
   backup) shift; cmd_backup "$@" ;;
   logs) shift; cmd_logs "$@" ;;
+  update) shift; cmd_update "$@" ;;
   start|stop|restart) require_root "$@"; systemctl "$1" "$SERVICE"; ok "$SERVICE: $1" ;;
   uninstall) shift; cmd_uninstall "$@" ;;
   "") show_menu ;;
   *)
-    echo "Usage: xprotocol {status|password|ssl|ocserv|backup|logs [-f]|start|stop|restart|uninstall [--purge]}"
+    echo "Usage: xprotocol {status|password|ssl|ocserv|backup|logs [-f]|update [--check|-y]|start|stop|restart|uninstall [--purge]}"
     exit 1
     ;;
 esac

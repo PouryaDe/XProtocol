@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import {
   Activity,
+  ArrowDownToLine,
   ExternalLink,
   FolderKanban,
   Globe,
@@ -35,6 +36,7 @@ export type NavKey =
   | 'routing'
   | 'certificates'
   | 'accounts'
+  | 'updates'
   | 'settings';
 
 export const NAV_PATHS: Record<NavKey, string> = {
@@ -47,6 +49,7 @@ export const NAV_PATHS: Record<NavKey, string> = {
   routing: '/routing',
   groups: '/groups',
   accounts: '/accounts',
+  updates: '/updates',
   settings: '/settings',
 };
 
@@ -156,6 +159,7 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
       visible: account.isOwner || account.permissions.groups.view !== 'none',
     },
     { key: 'accounts', path: '/accounts', label: t.nav.accounts, icon: <KeyRound className="h-4 w-4" />, visible: account.isOwner },
+    { key: 'updates', path: '/updates', label: t.nav.updates, icon: <ArrowDownToLine className="h-4 w-4" />, visible: account.isOwner },
     { key: 'settings', path: '/settings', label: t.nav.settings, icon: <Settings className="h-4 w-4" />, visible: true },
   ];
 

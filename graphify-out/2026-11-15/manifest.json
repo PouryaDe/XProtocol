@@ -60,9 +60,9 @@
     "semantic_hash": ""
   },
   "server/src/index.ts": {
-    "mtime": 1794710507.5423467,
-    "seen": 1794711687.6310968,
-    "ast_hash": "966f6bfb2f18c4ecf852d59e739f97c6",
+    "mtime": 1794759161.0431156,
+    "seen": 1794759311.935406,
+    "ast_hash": "7250d943847d71d0058a2edb527dcdf8",
     "semantic_hash": ""
   },
   "server/src/routes/accountRoutes.ts": {
@@ -180,9 +180,9 @@
     "semantic_hash": ""
   },
   "server/tests/api.test.ts": {
-    "mtime": 1794710536.0871305,
-    "seen": 1794711687.6311169,
-    "ast_hash": "4de9b64f5ba9df2c16cdb10dd6ea4735",
+    "mtime": 1794759167.751444,
+    "seen": 1794759311.9354355,
+    "ast_hash": "defc2315c588d2e6ce5a5e9a1d54c9ea",
     "semantic_hash": ""
   },
   "server/tsconfig.json": {
@@ -198,9 +198,9 @@
     "semantic_hash": ""
   },
   "web/src/App.tsx": {
-    "mtime": 1794711761.53465,
-    "seen": 1794758040.0076163,
-    "ast_hash": "9c9a1f6cfd56f24723c68ab29a197a8c",
+    "mtime": 1794759163.8191638,
+    "seen": 1794759311.9354403,
+    "ast_hash": "c255c9e133e3577a5231aa7df43f2025",
     "semantic_hash": ""
   },
   "web/src/components/DonutChart.tsx": {

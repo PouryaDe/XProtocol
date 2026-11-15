@@ -16,6 +16,7 @@ import { ConnectionsPage } from './pages/ConnectionsPage';
 import { RoutingPage } from './pages/RoutingPage';
 import { CertificatesPage } from './pages/CertificatesPage';
 import { AccountsPage } from './pages/AccountsPage';
+import { UpdatesPage } from './pages/UpdatesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { SubscriptionPage } from './pages/SubscriptionPage';
 
@@ -41,6 +42,7 @@ function resolveRoute(pathname: string): {
   if (clean === '/routing/outbounds') return { nav: 'routing', routingTab: 'outbounds' };
   if (clean === '/groups') return { nav: 'groups' };
   if (clean === '/accounts' || clean === '/admins') return { nav: 'accounts' };
+  if (clean === '/updates') return { nav: 'updates' };
   if (clean === '/settings') return { nav: 'settings' };
   return { nav: 'overview', unknown: true };
 }
@@ -158,6 +160,7 @@ function PanelRoot() {
         {nav === 'routing' && <RoutingPage />}
         {nav === 'certificates' && <CertificatesPage />}
         {nav === 'accounts' && <AccountsPage />}
+        {nav === 'updates' && <UpdatesPage />}
         {nav === 'settings' && <SettingsPage account={account} />}
       </Layout>
     </>

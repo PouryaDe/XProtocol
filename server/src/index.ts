@@ -18,9 +18,11 @@ import { createRoutingRouter } from './routes/routingRoutes.js';
 import { createCertRouter } from './routes/certRoutes.js';
 import { createAccountRouter } from './routes/accountRoutes.js';
 import { createSettingsRouter } from './routes/settingsRoutes.js';
+import { createUpdateRouter } from './routes/updateRoutes.js';
 import { createSubRouter } from './routes/subRoutes.js';
 import { startCollectorLoop } from './services/collector.js';
 import { startTelegramBackupScheduler } from './services/telegramBackup.js';
+import { startAutoUpdateScheduler } from './services/updater.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -109,6 +111,7 @@ export function createApp(initialConfig: RuntimeConfig) {
       },
     ),
   );
+  api.use('/updates', authMiddleware, createUpdateRouter());
 
   app.use('/api', api);
 
@@ -148,6 +151,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const { initialPasswordGenerated } = initDatabase();
   startCollectorLoop();
   startTelegramBackupScheduler();
+  startAutoUpdateScheduler();
   const app = createApp(runtimeConfig);
 
   const server = http.createServer(app);
