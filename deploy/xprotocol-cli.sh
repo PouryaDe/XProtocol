@@ -9,8 +9,8 @@ INSTALL_DIR="${XPROTOCOL_INSTALL_DIR:-/opt/xprotocol}"
 # shellcheck source=/opt/xprotocol/deploy/xprotocol-tui.sh
 if [[ -f "$INSTALL_DIR/deploy/xprotocol-tui.sh" ]]; then
   source "$INSTALL_DIR/deploy/xprotocol-tui.sh"
-elif [[ -f "$(dirname "${BASH_SOURCE[0]}")/xprotocol-tui.sh" ]]; then
-  source "$(dirname "${BASH_SOURCE[0]}")/xprotocol-tui.sh"
+elif [[ -f "$(dirname "${BASH_SOURCE[0]:-$0}")/xprotocol-tui.sh" ]]; then
+  source "$(dirname "${BASH_SOURCE[0]:-$0}")/xprotocol-tui.sh"
 fi
 ui_init
 trap ui_restore_terminal EXIT

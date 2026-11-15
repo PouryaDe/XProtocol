@@ -2,7 +2,12 @@
 # XProtocol Open-Core — Remote Ubuntu 22.04+ VPN Node Provisioner
 set -euo pipefail
 
-HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PATH="${BASH_SOURCE[0]:-}"
+if [[ -n "$SCRIPT_PATH" && -f "$SCRIPT_PATH" ]]; then
+  HERE="$(cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd)"
+else
+  HERE=""
+fi
 NODE_PORT=62060
 NODE_NAME="$(hostname -s)"
 YES=0
@@ -18,7 +23,7 @@ done
 
 [[ $EUID -eq 0 ]] || { echo "Run as root: sudo bash deploy/node.sh" >&2; exit 1; }
 
-if [[ -f "$HERE/xprotocol-tui.sh" ]]; then
+if [[ -n "$HERE" && -f "$HERE/xprotocol-tui.sh" ]]; then
   source "$HERE/xprotocol-tui.sh"
   ui_init
   trap ui_restore_terminal EXIT

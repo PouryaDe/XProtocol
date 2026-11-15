@@ -6,16 +6,16 @@ Clean-room, open-core VPN management panel targeting **Ubuntu 22.04+ Linux** wit
 
 ## One-Line Linux Installation (Ubuntu 22.04+)
 
-Run as `root` on a fresh Ubuntu 22.04+ / Debian server to launch the interactive 4-step TUI installer:
+Run on a fresh Ubuntu 22.04+ / Debian server to launch the interactive 4-step TUI installer:
 
 ```bash
-sudo bash <(curl -fsSL https://raw.githubusercontent.com/PouryaDe/XProtocol/main/deploy/install.sh)
+curl -fsSL https://raw.githubusercontent.com/PouryaDe/XProtocol/main/deploy/install.sh | sudo bash
 ```
 
 Or install unattended with flags:
 
 ```bash
-sudo bash <(curl -fsSL https://raw.githubusercontent.com/PouryaDe/XProtocol/main/deploy/install.sh) \
+curl -fsSL https://raw.githubusercontent.com/PouryaDe/XProtocol/main/deploy/install.sh | sudo bash -s -- \
   --port 2053 \
   --user admin \
   --local-node \
@@ -44,7 +44,7 @@ sudo bash <(curl -fsSL https://raw.githubusercontent.com/PouryaDe/XProtocol/main
 On additional worker servers (remote nodes), provision WireGuard, OpenVPN, OpenConnect, strongSwan, and xl2tpd with:
 
 ```bash
-sudo bash <(curl -fsSL https://raw.githubusercontent.com/PouryaDe/XProtocol/main/deploy/node.sh) --port 62060 --name eu-node-01
+curl -fsSL https://raw.githubusercontent.com/PouryaDe/XProtocol/main/deploy/node.sh | sudo bash -s -- --port 62060 --name eu-node-01
 ```
 
 ---

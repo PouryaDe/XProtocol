@@ -2,18 +2,24 @@
 # XProtocol Open-Core Panel — Ubuntu 22.04+ Interactive & Scriptable Installer
 set -euo pipefail
 
-HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-SRC_DIR="$(cd -- "$HERE/.." && pwd)"
+SCRIPT_PATH="${BASH_SOURCE[0]:-}"
+if [[ -n "$SCRIPT_PATH" && -f "$SCRIPT_PATH" ]]; then
+  HERE="$(cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd)"
+  SRC_DIR="$(cd -- "$HERE/.." && pwd)"
+else
+  HERE=""
+  SRC_DIR=""
+fi
 REPO_URL="${XPROTOCOL_REPO_URL:-https://github.com/PouryaDe/XProtocol.git}"
 REPO_BRANCH="${XPROTOCOL_BRANCH:-main}"
 
-# Support direct one-liner execution: bash <(curl -fsSL https://raw.githubusercontent.com/PouryaDe/XProtocol/main/deploy/install.sh)
-if [[ ! -d "$SRC_DIR/server" || ! -f "$HERE/xprotocol-tui.sh" ]]; then
+# Support direct one-liner execution via pipe (curl ... | sudo bash) or process substitution (bash <(curl ...))
+if [[ -z "$SRC_DIR" || ! -d "$SRC_DIR/server" || ! -f "$HERE/xprotocol-tui.sh" ]]; then
   if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-    echo "XProtocol one-liner: sudo bash <(curl -fsSL https://raw.githubusercontent.com/PouryaDe/XProtocol/${REPO_BRANCH}/deploy/install.sh) [options]"
+    echo "XProtocol one-liner: curl -fsSL https://raw.githubusercontent.com/PouryaDe/XProtocol/${REPO_BRANCH}/deploy/install.sh | sudo bash -s -- [options]"
     exit 0
   fi
-  [[ $EUID -eq 0 ]] || { echo "Run as root: sudo bash <(curl -fsSL https://raw.githubusercontent.com/PouryaDe/XProtocol/${REPO_BRANCH}/deploy/install.sh)" >&2; exit 1; }
+  [[ $EUID -eq 0 ]] || { echo "Run as root: curl -fsSL https://raw.githubusercontent.com/PouryaDe/XProtocol/${REPO_BRANCH}/deploy/install.sh | sudo bash" >&2; exit 1; }
   if ! command -v git >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq && apt-get install -y -qq git ca-certificates curl >/dev/null
