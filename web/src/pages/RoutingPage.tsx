@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, Globe2, Play, Plus, RefreshCw, Shield, Trash2, Zap } from 'lucide-react';
 import { apiFetch } from '../lib/api';
+import { navigate, useLocationState } from '../lib/router';
 import { useUi } from '../i18n/context';
-import { Button, Card, Input, Select, StatusPill } from '../components/UiPrimitives';
+import { Button, Card, Input, PageHead, Select, StatusPill, Tabs } from '../components/UiPrimitives';
 import { Modal } from '../components/Modal';
 
 interface OutboundItem {
@@ -45,7 +46,11 @@ const GEOIP_PRESETS = ['ir', 'private', 'cn', 'ru'];
 
 export function RoutingPage() {
   const { t, lang } = useUi();
-  const [tab, setTab] = useState<'outbounds' | 'rules'>('outbounds');
+  const { pathname } = useLocationState();
+  const tab: 'outbounds' | 'rules' = pathname.endsWith('/outbounds') ? 'outbounds' : 'rules';
+  const setTab = (next: 'outbounds' | 'rules') => {
+    navigate(next === 'outbounds' ? '/routing/outbounds' : '/routing');
+  };
   const [outbounds, setOutbounds] = useState<OutboundItem[]>([]);
   const [nodes, setNodes] = useState<NodeOption[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<number>(1);
@@ -249,18 +254,19 @@ export function RoutingPage() {
   };
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-(--text-primary)">{t.routing.title}</h1>
-        <div className="flex gap-2">
-          <Button variant={tab === 'outbounds' ? 'primary' : 'secondary'} onClick={() => setTab('outbounds')}>
-            {t.routing.outbounds}
-          </Button>
-          <Button variant={tab === 'rules' ? 'primary' : 'secondary'} onClick={() => setTab('rules')}>
-            {t.routing.rules}
-          </Button>
-        </div>
-      </div>
+    <div className="page">
+      <PageHead
+        title={t.routing.title}
+        sub={`${outbounds.length} outbounds · ${rules.length} rules`}
+      />
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        items={[
+          { id: 'rules', label: t.routing.rules, count: rules.length },
+          { id: 'outbounds', label: t.routing.outbounds, count: outbounds.length },
+        ]}
+      />
 
       {tab === 'outbounds' && (
         <div className="space-y-4">

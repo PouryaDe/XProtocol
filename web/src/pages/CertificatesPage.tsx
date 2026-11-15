@@ -3,7 +3,7 @@ import { Plus, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { formatDateTime } from '../lib/format';
 import { useUi } from '../i18n/context';
-import { Button, Card, Input, Select, StatusPill } from '../components/UiPrimitives';
+import { Button, Card, Input, PageHead, Select, StatusPill } from '../components/UiPrimitives';
 import { Drawer } from '../components/Drawer';
 
 interface CertItem {
@@ -58,14 +58,17 @@ export function CertificatesPage() {
   };
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-(--text-primary)">{t.certificates.title}</h1>
-        <Button variant="primary" onClick={() => setModalOpen(true)}>
-          <Plus className="h-4 w-4" />
-          {t.certificates.newCert}
-        </Button>
-      </div>
+    <div className="page">
+      <PageHead
+        title={t.certificates.title}
+        sub={`${certs.length} certificates`}
+        actions={
+          <Button variant="primary" onClick={() => setModalOpen(true)}>
+            <Plus className="h-4 w-4" />
+            {t.certificates.newCert}
+          </Button>
+        }
+      />
 
       <div className="grid gap-3">
         {certs.map((c) => (

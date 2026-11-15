@@ -68,8 +68,19 @@ const CARD_STYLES: Record<string, string> = {
   mono: 'border border-neutral-300 bg-white',
 };
 
+interface PreviewSettingsOverride {
+  look?: string;
+  accentColor?: string;
+  shopName?: string;
+  supportLink?: string;
+  supportButtonText?: string;
+  channelLink?: string;
+  protocols?: { id: string; shown: boolean; tabName: string; guideNote: string }[];
+}
+
 export function SubscriptionPage({ token }: { token: string }) {
-  const [data, setData] = useState<SubPayload | null>(null);
+  const [rawData, setRawData] = useState<SubPayload | null>(null);
+  const [previewOverride, setPreviewOverride] = useState<PreviewSettingsOverride | null>(null);
   const [error, setError] = useState('');
   const [lang, setLang] = useState<'en' | 'fa'>('en');
   const [activeTab, setActiveTab] = useState(0);
@@ -77,6 +88,19 @@ export function SubscriptionPage({ token }: { token: string }) {
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
   const subBase = window.location.pathname.replace(/\/+$/, '');
+
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (e.origin === window.location.origin && e.data?.type === 'xp-preview' && e.data.settings) {
+        setPreviewOverride(e.data.settings as PreviewSettingsOverride);
+      }
+    };
+    window.addEventListener('message', onMsg);
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: 'xp-preview-ready' }, window.location.origin);
+    }
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
 
   useEffect(() => {
     fetch(`${subBase}/data`)
@@ -88,11 +112,42 @@ export function SubscriptionPage({ token }: { token: string }) {
         return res.json() as Promise<SubPayload>;
       })
       .then((payload) => {
-        setData(payload);
+        setRawData(payload);
         setLang(payload.appearance.defaultLanguage || 'en');
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Invalid link'));
   }, [token]);
+
+  const data: SubPayload | null = rawData
+    ? previewOverride
+      ? {
+          ...rawData,
+          appearance: {
+            ...rawData.appearance,
+            look: (previewOverride.look as SubPayload['appearance']['look']) || rawData.appearance.look,
+            accentColor:
+              previewOverride.accentColor !== undefined
+                ? previewOverride.accentColor
+                : rawData.appearance.accentColor,
+            shopName: previewOverride.shopName ?? rawData.appearance.shopName,
+            supportLink: previewOverride.supportLink ?? rawData.appearance.supportLink,
+            supportButtonText: previewOverride.supportButtonText ?? rawData.appearance.supportButtonText,
+            channelLink: previewOverride.channelLink ?? rawData.appearance.channelLink,
+          },
+          protocolTabs: previewOverride.protocols
+            ? rawData.protocolTabs
+                .filter((pt) => {
+                  const ov = previewOverride.protocols?.find((x) => x.id === pt.id);
+                  return ov ? ov.shown : true;
+                })
+                .map((pt) => {
+                  const ov = previewOverride.protocols?.find((x) => x.id === pt.id);
+                  return ov ? { ...pt, tabName: ov.tabName || pt.tabName, guideNote: ov.guideNote } : pt;
+                })
+            : rawData.protocolTabs,
+        }
+      : rawData
+    : null;
 
   if (error) {
     return (
@@ -119,7 +174,15 @@ export function SubscriptionPage({ token }: { token: string }) {
   const currentTab = data.protocolTabs[activeTab] || data.protocolTabs[0];
 
   return (
-    <div dir={isFa ? 'rtl' : 'ltr'} className={`min-h-screen p-4 sm:p-8 ${LOOK_STYLES[look] || LOOK_STYLES.night_shift}`}>
+    <div
+      dir={isFa ? 'rtl' : 'ltr'}
+      style={
+        data.appearance.accentColor
+          ? ({ '--accent': data.appearance.accentColor } as React.CSSProperties)
+          : undefined
+      }
+      className={`min-h-screen p-4 sm:p-8 ${LOOK_STYLES[look] || LOOK_STYLES.night_shift}`}
+    >
       <div className="mx-auto max-w-3xl space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between">

@@ -299,18 +299,107 @@ export function StatusPill({
   tone: 'green' | 'lime' | 'amber' | 'red' | 'gray' | 'blue';
   label: string;
 }) {
-  const styles: Record<string, string> = {
-    green: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
-    lime: 'bg-(--accent-soft) text-(--accent-text) border-(--accent)/30',
-    amber: 'bg-amber-500/15 text-amber-400 border-amber-500/25',
-    red: 'bg-red-500/15 text-red-400 border-red-500/25',
-    blue: 'bg-sky-500/15 text-sky-400 border-sky-500/25',
-    gray: 'bg-slate-500/15 text-(--text-secondary) border-(--border-subtle)',
+  const tagClass: Record<string, string> = {
+    green: 'tag tag-active',
+    lime: 'tag tag-online',
+    amber: 'tag tag-pending',
+    red: 'tag tag-expired',
+    blue: 'tag tag-online',
+    gray: 'tag tag-disabled',
   };
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-mono font-medium uppercase tracking-wider rtl:font-sans rtl:tracking-normal rtl:normal-case ${styles[tone]}`}>
-      <span className={`h-1.5 w-1.5 rounded-full bg-current ${tone === 'lime' || tone === 'green' ? 'xp-status-live' : ''}`} />
+    <span className={tagClass[tone] || 'tag tag-disabled'}>
+      <span className="dot" />
       {label}
+    </span>
+  );
+}
+
+export function PageHead({
+  title,
+  sub,
+  actions,
+}: {
+  title: React.ReactNode;
+  sub?: React.ReactNode;
+  actions?: React.ReactNode;
+}) {
+  return (
+    <div className="pagehead">
+      <div className="ph-text">
+        <h1>{title}</h1>
+        {sub ? <p className="sub">{sub}</p> : null}
+      </div>
+      {actions ? <div className="ph-actions">{actions}</div> : null}
+    </div>
+  );
+}
+
+export interface TabItem<T extends string = string> {
+  id: T;
+  label: React.ReactNode;
+  count?: number;
+}
+
+export function Tabs<T extends string = string>({
+  items,
+  value,
+  onChange,
+}: {
+  items: TabItem<T>[];
+  value: T;
+  onChange: (id: T) => void;
+}) {
+  return (
+    <div className="tabs" role="tablist">
+      {items.map((item) => {
+        const active = item.id === value;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            className={active ? 'active' : undefined}
+            onClick={() => onChange(item.id)}
+          >
+            <span>{item.label}</span>
+            {item.count !== undefined ? <span className="t-count">{item.count}</span> : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function Lamps({
+  used,
+  limit,
+  count = 16,
+  size = 'sm',
+}: {
+  used: number;
+  limit: number;
+  count?: number;
+  size?: 'sm' | 'lg';
+}) {
+  if (!limit || limit <= 0) {
+    return (
+      <span className={size === 'lg' ? 'lamps lamps-lg' : 'lamps'} aria-hidden="true">
+        {Array.from({ length: count }).map((_, i) => (
+          <i key={i} />
+        ))}
+      </span>
+    );
+  }
+  const ratio = Math.max(0, Math.min(1, used / limit));
+  const litCount = ratio > 0 ? Math.max(1, Math.round(ratio * count)) : 0;
+  const toneClass = ratio >= 0.95 ? 'over' : ratio >= 0.8 ? 'hot' : 'lit';
+  return (
+    <span className={size === 'lg' ? 'lamps lamps-lg' : 'lamps'} aria-hidden="true">
+      {Array.from({ length: count }).map((_, i) => (
+        <i key={i} className={i < litCount ? toneClass : undefined} />
+      ))}
     </span>
   );
 }

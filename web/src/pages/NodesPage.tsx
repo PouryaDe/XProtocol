@@ -3,10 +3,12 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  ChevronRight,
   Copy,
   DownloadCloud,
   Link2,
   Plus,
+  Search,
   Server,
   Terminal,
   Trash2,
@@ -14,8 +16,9 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { formatBytes, formatDuration } from '../lib/format';
+import { navigate, toPanelUrl } from '../lib/router';
 import { useUi } from '../i18n/context';
-import { Button, Card, Input, Odometer, Select, SplitHeading, StatusPill } from '../components/UiPrimitives';
+import { Button, EmptySonar, Input, PageHead, Select, StatusPill } from '../components/UiPrimitives';
 import { Modal } from '../components/Modal';
 import { Drawer } from '../components/Drawer';
 
@@ -61,6 +64,7 @@ export function NodesPage() {
   const [nodes, setNodes] = useState<NodeItem[]>([]);
   const [allInbounds, setAllInbounds] = useState<UnattachedInbound[]>([]);
   const [filterTab, setFilterTab] = useState<'all' | 'connected' | 'attention' | 'disabled'>('all');
+  const [nodeSearchQuery, setNodeSearchQuery] = useState('');
   const [connectOpen, setConnectOpen] = useState(false);
   const [connectStep, setConnectStep] = useState<1 | 2 | 3>(1);
   const [editing, setEditing] = useState<NodeItem | null>(null);
@@ -209,197 +213,232 @@ export function NodesPage() {
   }, [nodes]);
 
   const filteredNodes = useMemo(() => {
-    return nodes.filter((n) => {
-      if (filterTab === 'connected') return n.status === 'connected';
-      if (filterTab === 'attention') return n.enabled && n.status !== 'connected';
-      if (filterTab === 'disabled') return !n.enabled || n.status === 'disabled';
-      return true;
-    });
-  }, [nodes, filterTab]);
+    const q = nodeSearchQuery.trim().toLowerCase();
+    return nodes
+      .filter((n) => {
+        if (filterTab === 'connected' && n.status !== 'connected') return false;
+        if (filterTab === 'attention' && !(n.enabled && n.status !== 'connected')) return false;
+        if (filterTab === 'disabled' && !(!n.enabled || n.status === 'disabled')) return false;
+        if (q) {
+          return `${n.name} ${n.address} ${n.note} ${n.connectAddresses.join(' ')}`.toLowerCase().includes(q);
+        }
+        return true;
+      })
+      .sort((a, b) => Number(b.isLocal) - Number(a.isLocal));
+  }, [nodes, filterTab, nodeSearchQuery]);
 
   const nodeInstallCmd = `bash <(curl -fsSL ${window.location.origin}/install-node.sh) --port ${port || '62060'} --name "${name || 'eu-node'}"`;
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <SplitHeading text={t.nodes.title} className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-(--text-primary)" />
-        <Button variant="primary" onClick={openCreate}>
-          <Plus className="h-4 w-4" />
-          {t.nodes.connectNode}
-        </Button>
+    <div className="page nodes-page">
+      <PageHead
+        title={t.nodes.title}
+        sub={
+          lang === 'fa'
+            ? `${summary.connected} نود متصل از ${summary.total} · ${summary.onlineNow} نشست فعال`
+            : `${summary.connected} of ${summary.total} nodes connected · ${summary.onlineNow} live sessions`
+        }
+        actions={
+          <Button variant="primary" onClick={openCreate}>
+            <Plus className="h-4 w-4" />
+            {t.nodes.connectNode}
+          </Button>
+        }
+      />
+
+      <dl className="nd-strip">
+        <div>
+          <dt>{lang === 'fa' ? 'کل نودها' : 'Total nodes'}</dt>
+          <dd className="num">{summary.total}</dd>
+        </div>
+        <div>
+          <dt>
+            <span className="dot ok" aria-hidden="true" />
+            {t.nodes.connected}
+          </dt>
+          <dd className="num">{summary.connected}</dd>
+        </div>
+        <div className={summary.attention ? 'has-warning' : undefined}>
+          <dt>
+            <span className={`dot ${summary.attention ? 'warn' : 'off'}`} aria-hidden="true" />
+            {lang === 'fa' ? 'نیازمند توجه' : 'Needs attention'}
+          </dt>
+          <dd className="num">{summary.attention}</dd>
+        </div>
+        <div>
+          <dt>{t.overview.onlineNow}</dt>
+          <dd className="num">{summary.onlineNow}</dd>
+        </div>
+      </dl>
+
+      <div className="nd-toolbar">
+        <div className="nd-filters" role="group" aria-label={t.nodes.title}>
+          {([
+            { id: 'all', label: t.common.all, count: nodes.length },
+            { id: 'connected', label: t.nodes.connected, count: summary.connected },
+            { id: 'attention', label: lang === 'fa' ? 'نیازمند توجه' : 'Attention', count: summary.attention },
+            {
+              id: 'disabled',
+              label: lang === 'fa' ? 'غیرفعال' : 'Disabled',
+              count: nodes.filter((n) => !n.enabled || n.status === 'disabled').length,
+            },
+          ] as const).map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              aria-pressed={filterTab === tab.id}
+              onClick={() => setFilterTab(tab.id)}
+            >
+              {tab.label}
+              <span className="num">{tab.count}</span>
+            </button>
+          ))}
+        </div>
+
+        <label className="nd-search">
+          <Search aria-hidden="true" />
+          <input
+            type="search"
+            value={nodeSearchQuery}
+            onChange={(e) => setNodeSearchQuery(e.target.value)}
+            placeholder={lang === 'fa' ? 'جستجوی نود یا آدرس...' : 'Search node or address...'}
+          />
+        </label>
       </div>
 
-      {/* Summary Strip */}
-      <Card className="grid divide-y divide-(--border-subtle) sm:grid-cols-2 sm:divide-y-0 sm:divide-x xl:grid-cols-4 rtl:sm:divide-x-reverse">
-        <div className="xp-kpi p-4">
-          <div className="text-xs text-(--text-secondary)">{lang === 'fa' ? 'کل نودها' : 'Total nodes'}</div>
-          <div className="mt-1 font-display text-2xl font-bold tracking-tight text-(--text-primary)"><Odometer value={summary.total} /></div>
+      {filteredNodes.length === 0 ? (
+        <div className="panel py-8">
+          <EmptySonar text={lang === 'fa' ? 'نودی با این مشخصات یافت نشد' : 'No nodes match the filter'} />
         </div>
-        <div className="xp-kpi p-4">
-          <div className="text-xs text-(--text-secondary)">{t.nodes.connected}</div>
-          <div className="mt-1 font-display text-2xl font-bold tracking-tight text-emerald-400"><Odometer value={summary.connected} /></div>
-        </div>
-        <div className="xp-kpi p-4">
-          <div className="text-xs text-(--text-secondary)">{lang === 'fa' ? 'نیازمند توجه' : 'Needs attention'}</div>
-          <div className="mt-1 font-display text-2xl font-bold tracking-tight text-amber-400"><Odometer value={summary.attention} /></div>
-        </div>
-        <div className="xp-kpi p-4">
-          <div className="text-xs text-(--text-secondary)">{t.overview.onlineNow}</div>
-          <div className="mt-1 font-display text-2xl font-bold tracking-tight text-(--accent)"><Odometer value={summary.onlineNow} /></div>
-        </div>
-      </Card>
-
-      {/* Filter Tabs */}
-      <div className="flex flex-wrap gap-1.5">
-        {([
-          { id: 'all', label: t.common.all, count: nodes.length },
-          { id: 'connected', label: t.nodes.connected, count: summary.connected },
-          { id: 'attention', label: lang === 'fa' ? 'نیازمند توجه' : 'Needs attention', count: summary.attention },
-          {
-            id: 'disabled',
-            label: lang === 'fa' ? 'غیرفعال' : 'Disabled',
-            count: nodes.filter((n) => !n.enabled || n.status === 'disabled').length,
-          },
-        ] as const).map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setFilterTab(tab.id)}
-            className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-medium transition ${
-              filterTab === tab.id
-                ? 'border-(--accent) bg-(--accent-soft) text-(--accent)'
-                : 'border-(--border-subtle) bg-(--bg-surface) text-(--text-secondary) hover:text-(--text-primary)'
-            }`}
-          >
-            <span>{tab.label}</span>
-            <span className="rounded-md bg-(--bg-elevated) px-1.5 py-0.5 text-[10px]">{tab.count}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        {filteredNodes.map((n) => (
-          <Card key={n.id} className="space-y-4 p-5">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-(--accent-soft) text-(--accent)">
-                  <Server className="h-5 w-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-(--text-primary)">{n.name}</span>
+      ) : (
+        <ul className="nd-rows">
+          {filteredNodes.map((n) => {
+            const dotTone = n.status === 'connected' ? 'ok' : n.enabled ? 'warn' : 'off';
+            return (
+              <li
+                key={n.id}
+                className={`nd-row ${n.status !== 'connected' && n.enabled ? 'is-down' : ''} ${n.isLocal ? 'is-local' : ''}`}
+              >
+                <span className={`dot ${dotTone}`} aria-hidden="true" />
+                <div className="nr-main">
+                  <div className="nr-line">
+                    <button type="button" className="nr-open" onClick={() => openDetails(n, 'overview')}>
+                      <span className="nr-name" dir="auto">
+                        {n.name}
+                      </span>
+                    </button>
                     <StatusPill
                       tone={n.status === 'connected' ? 'green' : n.status === 'disabled' ? 'gray' : 'red'}
                       label={n.status === 'connected' ? t.nodes.connected : n.status}
                     />
-                    <span className="rounded-lg border border-(--border-subtle) bg-(--bg-elevated) px-2 py-0.5 font-mono text-[11px] text-(--text-secondary)">
-                      ×{n.multiplier}
-                    </span>
+                    <span className="tag">×{n.multiplier}</span>
                   </div>
-                  <div className="font-mono text-xs text-(--text-muted)">
-                    {n.address}:{n.port}
-                  </div>
-                </div>
-              </div>
 
-              <div className="flex items-center gap-1">
-                <Button size="sm" onClick={() => openDetails(n, 'overview')}>
-                  {lang === 'fa' ? 'جزئیات' : 'Details'}
-                </Button>
-                <Button size="sm" onClick={() => openEdit(n)}>{t.common.edit}</Button>
-                {!n.isLocal && (
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    onClick={async () => {
-                      if (!confirm(t.common.confirmDelete)) return;
-                      await apiFetch(`/nodes/${n.id}`, { method: 'DELETE' });
-                      load();
+                  <div className="nr-sub">
+                    {n.isLocal ? (
+                      <span>{lang === 'fa' ? 'سرور اصلی پنل' : 'Panel host node'}</span>
+                    ) : (
+                      <span dir="ltr" className="font-mono">
+                        {n.address}:{n.port}
+                      </span>
+                    )}
+                    <span aria-hidden="true">·</span>
+                    <span dir="ltr">XProtocol {n.xprotocolVersion}</span>
+                    {n.uptimeSec > 0 && (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <span>{formatDuration(n.uptimeSec, lang)}</span>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="nr-chips">
+                    <span className="tag" dir="ltr">
+                      OpenVPN {n.openvpnVersion}
+                    </span>
+                    <span className="tag" dir="ltr">
+                      {n.wireguardReady ? 'WireGuard ready' : 'No TUN'}
+                    </span>
+                    <span className="tag" dir="ltr">
+                      OpenConnect {n.openconnectVersion}
+                    </span>
+                    {n.inbounds.map((ib) => (
+                      <span key={ib.id} className="tag" dir="ltr">
+                        {ib.name}:{ib.port}
+                      </span>
+                    ))}
+                  </div>
+
+                  {n.connectAddresses.length > 0 && (
+                    <div className="mt-1.5 flex items-center gap-2 text-xs text-(--text-muted)">
+                      <span>Relays</span>
+                      <span className="rl-line min-w-8 flex-1" aria-hidden="true" />
+                      <span className="font-mono text-(--text-primary)" dir="ltr">
+                        {n.connectAddresses.join(', ')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="nr-stats">
+                  <a
+                    className="nr-sessions"
+                    href={toPanelUrl(`/connections?node=${encodeURIComponent(n.name)}`)}
+                    onClick={(e) => {
+                      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                      e.preventDefault();
+                      navigate(`/connections?node=${encodeURIComponent(n.name)}`);
                     }}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <b className="num">{n.onlineCount}</b>{' '}
+                    <span>{lang === 'fa' ? 'نشست' : 'sessions'}</span>
+                  </a>
+                  <span className="nr-traffic">
+                    <b className="num">{formatBytes(n.realTrafficBytes, lang)}</b>
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setAttachNodeId(n.id);
+                      setAttachInboundId(unattached[0] ? String(unattached[0].id) : '');
+                    }}
+                    title={t.nodes.attachInbound}
+                  >
+                    <Link2 className="h-3.5 w-3.5" />
                   </Button>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 rounded-xl bg-(--bg-elevated) p-3 text-xs">
-              <div>
-                <div className="text-(--text-muted)">{t.overview.onlineNow}</div>
-                <div className="mt-0.5 font-bold text-(--text-primary)">{n.onlineCount}</div>
-              </div>
-              <div>
-                <div className="text-(--text-muted)">{t.nodes.realTraffic}</div>
-                <div className="mt-0.5 font-mono font-semibold text-(--text-primary)">
-                  {formatBytes(n.realTrafficBytes, lang)}
-                </div>
-              </div>
-              <div>
-                <div className="text-(--text-muted)">{t.nodes.uptime}</div>
-                <div className="mt-0.5 font-semibold text-(--text-primary)">{formatDuration(n.uptimeSec, lang)}</div>
-              </div>
-            </div>
-
-            <div className="text-xs text-(--text-secondary)">
-              XProtocol {n.xprotocolVersion} · OpenVPN {n.openvpnVersion} ·{' '}
-              {n.wireguardReady ? 'WireGuard ready' : 'No TUN'} · OpenConnect {n.openconnectVersion}
-            </div>
-
-            {n.connectAddresses.length > 0 && (
-              <div className="flex items-center gap-2.5 text-xs text-(--text-muted)">
-                <span className="shrink-0">Relays</span>
-                <span className="rl-line min-w-8 flex-1" aria-hidden="true" />
-                <span className="font-mono text-(--text-primary)">{n.connectAddresses.join(', ')}</span>
-              </div>
-            )}
-
-            <div className="space-y-2 border-t border-(--border-subtle) pt-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-(--text-secondary)">{t.nav.inbounds}</span>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setAttachNodeId(n.id);
-                    setAttachInboundId(unattached[0] ? String(unattached[0].id) : '');
-                  }}
-                >
-                  <Link2 className="h-3.5 w-3.5" />
-                  {t.nodes.attachInbound}
-                </Button>
-              </div>
-              {n.inbounds.length === 0 ? (
-                <div className="text-xs text-(--text-muted)">No inbounds attached.</div>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {n.inbounds.map((ib) => (
-                    <div
-                      key={ib.id}
-                      className="inline-flex items-center gap-2 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-2.5 py-1 text-xs"
+                  <Button size="sm" onClick={() => openEdit(n)}>
+                    {t.common.edit}
+                  </Button>
+                  {!n.isLocal && (
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      onClick={async () => {
+                        if (!confirm(t.common.confirmDelete)) return;
+                        await apiFetch(`/nodes/${n.id}`, { method: 'DELETE' });
+                        load();
+                      }}
                     >
-                      <span className="font-semibold text-(--text-primary)">{ib.name}</span>
-                      <span className="font-mono text-(--text-muted)">:{ib.port}</span>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await apiFetch(`/nodes/${n.id}/detach`, {
-                            method: 'POST',
-                            body: JSON.stringify({ inboundId: ib.id }),
-                          });
-                          load();
-                        }}
-                        title={t.nodes.detach}
-                        className="text-(--text-muted) hover:text-red-400"
-                      >
-                        <Unlink className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                  <button
+                    type="button"
+                    className="rounded-lg p-1 text-(--text-muted) hover:text-(--text-primary)"
+                    onClick={() => openDetails(n, 'overview')}
+                    aria-label="Details"
+                  >
+                    <ChevronRight className="nr-chev h-4 w-4 rtl:rotate-180" />
+                  </button>
                 </div>
-              )}
-            </div>
-          </Card>
-        ))}
-      </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       {/* Node Details Slide-Over Drawer */}
       <Drawer

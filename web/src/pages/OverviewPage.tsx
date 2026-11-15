@@ -1,11 +1,22 @@
-import { useEffect, useState } from 'react';
-import { Activity, AlertTriangle, ArrowDownUp, ArrowRight, Cpu, Plus, Radio, Server, Users } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
+  BarChart3,
+  CheckCircle2,
+  Plus,
+  RefreshCw,
+  Server,
+  TrendingUp,
+  Users,
+} from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { formatBytes, formatDaysLeft, formatDuration, formatSpeed } from '../lib/format';
+import { navigate, toPanelUrl } from '../lib/router';
 import { useUi } from '../i18n/context';
-import { Button, Card, EmptySonar, EqLoader, Odometer, SplitHeading, StatusPill } from '../components/UiPrimitives';
+import { Button, Odometer, PageHead, StatusPill, EqLoader } from '../components/UiPrimitives';
 import { TrafficChart } from '../components/TrafficChart';
-import { DonutChart } from '../components/DonutChart';
 import type { NavKey } from '../components/Layout';
 
 interface OverviewResponse {
@@ -90,16 +101,29 @@ export function OverviewPage({
 }) {
   const { t, lang } = useUi();
   const [data, setData] = useState<OverviewResponse | null>(null);
+  const [stale, setStale] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [chartRange, setChartRange] = useState<'24h' | '7d' | '30d'>('24h');
   const [chartMode, setChartMode] = useState<'bars' | 'trend'>('bars');
 
-  const load = () => {
-    apiFetch<OverviewResponse>('/dashboard/overview').then(setData).catch(() => undefined);
+  const load = async (manual = false) => {
+    if (manual) setRefreshing(true);
+    try {
+      const res = await apiFetch<OverviewResponse>('/dashboard/overview');
+      setData(res);
+      setStale(false);
+      setUpdatedAt(new Date());
+    } catch {
+      setStale(true);
+    } finally {
+      if (manual) setRefreshing(false);
+    }
   };
 
   useEffect(() => {
-    load();
-    const timer = setInterval(load, 5000);
+    void load(false);
+    const timer = setInterval(() => void load(false), 5000);
     return () => clearInterval(timer);
   }, []);
 
@@ -108,19 +132,21 @@ export function OverviewPage({
       method: 'PATCH',
       body: JSON.stringify({ addDays: 30 }),
     });
-    load();
+    void load(false);
   };
 
-  if (!data) {
-    return <EqLoader label={t.common.loading} />;
-  }
-
-  const chartData =
-    chartRange === '24h'
+  const chartData = useMemo(() => {
+    if (!data) return [];
+    return chartRange === '24h'
       ? data.charts.hourly24
       : chartRange === '7d'
         ? data.charts.daily7 ?? data.charts.daily30.slice(-7)
         : data.charts.daily30;
+  }, [data, chartRange]);
+
+  if (!data) {
+    return <EqLoader label={t.common.loading} />;
+  }
 
   const breakdown = data.statusBreakdown ?? {
     active: data.summary.activeClients,
@@ -130,264 +156,440 @@ export function OverviewPage({
     not_started: 0,
   };
 
-  const donutSegments = [
-    { label: lang === 'fa' ? 'فعال' : 'Active', value: breakdown.active, color: 'var(--accent)' },
-    { label: lang === 'fa' ? 'شروع‌نشده' : 'Not started', value: breakdown.not_started, color: '#38bdf8' },
-    { label: lang === 'fa' ? 'اتمام حجم' : 'Used up', value: breakdown.used_up, color: '#f59e0b' },
-    { label: lang === 'fa' ? 'منقضی' : 'Expired', value: breakdown.expired, color: '#ef4444' },
-    { label: lang === 'fa' ? 'غیرفعال' : 'Disabled', value: breakdown.disabled, color: '#6b7280' },
+  const periodDown = chartData.reduce((acc, p) => acc + (p.download_bytes || 0), 0);
+  const periodUp = chartData.reduce((acc, p) => acc + (p.upload_bytes || 0), 0);
+  const periodTotal = periodDown + periodUp;
+  const peakPoint = chartData.reduce<(typeof chartData)[number] | null>(
+    (best, cur) =>
+      !best || cur.download_bytes + cur.upload_bytes > best.download_bytes + best.upload_bytes ? cur : best,
+    null,
+  );
+
+  const statusItems = [
+    { key: 'active', label: lang === 'fa' ? 'فعال' : 'Active', count: breakdown.active, color: 'var(--accent)' },
+    {
+      key: 'not_started',
+      label: lang === 'fa' ? 'شروع‌نشده' : 'Not started',
+      count: breakdown.not_started,
+      color: '#38bdf8',
+    },
+    { key: 'limited', label: lang === 'fa' ? 'اتمام حجم' : 'Used up', count: breakdown.used_up, color: '#f59e0b' },
+    { key: 'expired', label: lang === 'fa' ? 'منقضی' : 'Expired', count: breakdown.expired, color: '#ef4444' },
+    {
+      key: 'disabled',
+      label: lang === 'fa' ? 'غیرفعال' : 'Disabled',
+      count: breakdown.disabled,
+      color: 'var(--text-muted)',
+    },
   ];
 
+  const ringRadius = 66;
+  const ringCirc = 2 * Math.PI * ringRadius;
+  let ringOffset = 0;
+
+  const heaviestMax = Math.max(1, ...data.heaviestUsers.map((u) => u.trafficUsedBytes));
+
+  const go = (to: string) => (e: React.MouseEvent) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    navigate(to);
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <SplitHeading text={t.overview.title} className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-(--text-primary)" />
-          <p className="mt-0.5 text-xs text-(--text-secondary)">
-            {lang === 'fa'
-              ? `${data.summary.onlineClients} کاربر آنلاین · ${data.summary.runningOutCount} اشتراک رو به اتمام`
-              : `${data.summary.onlineClients} online now · ${data.summary.runningOutCount} plans run out soon`}
-          </p>
-        </div>
-        <Button variant="primary" onClick={onOpenNewClient}>
-          <Plus className="h-4 w-4" />
-          {t.overview.newClient}
-        </Button>
+    <div className="page overview-page">
+      <PageHead
+        title={t.overview.title}
+        sub={
+          lang === 'fa'
+            ? `${data.summary.onlineClients} کاربر آنلاین · ${data.summary.totalClients} کل · ${data.summary.runningOutCount} نیازمند توجه`
+            : `${data.summary.onlineClients} online · ${data.summary.totalClients} total · ${data.summary.runningOutCount} need attention`
+        }
+        actions={
+          <>
+            <Button size="sm" onClick={() => void load(true)} disabled={refreshing}>
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              {lang === 'fa' ? 'به‌روزرسانی' : 'Refresh'}
+            </Button>
+            <Button variant="primary" size="sm" onClick={onOpenNewClient}>
+              <Plus className="h-3.5 w-3.5" />
+              {t.overview.newClient}
+            </Button>
+          </>
+        }
+      />
+
+      <div className={`ov-freshness ${stale ? 'stale' : ''}`}>
+        <span className={`dot ${stale ? 'warn' : 'ok'}`} aria-hidden="true" />
+        <span>
+          {stale
+            ? lang === 'fa'
+              ? 'اتصال زنده موقتاً قطع شد'
+              : 'Live updates paused — retrying'
+            : lang === 'fa'
+              ? 'پایش زنده هر ۵ ثانیه'
+              : 'Live · polling every 5s'}
+        </span>
+        {updatedAt ? (
+          <span>
+            ·{' '}
+            {updatedAt.toLocaleTimeString(lang === 'fa' ? 'fa-IR' : 'en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            })}
+          </span>
+        ) : null}
       </div>
 
       {data.notices.needsPublicAddress && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-300">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
-            <span>{t.overview.publicAddrNotice}</span>
-          </div>
-          <Button size="sm" onClick={() => onNavigate('settings')}>
+        <div className="banner">
+          <span>{t.overview.publicAddrNotice}</span>
+          <a href={toPanelUrl('/settings')} onClick={go('/settings')}>
             {t.overview.setIt}
-          </Button>
+          </a>
         </div>
       )}
 
-      {/* Unified 4-KPI Strip */}
-      <Card className="grid divide-y divide-(--border-subtle) sm:grid-cols-2 sm:divide-y-0 sm:divide-x xl:grid-cols-4 rtl:sm:divide-x-reverse">
-        <div className="xp-kpi p-4">
-          <div className="flex items-center justify-between text-xs text-(--text-secondary)">
-            <span>{t.overview.onlineNow}</span>
-            <Activity className="h-4 w-4 text-(--accent)" />
-          </div>
-          <div className="mt-2 flex items-baseline justify-between gap-2">
-            <div className="font-display text-2xl font-bold tracking-tight text-(--text-primary)">
-              <Odometer value={data.summary.onlineClients} />
-            </div>
-            <button
-              type="button"
-              onClick={() => onNavigate('connections')}
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-(--accent) hover:underline"
-            >
-              {lang === 'fa' ? 'مشاهده لیست' : 'View list'}
-              <ArrowRight className="h-3 w-3" />
-            </button>
-          </div>
-          <div className="mt-1 text-xs text-(--text-muted)">
+      {/* 4-cell KPI strip */}
+      <section className="kpis" aria-label={t.overview.title}>
+        <div className="kpi">
+          <span className="kpi-label">{t.overview.onlineNow}</span>
+          <span className="kpi-value num">
+            <Odometer value={data.summary.onlineClients} />
+          </span>
+          <span className="kpi-sub">
             {data.summary.openTunnels} {lang === 'fa' ? 'تانل باز' : 'open tunnels'}
-          </div>
+          </span>
+          <a className="kpi-link" href={toPanelUrl('/connections')} onClick={go('/connections')}>
+            {lang === 'fa' ? 'مشاهده لیست' : 'View list'}
+            <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" />
+          </a>
         </div>
 
-        <div className="xp-kpi p-4">
-          <div className="flex items-center justify-between text-xs text-(--text-secondary)">
-            <span>{t.overview.activeClients}</span>
-            <Users className="h-4 w-4 text-(--info)" />
-          </div>
-          <div className="mt-2 font-display text-2xl font-bold tracking-tight text-(--text-primary)">
+        <div className="kpi">
+          <span className="kpi-label">{t.overview.activeClients}</span>
+          <span className="kpi-value num">
             <Odometer value={data.summary.activeClients} />
-          </div>
-          <div className="mt-1 text-xs text-(--text-muted)">
+          </span>
+          <span className="kpi-sub">
             {lang === 'fa' ? `از ${data.summary.totalClients} کاربر` : `out of ${data.summary.totalClients} clients`}
-          </div>
+          </span>
         </div>
 
-        <div className="xp-kpi p-4">
-          <div className="flex items-center justify-between text-xs text-(--text-secondary)">
-            <span>{t.overview.trafficToday}</span>
-            <ArrowDownUp className="h-4 w-4 text-emerald-400" />
-          </div>
-          <div className="mt-2 font-display text-2xl font-bold tracking-tight text-(--text-primary)">
+        <div className="kpi">
+          <span className="kpi-label">{t.overview.trafficToday}</span>
+          <span className="kpi-value num">
             <Odometer value={formatBytes(data.summary.todayDownloadBytes + data.summary.todayUploadBytes, lang)} />
-          </div>
-          <div className="mt-1 text-xs text-(--text-muted)">
-            30d: {formatBytes(data.summary.total30dBytes, lang)}
-          </div>
+          </span>
+          <span className="kpi-sub">30d: {formatBytes(data.summary.total30dBytes, lang)}</span>
         </div>
 
-        <div className="xp-kpi p-4">
-          <div className="flex items-center justify-between text-xs text-(--text-secondary)">
-            <span>{t.overview.throughputNow}</span>
-            <Radio className="h-4 w-4 text-violet-400" />
-          </div>
-          <div className="mt-2 font-display text-lg font-bold tracking-tight text-(--text-primary)">
-            ↓ {formatSpeed(data.summary.speedDownBps)}
-          </div>
-          <div className="mt-1 text-xs text-(--text-muted)">
-            ↑ {formatSpeed(data.summary.speedUpBps)}
-          </div>
+        <div className="kpi">
+          <span className="kpi-label">{t.overview.throughputNow}</span>
+          <span className="kpi-value num">
+            {formatSpeed(data.summary.speedDownBps + data.summary.speedUpBps)}
+          </span>
+          <span className="kpi-sub flex items-center gap-3">
+            <span className="inline-flex items-center gap-1">
+              <ArrowDown className="h-3 w-3 text-(--accent-text)" />
+              {formatSpeed(data.summary.speedDownBps)}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <ArrowUp className="h-3 w-3 text-sky-400" />
+              {formatSpeed(data.summary.speedUpBps)}
+            </span>
+          </span>
         </div>
-      </Card>
+      </section>
 
-      {/* Traffic Overview + Client Status Donut */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="p-5 lg:col-span-2">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-(--text-primary)">
-              {lang === 'fa' ? 'نمای کلی ترافیک' : 'Traffic overview'}
-            </h2>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-0.5 text-[11px]">
-                {([
-                  { id: '24h', label: lang === 'fa' ? '۲۴ ساعت' : '24 hours' },
-                  { id: '7d', label: lang === 'fa' ? '۷ روز' : '7 days' },
-                  { id: '30d', label: lang === 'fa' ? '۳۰ روز' : '30 days' },
-                ] as const).map((r) => (
-                  <button
-                    key={r.id}
-                    type="button"
-                    onClick={() => setChartRange(r.id)}
-                    className={`rounded-lg px-2.5 py-1 font-medium transition ${
-                      chartRange === r.id
-                        ? 'bg-(--accent-soft) text-(--accent)'
-                        : 'text-(--text-secondary) hover:text-(--text-primary)'
-                    }`}
-                  >
-                    {r.label}
-                  </button>
-                ))}
-              </div>
-              <div className="inline-flex rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-0.5 text-[11px]">
-                {([
-                  { id: 'bars', label: lang === 'fa' ? 'میله‌ای' : 'Bars' },
-                  { id: 'trend', label: lang === 'fa' ? 'روند' : 'Trend' },
-                ] as const).map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setChartMode(m.id)}
-                    className={`rounded-lg px-2.5 py-1 font-medium transition ${
-                      chartMode === m.id
-                        ? 'bg-(--accent-soft) text-(--accent)'
-                        : 'text-(--text-secondary) hover:text-(--text-primary)'
-                    }`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
+      {/* Primary analytics: Traffic Explorer + Client Health */}
+      <div className="ov-analytics">
+        <section className="panel ov-traffic-panel">
+          <header className="panel-head">
+            <div>
+              <h2>{lang === 'fa' ? 'تحلیلگر ترافیک' : 'Traffic explorer'}</h2>
+              <p className="ov-section-note">
+                {lang === 'fa' ? 'مصرف ثبت‌شده کاربران در بازه انتخابی' : 'Counted client traffic for the selected window'}
+              </p>
+            </div>
+            <div className="inline-flex rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-0.5 text-xs">
+              {(['24h', '7d', '30d'] as const).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setChartRange(r)}
+                  className={`rounded-lg px-2.5 py-1 font-medium transition ${
+                    chartRange === r
+                      ? 'bg-(--accent-soft) text-(--accent-text)'
+                      : 'text-(--text-secondary) hover:text-(--text-primary)'
+                  }`}
+                >
+                  {r === '24h'
+                    ? lang === 'fa'
+                      ? '۲۴ ساعت'
+                      : '24h'
+                    : r === '7d'
+                      ? lang === 'fa'
+                        ? '۷ روز'
+                        : '7d'
+                      : lang === 'fa'
+                        ? '۳۰ روز'
+                        : '30d'}
+                </button>
+              ))}
+            </div>
+          </header>
+
+          <div className="ov-traffic-summary">
+            <div className="ov-traffic-total">
+              <span>{lang === 'fa' ? 'مجموع بازه' : 'Period total'}</span>
+              <strong className="num">{formatBytes(periodTotal, lang)}</strong>
+            </div>
+            <div>
+              <span>
+                <ArrowDown className="h-3.5 w-3.5 text-(--accent-text)" />
+                {lang === 'fa' ? 'دانلود' : 'Download'}
+              </span>
+              <strong className="num">{formatBytes(periodDown, lang)}</strong>
+            </div>
+            <div>
+              <span>
+                <ArrowUp className="h-3.5 w-3.5 text-sky-400" />
+                {lang === 'fa' ? 'آپلود' : 'Upload'}
+              </span>
+              <strong className="num">{formatBytes(periodUp, lang)}</strong>
             </div>
           </div>
-          <TrafficChart data={chartData} height={165} mode={chartMode} showTableToggle />
-        </Card>
 
-        <Card className="p-5 flex flex-col justify-between">
-          <div>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-(--text-primary)">
-                {lang === 'fa' ? 'وضعیت کاربران' : 'Client status'}
-              </h2>
-              <button
-                type="button"
-                onClick={() => onNavigate('clients')}
-                className="text-xs font-medium text-(--accent) hover:underline"
-              >
-                {t.common.all}
+          <div className="ov-chart-tools">
+            <div className="text-xs text-(--text-muted)">
+              {chartRange === '24h'
+                ? lang === 'fa'
+                  ? 'نمای ساعتی ۲۴ ساعت گذشته'
+                  : 'Hourly buckets over last 24 hours'
+                : chartRange === '7d'
+                  ? lang === 'fa'
+                    ? 'نمای روزانه ۷ روز گذشته'
+                    : 'Daily buckets over last 7 days'
+                  : lang === 'fa'
+                    ? 'نمای روزانه ۳۰ روز گذشته'
+                    : 'Daily buckets over last 30 days'}
+            </div>
+            <div className="ov-chart-mode" role="group">
+              <button type="button" aria-pressed={chartMode === 'bars'} onClick={() => setChartMode('bars')}>
+                <BarChart3 className="h-3.5 w-3.5" />
+                {lang === 'fa' ? 'ستونی' : 'Bars'}
+              </button>
+              <button type="button" aria-pressed={chartMode === 'trend'} onClick={() => setChartMode('trend')}>
+                <TrendingUp className="h-3.5 w-3.5" />
+                {lang === 'fa' ? 'روند' : 'Trend'}
               </button>
             </div>
-            <DonutChart
-              total={data.summary.totalClients}
-              totalLabel={lang === 'fa' ? 'کل کاربران' : 'Total clients'}
-              segments={donutSegments}
-            />
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-1.5 text-[11px]">
-            {donutSegments.map((seg) => (
-              <button
-                key={seg.label}
-                type="button"
-                onClick={() => onNavigate('clients')}
-                className="flex items-center justify-between rounded-lg border border-(--border-subtle) bg-(--bg-elevated) px-2.5 py-1.5 hover:border-(--accent)/40"
-              >
-                <span className="flex items-center gap-1.5 text-(--text-secondary)">
-                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: seg.color }} />
-                  {seg.label}
-                </span>
-                <span className="font-mono font-semibold text-(--text-primary)">{seg.value}</span>
-              </button>
-            ))}
+
+          <TrafficChart data={chartData} height={240} mode={chartMode} showTableToggle />
+
+          <div className="ov-chart-insight">
+            <TrendingUp className="h-3.5 w-3.5 text-(--accent-text)" />
+            <span>
+              {peakPoint && periodTotal > 0
+                ? lang === 'fa'
+                  ? `بیشترین مصرف در ${peakPoint.ts}: ${formatBytes(peakPoint.download_bytes + peakPoint.upload_bytes, lang)}`
+                  : `Peak bucket (${peakPoint.ts}): ${formatBytes(peakPoint.download_bytes + peakPoint.upload_bytes, lang)}`
+                : lang === 'fa'
+                  ? 'در این بازه ترافیکی ثبت نشده است'
+                  : 'No recorded traffic in this window'}
+            </span>
           </div>
-        </Card>
+        </section>
+
+        <section className="panel ov-client-panel">
+          <header className="panel-head">
+            <div>
+              <h2>{lang === 'fa' ? 'سلامت کاربران' : 'Client health'}</h2>
+              <p className="ov-section-note">
+                {lang === 'fa' ? 'توزیع وضعیت اشتراک‌ها' : 'Status breakdown across all clients'}
+              </p>
+            </div>
+            <Users className="h-4 w-4 text-(--text-muted)" />
+          </header>
+
+          <div className="ov-status-figure">
+            <svg viewBox="0 0 180 180" role="img" aria-label="Client health">
+              <circle cx="90" cy="90" r={ringRadius} fill="none" stroke="var(--border-subtle)" strokeWidth="14" />
+              {statusItems.map((seg) => {
+                const len = (seg.count / Math.max(1, data.summary.totalClients)) * ringCirc;
+                const dashOffset = -ringOffset;
+                ringOffset += len;
+                if (len <= 0) return null;
+                return (
+                  <circle
+                    key={seg.key}
+                    cx="90"
+                    cy="90"
+                    r={ringRadius}
+                    fill="none"
+                    stroke={seg.color}
+                    strokeWidth="14"
+                    strokeDasharray={`${len} ${ringCirc}`}
+                    strokeDashoffset={dashOffset}
+                    transform="rotate(-90 90 90)"
+                  />
+                );
+              })}
+            </svg>
+            <div>
+              <strong className="num">{data.summary.totalClients}</strong>
+              <span>{lang === 'fa' ? 'کل کاربران' : 'Total clients'}</span>
+            </div>
+          </div>
+
+          <ul className="ov-status-list">
+            {statusItems.map((seg) => {
+              const target = `/clients?status=${seg.key}`;
+              return (
+                <li key={seg.key}>
+                  <a href={toPanelUrl(target)} onClick={go(target)}>
+                    <span>
+                      <i style={{ background: seg.color }} aria-hidden="true" />
+                      {seg.label}
+                    </span>
+                    <strong className="num">{seg.count}</strong>
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       </div>
 
-      {/* Needs attention + Heaviest users + Inbounds + This server */}
-      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
-        <Card className="p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-(--text-primary)">
-              {lang === 'fa' ? 'نیازمند توجه' : 'Needs attention'}
-            </h2>
-            <button
-              type="button"
-              onClick={() => onNavigate('clients')}
-              className="text-xs font-medium text-(--accent) hover:underline"
+      {/* Secondary row: Needs attention + Heaviest users */}
+      <div className="ov-secondary">
+        <section className="panel">
+          <header className="panel-head">
+            <h2>{lang === 'fa' ? 'نیازمند توجه' : 'Needs attention'}</h2>
+            <a
+              className="head-action"
+              href={toPanelUrl('/clients')}
+              onClick={(e) => {
+                e.preventDefault();
+                onNavigate('clients');
+              }}
             >
               {t.common.all}
-            </button>
-          </div>
+            </a>
+          </header>
+
           {data.runningOut.length === 0 ? (
-            <EmptySonar text={t.overview.noRunningOut} />
+            <div className="ov-all-clear">
+              <CheckCircle2 />
+              <span>{t.overview.noRunningOut}</span>
+            </div>
           ) : (
             <div className="space-y-2">
               {data.runningOut.map((c) => (
                 <div
                   key={c.id}
-                  className="flex items-center justify-between rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3 py-2"
+                  className="flex items-center justify-between gap-2 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3 py-2"
                 >
                   <div className="min-w-0">
-                    <div className="truncate text-xs font-semibold text-(--text-primary)">{c.name}</div>
+                    <a
+                      href={toPanelUrl(`/clients/${c.id}`)}
+                      onClick={go(`/clients/${c.id}`)}
+                      className="strong-link block truncate text-xs"
+                    >
+                      {c.name}
+                    </a>
                     <div className="text-[11px] text-amber-400">
                       {c.reason === 'traffic' && c.trafficLimitBytes
                         ? `${Math.round((c.trafficUsedBytes / c.trafficLimitBytes) * 100)}% used`
                         : formatDaysLeft(c.expiresAt, null, lang)}
                     </div>
                   </div>
-                  <Button size="sm" onClick={() => quickExtend(c.id)}>
+                  <Button size="sm" onClick={() => void quickExtend(c.id)}>
                     +30d
                   </Button>
                 </div>
               ))}
             </div>
           )}
-        </Card>
+        </section>
+
+        <section className="panel">
+          <header className="panel-head">
+            <h2>{t.overview.heaviestUsers}</h2>
+            <a className="head-action" href={toPanelUrl('/clients')} onClick={go('/clients')}>
+              {t.common.all}
+            </a>
+          </header>
+
+          {data.heaviestUsers.length === 0 ? (
+            <div className="ov-all-clear">
+              <span>{lang === 'fa' ? 'هنوز مصرفی ثبت نشده' : 'No usage recorded yet'}</span>
+            </div>
+          ) : (
+            <div className="ov-rank">
+              {data.heaviestUsers.map((u, idx) => (
+                <div key={u.id} className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-mono text-[11px] text-(--text-muted)">#{idx + 1}</span>
+                      <a
+                        href={toPanelUrl(`/clients/${u.id}`)}
+                        onClick={go(`/clients/${u.id}`)}
+                        className="strong-link truncate"
+                      >
+                        {u.name}
+                      </a>
+                    </div>
+                    <span className="font-mono text-(--text-secondary)">{formatBytes(u.trafficUsedBytes, lang)}</span>
+                  </div>
+                  <div className="hbar">
+                    <div style={{ width: `${Math.round((u.trafficUsedBytes / heaviestMax) * 100)}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* Bottom row: Inbounds + This server */}
+      <div className="ov-secondary">
         {data.inbounds.length > 0 && (
-          <Card className="p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-(--text-primary)">{t.overview.inbounds}</h2>
-              <button
-                type="button"
-                onClick={() => onNavigate('inbounds')}
-                className="text-xs font-medium text-(--accent) hover:underline"
+          <section className="panel">
+            <header className="panel-head">
+              <h2>{t.overview.inbounds}</h2>
+              <a
+                className="head-action"
+                href={toPanelUrl('/inbounds')}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onNavigate('inbounds');
+                }}
               >
                 {t.common.all}
-              </button>
-            </div>
+              </a>
+            </header>
             <div className="space-y-2">
               {data.inbounds.map((ib) => (
                 <div
                   key={ib.id}
-                  className="flex items-center justify-between rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3 py-2 text-xs"
+                  className="flex items-center justify-between gap-2 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3 py-2 text-xs"
                 >
-                  <div>
-                    <div className="font-semibold text-(--text-primary)">{ib.name}</div>
+                  <div className="min-w-0">
+                    <a
+                      href={toPanelUrl(`/inbounds/${ib.id}`)}
+                      onClick={go(`/inbounds/${ib.id}`)}
+                      className="strong-link block truncate"
+                    >
+                      {ib.name}
+                    </a>
                     <div className="text-[11px] text-(--text-muted)">
                       {ib.protocol.toUpperCase()} · {ib.transport.toUpperCase()}/{ib.port}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     <span className="text-[11px] text-(--text-secondary)">{ib.onlineCount} online</span>
                     <StatusPill
                       tone={ib.running ? 'green' : ib.enabled ? 'amber' : 'gray'}
@@ -397,78 +599,63 @@ export function OverviewPage({
                 </div>
               ))}
             </div>
-          </Card>
+          </section>
         )}
 
-        <Card className="p-5">
-          <h2 className="mb-3 text-sm font-semibold text-(--text-primary)">{t.overview.heaviestUsers}</h2>
-          <div className="space-y-2">
-            {data.heaviestUsers.map((u) => (
-              <div
-                key={u.id}
-                className="flex items-center justify-between rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3 py-2 text-xs"
-              >
-                <span className="font-medium text-(--text-primary)">{u.name}</span>
-                <span className="font-mono text-(--text-secondary)">{formatBytes(u.trafficUsedBytes, lang)}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-
         {data.server ? (
-          <Card className="p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-(--text-primary)">{t.overview.thisServer}</h2>
-              <span className="inline-flex items-center gap-1 text-[11px] text-(--text-muted)">
+          <section className="panel">
+            <header className="panel-head">
+              <h2>{t.overview.thisServer}</h2>
+              <span className="inline-flex items-center gap-1.5 text-xs text-(--text-muted)">
                 <Server className="h-3.5 w-3.5" />
                 {data.server.driverMode}
               </span>
-            </div>
-            <div className="space-y-3 text-xs">
+            </header>
+
+            <div className="sysgrid">
               {[
+                { label: 'CPU', pct: data.server.cpuPercent, sub: '' },
                 {
-                  label: 'CPU',
-                  pct: data.server.cpuPercent,
-                  sub: '',
-                },
-                {
-                  label: 'Memory',
+                  label: lang === 'fa' ? 'حافظه' : 'Memory',
                   pct: data.server.memPercent,
                   sub: `${formatBytes(data.server.memUsedBytes, lang)} / ${formatBytes(data.server.memTotalBytes, lang)}`,
                 },
                 {
-                  label: 'Disk',
+                  label: lang === 'fa' ? 'دیسک' : 'Disk',
                   pct: data.server.diskPercent,
                   sub: data.server.diskTotalBytes
                     ? `${formatBytes(data.server.diskUsedBytes ?? 0, lang)} / ${formatBytes(data.server.diskTotalBytes, lang)}`
                     : '',
                 },
               ].map((m) => (
-                <div key={m.label}>
-                  <div className="mb-1 flex justify-between text-(--text-secondary)">
-                    <span className="inline-flex items-center gap-1">
-                      <Cpu className="h-3 w-3" /> {m.label}
-                    </span>
-                    <span className="font-mono">
+                <div key={m.label} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium text-(--text-secondary)">{m.label}</span>
+                    <span className="font-mono text-(--text-primary)">
                       {m.pct}%{m.sub ? ` · ${m.sub}` : ''}
                     </span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-(--bg-elevated)">
-                    <div
-                      className="h-full rounded-full bg-(--accent) transition-all"
-                      style={{ width: `${Math.min(100, m.pct)}%` }}
+                  <div className="meter">
+                    <span
+                      style={{
+                        width: `${Math.min(100, m.pct)}%`,
+                        background: m.pct >= 85 ? '#ef4444' : m.pct >= 65 ? '#f59e0b' : 'var(--accent)',
+                      }}
                     />
                   </div>
                 </div>
               ))}
-              <div className="pt-1 text-[11px] text-(--text-muted)">
-                Uptime: {formatDuration(data.server.uptimeSeconds, lang)} · {data.server.platform}
-              </div>
             </div>
-          </Card>
+
+            <div className="mt-3 text-xs text-(--text-muted)">
+              Uptime: {formatDuration(data.server.uptimeSeconds, lang)} · {data.server.platform}
+            </div>
+          </section>
         ) : data.resellerAccount ? (
-          <Card className="p-5">
-            <h2 className="mb-3 text-sm font-semibold text-(--text-primary)">{t.overview.yourAccount}</h2>
+          <section className="panel">
+            <header className="panel-head">
+              <h2>{t.overview.yourAccount}</h2>
+            </header>
             <div className="space-y-2 text-xs text-(--text-secondary)">
               <div className="flex justify-between">
                 <span>Traffic pool</span>
@@ -488,7 +675,7 @@ export function OverviewPage({
                 <span>{formatDaysLeft(data.resellerAccount.expiresAt, null, lang)}</span>
               </div>
             </div>
-          </Card>
+          </section>
         ) : null}
       </div>
     </div>

@@ -1,46 +1,39 @@
 # Graph Report - Ovira  (2026-11-15)
 
 ## Corpus Check
-- 66 files · ~49,881 words
+- 66 files · ~50,074 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 5 file(s) not represented in the graph (top: (none) 2, .service 1, .css 1)
 
 ## Summary
-- 388 nodes · 1171 edges · 25 communities
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 7 edges (avg confidence: 0.75)
+- 399 nodes · 1185 edges · 18 communities
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 7 edges (avg confidence: 0.76)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `8422fea3`
+- Built from commit: `6263eabc`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- OverviewPage.tsx
-- database.ts
+- useUi
+- en.ts
 - linuxEngine.ts
 - web/package.json
 - API Integration Test Suite
 - Server Dependencies & Manifest
 - Web TypeScript Configuration
-- App.tsx
 - Workspace Monorepo Scripts
 - Server TypeScript Configuration
-- config.ts
 - Project Documentation & Architecture
 - install.sh
 - ClientsPage.tsx
-- Button
 - apiFetch
-- SettingsPage.tsx
-- en.ts
+- RoutingPage.tsx
+- App.tsx
+- database.ts
 - index.ts
-- getDb
-- clientRoutes.ts
-- authRoutes.ts
-- settingsRoutes.ts
 - xprotocol-cli.sh
-- context.ts
 
 ## God Nodes (most connected - your core abstractions)
 1. `getDb()` - 41 edges
@@ -51,8 +44,8 @@
 6. `react` - 22 edges
 7. `StatusPill()` - 21 edges
 8. `Input()` - 19 edges
-9. `recordAudit()` - 18 edges
-10. `PanelRoot()` - 18 edges
+9. `PanelRoot()` - 18 edges
+10. `recordAudit()` - 18 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `Ovira Open-Core VPN Panel` --conceptually_related_to--> `Inter JetBrains Mono Vazirmatn Typography`  [INFERRED]
@@ -63,25 +56,25 @@
   server/src/routes/settingsRoutes.ts → server/src/routes/context.ts
 - `applyPendingRestore()` --calls--> `getDbPath()`  [EXTRACTED]
   server/src/index.ts → server/src/config.ts
-- `ClientProfileParams` --references--> `InboundRow`  [EXTRACTED]
-  server/src/generators/profiles.ts → server/src/generators/configs.ts
+- `createApp()` --calls--> `detectDriverMode()`  [EXTRACTED]
+  server/src/index.ts → server/src/drivers/runtime.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (25 total, 0 thin omitted)
+## Communities (18 total, 0 thin omitted)
 
-### Community 0 - "OverviewPage.tsx"
-Cohesion: 0.19
-Nodes (18): DonutChart(), Segment, Sample, TrafficChart(), formatBytes(), formatDateTime(), formatDaysLeft(), formatDuration() (+10 more)
+### Community 0 - "useUi"
+Cohesion: 0.21
+Nodes (19): DonutChart(), Segment, Layout(), LayoutProps, NavKey, Sample, TrafficChart(), useUi() (+11 more)
 
-### Community 1 - "database.ts"
-Cohesion: 0.15
-Nodes (14): DEFAULT_SUB_SETTINGS, GeneralSettings, initDatabase(), setSetting(), SubPageProtocolConfig, SubscriptionPageSettings, ADMIN_PERMISSIONS, OWNER_PERMISSIONS (+6 more)
+### Community 1 - "en.ts"
+Cohesion: 0.40
+Nodes (4): UiContextValue, en, TranslationDict, fa
 
 ### Community 2 - "linuxEngine.ts"
-Cohesion: 0.11
-Nodes (22): applyLinuxInbound(), collectLinuxLiveTunnels(), detectInstalledProtocols(), execFileAsync, installProtocolPackage(), issueLetsEncryptCert(), LiveTunnelSample, openFirewallPort() (+14 more)
+Cohesion: 0.10
+Nodes (28): applyLinuxInbound(), collectLinuxLiveTunnels(), detectInstalledProtocols(), execFileAsync, installProtocolPackage(), issueLetsEncryptCert(), LiveTunnelSample, openFirewallPort() (+20 more)
 
 ### Community 3 - "web/package.json"
 Cohesion: 0.05
@@ -99,10 +92,6 @@ Nodes (21): tsx, @types/express, @types/node, dependencies, express, devDependen
 Cohesion: 0.11
 Nodes (17): compilerOptions, allowImportingTsExtensions, isolatedModules, jsx, lib, module, moduleDetection, moduleResolution (+9 more)
 
-### Community 7 - "App.tsx"
-Cohesion: 0.27
-Nodes (14): PanelRoot(), CurrentAccount, Layout(), LayoutProps, NavKey, ACCENT_PALETTES, AccentName, Lang (+6 more)
-
 ### Community 8 - "Workspace Monorepo Scripts"
 Cohesion: 0.14
 Nodes (13): description, devDependencies, concurrently, name, private, scripts, build, dev (+5 more)
@@ -111,84 +100,60 @@ Nodes (13): description, devDependencies, concurrently, name, private, scripts, 
 Cohesion: 0.15
 Nodes (12): compilerOptions, esModuleInterop, forceConsistentCasingInFileNames, module, moduleResolution, outDir, resolveJsonModule, rootDir (+4 more)
 
-### Community 10 - "config.ts"
-Cohesion: 0.14
-Nodes (12): CONFIG_PATH, DATA_DIR, formatMachineId(), loadRuntimeConfig(), normalizeSecretPath(), normalizeSubPath(), RuntimeConfig, saveRuntimeConfig() (+4 more)
-
 ### Community 11 - "Project Documentation & Architecture"
 Cohesion: 0.33
 Nodes (6): Multi-Protocol VPN Stack, Overview Dashboard Architecture, Ovira Open-Core VPN Panel, RBAC Reseller Quota Model, Ubuntu 22.04 Systemd Deployment, Inter JetBrains Mono Vazirmatn Typography
 
 ### Community 12 - "install.sh"
-Cohesion: 0.29
-Nodes (4): DEBIAN_FRONTEND, install.sh script, DEBIAN_FRONTEND, node.sh script
+Cohesion: 0.13
+Nodes (13): DEBIAN_FRONTEND, NEEDRESTART_MODE, NEEDRESTART_SUSPEND, npm_config_audit, npm_config_fund, npm_config_loglevel, npm_config_update_notifier, run_q() (+5 more)
 
 ### Community 13 - "ClientsPage.tsx"
-Cohesion: 0.18
-Nodes (14): lucide-react, react, Drawer(), DrawerProps, ModalProps, CertItem, ClientItem, GroupOption (+6 more)
+Cohesion: 0.14
+Nodes (18): lucide-react, react, Drawer(), DrawerProps, ModalProps, QrCode(), CertItem, ClientItem (+10 more)
 
-### Community 14 - "Button"
-Cohesion: 0.34
-Nodes (17): Modal(), Button(), Card(), Input(), Select(), StatusPill(), AccountItem, AccountsPage() (+9 more)
-
-### Community 15 - "apiFetch"
-Cohesion: 0.24
-Nodes (8): ApiError, apiFetch(), getApiBase(), GEOIP_PRESETS, GEOSITE_PRESETS, NodeOption, OutboundItem, RoutingRule
-
-### Community 16 - "SettingsPage.tsx"
-Cohesion: 0.40
-Nodes (4): QrCode(), ACCENTS, LOOKS, SettingsTab
-
-### Community 17 - "en.ts"
-Cohesion: 0.40
-Nodes (4): UiContextValue, en, TranslationDict, fa
-
-### Community 18 - "index.ts"
-Cohesion: 0.21
-Nodes (12): updateXrayGeoAssets(), detectDriverMode(), HostStats, testTcpLatency(), renderXrayRoutingConfig(), applyPendingRestore(), createApp(), __dirname (+4 more)
-
-### Community 19 - "getDb"
+### Community 14 - "apiFetch"
 Cohesion: 0.35
-Nodes (11): express, getDb(), applyInboundRuntime(), createConnectionRouter(), AuthedRequest, createGroupRouter(), createInboundRouter(), getInboundPeers() (+3 more)
+Nodes (20): PanelRoot(), Modal(), Button(), Card(), Input(), Select(), StatusPill(), apiFetch() (+12 more)
 
-### Community 20 - "clientRoutes.ts"
+### Community 15 - "RoutingPage.tsx"
 Cohesion: 0.33
-Nodes (13): DEFAULT_GENERAL_SETTINGS, getSetting(), getHostStats(), generateClientProfile(), createClientRouter(), resolveClientInbounds(), computeClientState(), ensureAccountOperational() (+5 more)
+Nodes (5): GEOIP_PRESETS, GEOSITE_PRESETS, NodeOption, OutboundItem, RoutingRule
 
-### Community 21 - "authRoutes.ts"
-Cohesion: 0.35
-Nodes (9): createAccountRouter(), createAuthRouter(), loadAccountById(), hashPassword(), randomToken(), verifyPassword(), buildTotpUri(), generateRecoveryCodes() (+1 more)
+### Community 16 - "App.tsx"
+Cohesion: 0.16
+Nodes (13): CurrentAccount, ACCENT_PALETTES, AccentName, Lang, ThemeMode, UiContext, ApiError, getApiBase() (+5 more)
 
-### Community 22 - "settingsRoutes.ts"
-Cohesion: 0.38
-Nodes (8): getDataDir(), getDbPath(), createSettingsRouter(), DEFAULT_TELEGRAM_BACKUP, findTelegramChatId(), sendTelegramBackupNow(), startTelegramBackupScheduler(), TelegramBackupSettings
+### Community 20 - "database.ts"
+Cohesion: 0.09
+Nodes (58): express, DEFAULT_GENERAL_SETTINGS, DEFAULT_SUB_SETTINGS, GeneralSettings, getDb(), getSetting(), initDatabase(), SubPageProtocolConfig (+50 more)
+
+### Community 22 - "index.ts"
+Cohesion: 0.14
+Nodes (21): CONFIG_PATH, DATA_DIR, formatMachineId(), getDataDir(), getDbPath(), loadRuntimeConfig(), normalizeSecretPath(), normalizeSubPath() (+13 more)
 
 ### Community 23 - "xprotocol-cli.sh"
 Cohesion: 0.58
 Nodes (10): cmd_backup(), cmd_logs(), cmd_ocserv(), cmd_password(), cmd_ssl(), cmd_status(), cmd_uninstall(), require_root() (+2 more)
 
-### Community 24 - "context.ts"
-Cohesion: 0.48
-Nodes (6): AuthContext, extractClientIp(), parseCookies(), requireAuth(), sha256Hex(), AccountRecord
-
 ## Knowledge Gaps
-- **143 isolated node(s):** `install.sh script`, `DEBIAN_FRONTEND`, `node.sh script`, `DEBIAN_FRONTEND`, `Segment` (+138 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 155 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **149 isolated node(s):** `__dirname`, `tempDir`, `Segment`, `Sample`, `HistConn` (+144 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 163 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `express` connect `getDb` to `Server Dependencies & Manifest`, `index.ts`, `clientRoutes.ts`, `authRoutes.ts`, `settingsRoutes.ts`, `context.ts`?**
-  _High betweenness centrality (0.044) - this node is a cross-community bridge._
-- **What connects `install.sh script`, `DEBIAN_FRONTEND`, `node.sh script` to the rest of the system?**
-  _143 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Why does `express` connect `database.ts` to `linuxEngine.ts`, `Server Dependencies & Manifest`, `index.ts`?**
+  _High betweenness centrality (0.042) - this node is a cross-community bridge._
+- **What connects `__dirname`, `tempDir`, `Segment` to the rest of the system?**
+  _149 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `linuxEngine.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.11264367816091954 - nodes in this community are weakly interconnected._
-- **Why does `react` connect `ClientsPage.tsx` to `OverviewPage.tsx`, `web/package.json`, `App.tsx`, `Button`, `apiFetch`, `SettingsPage.tsx`?**
-  _High betweenness centrality (0.034) - this node is a cross-community bridge._
+  _Cohesion score 0.10128205128205128 - nodes in this community are weakly interconnected._
+- **Why does `react` connect `ClientsPage.tsx` to `useUi`, `web/package.json`, `apiFetch`, `RoutingPage.tsx`, `App.tsx`?**
+  _High betweenness centrality (0.033) - this node is a cross-community bridge._
 - **Should `web/package.json` be split into smaller, more focused modules?**
   _Cohesion score 0.05398110661268556 - nodes in this community are weakly interconnected._
-- **Why does `lucide-react` connect `ClientsPage.tsx` to `OverviewPage.tsx`, `web/package.json`, `App.tsx`, `Button`, `apiFetch`, `SettingsPage.tsx`?**
-  _High betweenness centrality (0.021) - this node is a cross-community bridge._
+- **Why does `lucide-react` connect `ClientsPage.tsx` to `useUi`, `web/package.json`, `apiFetch`, `RoutingPage.tsx`, `App.tsx`?**
+  _High betweenness centrality (0.020) - this node is a cross-community bridge._
 - **Should `Server Dependencies & Manifest` be split into smaller, more focused modules?**
   _Cohesion score 0.09090909090909091 - nodes in this community are weakly interconnected._

@@ -12,10 +12,20 @@ import {
   Trash2,
   Users,
 } from 'lucide-react';
-import { apiFetch } from '../lib/api';
+import { apiFetch, getApiBase } from '../lib/api';
 import { formatBytes, formatDaysLeft } from '../lib/format';
+import { getSubPath, navigate, toPanelUrl, updateSearchParams, useLocationState } from '../lib/router';
 import { useUi } from '../i18n/context';
-import { Button, Card, EmptySonar, Input, Select, SplitHeading, StatusPill } from '../components/UiPrimitives';
+import {
+  Button,
+  EmptySonar,
+  Input,
+  Lamps,
+  PageHead,
+  Select,
+  StatusPill,
+  Tabs,
+} from '../components/UiPrimitives';
 import { Modal } from '../components/Modal';
 import { Drawer } from '../components/Drawer';
 import { QrCode } from '../components/QrCode';
@@ -29,8 +39,11 @@ export interface ClientItem {
   runningOutReason: string | null;
   trafficLimitBytes: number | null;
   trafficUsedBytes: number;
+  uploadBytes?: number;
+  downloadBytes?: number;
   expiresAt: string | null;
   firstConnectDays: number | null;
+  firstConnectedAt?: string | null;
   deviceLimit: number | null;
   onlineCount: number;
   resetPeriod: 'never' | 'daily' | 'weekly' | 'monthly';
@@ -57,12 +70,16 @@ export function ClientsPage({
   openCreateTrigger?: number;
 }) {
   const { t, lang } = useUi();
+  const { searchParams } = useLocationState();
+  const rawStatusParam = searchParams.get('status') || 'all';
+  const tab = rawStatusParam === 'limited' ? 'used_up' : rawStatusParam;
+  const groupFilter = searchParams.get('group') || 'all';
+  const qParam = searchParams.get('q') || '';
+
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [groups, setGroups] = useState<GroupOption[]>([]);
-  const [tab, setTab] = useState<string>('all');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(qParam);
   const [sortBy, setSortBy] = useState<'newest' | 'name' | 'traffic' | 'ending'>('newest');
-  const [groupFilter, setGroupFilter] = useState<string>('all');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -107,6 +124,37 @@ export function ClientsPage({
       openNew(false);
     }
   }, [openCreateTrigger]);
+
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      openNew(false);
+      updateSearchParams((p) => p.delete('new'), { replace: true });
+    }
+  }, [searchParams]);
+
+  const setTab = (next: string) => {
+    setSelectedIds([]);
+    updateSearchParams((p) => {
+      if (next === 'all') p.delete('status');
+      else p.set('status', next);
+    }, { replace: true });
+  };
+
+  const setGroupFilterParam = (next: string) => {
+    setSelectedIds([]);
+    updateSearchParams((p) => {
+      if (next === 'all') p.delete('group');
+      else p.set('group', next);
+    }, { replace: true });
+  };
+
+  const handleSearchChange = (val: string) => {
+    setSearch(val);
+    updateSearchParams((p) => {
+      if (val.trim()) p.set('q', val);
+      else p.delete('q');
+    }, { replace: true });
+  };
 
   const openNew = (isBulk: boolean) => {
     setEditing(null);
@@ -196,10 +244,35 @@ export function ClientsPage({
     }
   };
 
+  const counts = useMemo(() => {
+    const map = {
+      all: clients.length,
+      online: 0,
+      running_out: 0,
+      used_up: 0,
+      expired: 0,
+      disabled: 0,
+      active: 0,
+      not_started: 0,
+    };
+    for (const c of clients) {
+      if (c.status === 'online') map.online++;
+      if (c.status === 'active' || c.status === 'online') map.active++;
+      if (c.status === 'not_started') map.not_started++;
+      if (c.runningOutReason) map.running_out++;
+      if (c.status === 'used_up') map.used_up++;
+      if (c.status === 'expired') map.expired++;
+      if (c.status === 'disabled') map.disabled++;
+    }
+    return map;
+  }, [clients]);
+
   const filtered = useMemo(() => {
     return clients
       .filter((c) => {
         if (tab === 'online' && c.status !== 'online') return false;
+        if (tab === 'active' && c.status !== 'active' && c.status !== 'online') return false;
+        if (tab === 'not_started' && c.status !== 'not_started') return false;
         if (tab === 'running_out' && !c.runningOutReason) return false;
         if (tab === 'used_up' && c.status !== 'used_up') return false;
         if (tab === 'expired' && c.status !== 'expired') return false;
@@ -226,7 +299,7 @@ export function ClientsPage({
       });
   }, [clients, tab, search, sortBy, groupFilter]);
 
-  const buildSubUrl = (token: string) => `${window.location.origin}/sub/${token}`;
+  const buildSubUrl = (token: string) => `${window.location.origin}/${getSubPath()}/${token}`;
 
   const copySub = async (c: ClientItem) => {
     await navigator.clipboard.writeText(buildSubUrl(c.subToken));
@@ -257,201 +330,216 @@ export function ClientsPage({
   };
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <SplitHeading text={t.clients.title} className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-(--text-primary)" />
-        <div className="flex items-center gap-2">
-          <Button onClick={() => openNew(true)}>
-            <Users className="h-4 w-4" />
-            {t.clients.bulkCreate}
-          </Button>
-          <Button variant="primary" onClick={() => openNew(false)}>
-            <Plus className="h-4 w-4" />
-            {t.clients.newClient}
-          </Button>
-        </div>
-      </div>
+    <div className="page">
+      <PageHead
+        title={t.clients.title}
+        sub={
+          lang === 'fa'
+            ? `${counts.all} کاربر ثبت‌شده · ${counts.online} آنلاین`
+            : `${counts.all} clients total · ${counts.online} online`
+        }
+        actions={
+          <>
+            <Button onClick={() => openNew(true)}>
+              <Users className="h-4 w-4" />
+              {t.clients.bulkCreate}
+            </Button>
+            <Button variant="primary" onClick={() => openNew(false)}>
+              <Plus className="h-4 w-4" />
+              {t.clients.newClient}
+            </Button>
+          </>
+        }
+      />
 
-      {/* Tabs & Filters */}
-      <Card className="p-4 space-y-3">
-        <div className="flex flex-wrap gap-1.5">
-          {(['all', 'online', 'running_out', 'used_up', 'expired', 'disabled'] as const).map((k) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setTab(k)}
-              className={`rounded-xl px-3 py-1.5 text-xs font-medium transition ${
-                tab === k
-                  ? 'bg-(--accent) text-(--accent-fg)'
-                  : 'bg-(--bg-elevated) text-(--text-secondary) hover:text-(--text-primary)'
-              }`}
-            >
-              {t.clients.tabs[k]}
-            </button>
-          ))}
-        </div>
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        items={[
+          { id: 'all', label: t.clients.tabs.all, count: counts.all },
+          { id: 'online', label: t.clients.tabs.online, count: counts.online },
+          { id: 'running_out', label: t.clients.tabs.running_out, count: counts.running_out },
+          { id: 'used_up', label: t.clients.tabs.used_up, count: counts.used_up },
+          { id: 'expired', label: t.clients.tabs.expired, count: counts.expired },
+          { id: 'disabled', label: t.clients.tabs.disabled, count: counts.disabled },
+        ]}
+      />
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="relative">
-            <Search className="pointer-events-none absolute top-2.5 start-3 h-4 w-4 text-(--text-muted)" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t.common.search}
-              className="w-full rounded-xl border border-(--border-strong) bg-(--bg-elevated) py-2 ps-9 pe-3 text-sm text-(--text-primary) focus:border-(--accent) focus:outline-none"
-            />
-          </div>
-          <Select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
-            <option value="newest">Sort: Newest</option>
-            <option value="name">Sort: Name</option>
-            <option value="traffic">Sort: Most traffic</option>
-            <option value="ending">Sort: Ending soonest</option>
-          </Select>
-          <Select value={groupFilter} onChange={(e) => setGroupFilter(e.target.value)}>
-            <option value="all">Group: All</option>
+      <div className="toolbar">
+        <label className="search">
+          <Search aria-hidden="true" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            placeholder={t.common.search}
+            className="input"
+          />
+        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={groupFilter} onChange={(e) => setGroupFilterParam(e.target.value)}>
+            <option value="all">{lang === 'fa' ? 'گروه: همه' : 'Group: All'}</option>
             {groups.map((g) => (
               <option key={g.id} value={String(g.id)}>
                 {g.name}
               </option>
             ))}
           </Select>
+          <Select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
+            <option value="newest">{lang === 'fa' ? 'مرتب‌سازی: جدیدترین' : 'Sort: Newest'}</option>
+            <option value="name">{lang === 'fa' ? 'مرتب‌سازی: نام' : 'Sort: Name'}</option>
+            <option value="traffic">{lang === 'fa' ? 'مرتب‌سازی: بیشترین مصرف' : 'Sort: Most traffic'}</option>
+            <option value="ending">{lang === 'fa' ? 'مرتب‌سازی: نزدیک‌ترین انقضا' : 'Sort: Ending soonest'}</option>
+          </Select>
         </div>
+      </div>
 
-        {selectedIds.length > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-(--accent)/30 bg-(--accent-soft) px-3 py-2 text-xs">
-            <span className="font-semibold text-(--accent)">{selectedIds.length} selected</span>
-            <div className="flex flex-wrap gap-1.5">
-              <Button size="sm" onClick={() => bulkAction('extend')}>+30d</Button>
-              <Button size="sm" onClick={() => bulkAction('enable')}>Enable</Button>
-              <Button size="sm" onClick={() => bulkAction('disable')}>Disable</Button>
-              <Button size="sm" onClick={() => bulkAction('reset_traffic')}>{t.clients.resetTraffic}</Button>
-              <Button size="sm" variant="danger" onClick={() => bulkAction('delete')}>{t.common.delete}</Button>
-            </div>
-          </div>
-        )}
-      </Card>
+      {selectedIds.length > 0 && (
+        <div className="bulkbar" role="region" aria-label={`${selectedIds.length} selected`}>
+          <strong className="num">
+            {selectedIds.length} {lang === 'fa' ? 'انتخاب‌شده' : 'selected'}
+          </strong>
+          <Button size="sm" onClick={() => bulkAction('extend')}>+30d</Button>
+          <Button size="sm" onClick={() => bulkAction('enable')}>{lang === 'fa' ? 'فعال' : 'Enable'}</Button>
+          <Button size="sm" onClick={() => bulkAction('disable')}>{lang === 'fa' ? 'غیرفعال' : 'Disable'}</Button>
+          <Button size="sm" onClick={() => bulkAction('reset_traffic')}>{t.clients.resetTraffic}</Button>
+          <Button size="sm" variant="danger" onClick={() => bulkAction('delete')}>{t.common.delete}</Button>
+        </div>
+      )}
 
-      {/* Table */}
-      <Card className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-start text-sm">
-            <thead className="border-b border-(--border-subtle) bg-(--bg-elevated) text-xs text-(--text-secondary)">
+      {filtered.length === 0 ? (
+        <div className="panel py-6">
+          <EmptySonar text={lang === 'fa' ? 'هیچ کاربری پیدا نشد' : 'No clients match the filter'} />
+        </div>
+      ) : (
+        <div className="table-wrap">
+          <table className="table clients-table">
+            <thead>
               <tr>
-                <th className="w-10 px-4 py-3">
+                <th className="col-check">
                   <input
                     type="checkbox"
                     checked={filtered.length > 0 && selectedIds.length === filtered.length}
                     onChange={(e) => setSelectedIds(e.target.checked ? filtered.map((c) => c.id) : [])}
                   />
                 </th>
-                <th className="px-4 py-3 text-start">{t.clients.columns.client}</th>
-                <th className="px-4 py-3 text-start">{t.clients.columns.status}</th>
-                <th className="px-4 py-3 text-start">{t.clients.columns.traffic}</th>
-                <th className="px-4 py-3 text-start">{t.clients.columns.ends}</th>
-                <th className="px-4 py-3 text-start">{t.clients.columns.online}</th>
-                <th className="px-4 py-3 text-end">{t.common.actions}</th>
+                <th>{t.clients.columns.client}</th>
+                <th>{t.clients.columns.status}</th>
+                <th>{t.clients.columns.traffic}</th>
+                <th>{t.clients.columns.ends}</th>
+                <th className="text-end">{t.clients.columns.online}</th>
+                <th className="col-actions text-end">{t.common.actions}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-(--border-subtle)">
-              {filtered.map((c) => {
-                const pct =
-                  c.trafficLimitBytes && c.trafficLimitBytes > 0
-                    ? Math.min(100, Math.round((c.trafficUsedBytes / c.trafficLimitBytes) * 100))
-                    : 0;
-                return (
-                  <tr key={c.id} className="hover:bg-(--bg-hover)/50">
-                    <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(c.id)}
-                        onChange={(e) =>
-                          setSelectedIds((prev) =>
-                            e.target.checked ? [...prev, c.id] : prev.filter((id) => id !== c.id),
-                          )
-                        }
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-(--text-primary)">{c.name}</div>
-                      <div className="text-xs text-(--text-muted)">
+            <tbody>
+              {filtered.map((c) => (
+                <tr
+                  key={c.id}
+                  className={selectedIds.includes(c.id) ? 'selected cursor-pointer' : 'cursor-pointer'}
+                  onClick={(e) => {
+                    const target = e.target as HTMLElement;
+                    if (target.closest('a,button,input')) return;
+                    navigate(`/clients/${c.id}`);
+                  }}
+                >
+                  <td className="col-check">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(c.id)}
+                      onChange={(e) =>
+                        setSelectedIds((prev) =>
+                          e.target.checked ? [...prev, c.id] : prev.filter((id) => id !== c.id),
+                        )
+                      }
+                    />
+                  </td>
+                  <td>
+                    <span className="cell-2">
+                      <a
+                        href={toPanelUrl(`/clients/${c.id}`)}
+                        onClick={(e) => {
+                          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                          e.preventDefault();
+                          navigate(`/clients/${c.id}`);
+                        }}
+                        className="strong-link"
+                        dir="ltr"
+                      >
+                        {c.name}
+                      </a>
+                      <span className="text-xs text-(--text-muted)">
                         {c.note || c.contact || c.groups.map((g) => g.name).join(', ') || '—'}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusPill tone={statusTone(c.status)} label={t.clients.statuses[c.status]} />
-                    </td>
-                    <td className="px-4 py-3">
+                      </span>
+                    </span>
+                  </td>
+                  <td>
+                    <StatusPill tone={statusTone(c.status)} label={t.clients.statuses[c.status]} />
+                  </td>
+                  <td>
+                    <div className="space-y-1">
                       <div className="font-mono text-xs text-(--text-primary)">
                         {formatBytes(c.trafficUsedBytes, lang)} / {formatBytes(c.trafficLimitBytes, lang)}
                       </div>
-                      {c.trafficLimitBytes && (
-                        <div className="mt-1 h-1.5 w-28 overflow-hidden rounded-full bg-(--bg-elevated)">
-                          <div className="h-full bg-(--accent)" style={{ width: `${pct}%` }} />
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-(--text-secondary)">
-                      {formatDaysLeft(c.expiresAt, c.firstConnectDays, lang)}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-(--text-secondary)">
-                      {c.onlineCount} / {c.deviceLimit ?? '∞'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => copySub(c)} title={t.clients.subLink}>
-                          <Copy className="h-3.5 w-3.5" />
-                          {copiedId === c.id ? t.common.copied : ''}
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setQrClient(c)} title="QR">
-                          <QrIcon className="h-3.5 w-3.5" />
-                        </Button>
-                        <a
-                          href={`./api/clients/${c.id}/profile`}
-                          className="inline-flex items-center rounded-xl p-1.5 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-primary)"
-                          title={t.clients.profile}
-                        >
-                          <Download className="h-3.5 w-3.5" />
-                        </a>
-                        <Button size="sm" variant="ghost" onClick={() => openEdit(c)}>
-                          {t.common.edit}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={async () => {
-                            await apiFetch(`/clients/${c.id}/reset-traffic`, { method: 'POST' });
-                            load();
-                          }}
-                          title={t.clients.resetTraffic}
-                        >
-                          <RefreshCw className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={async () => {
-                            if (!confirm(t.common.confirmDelete)) return;
-                            await apiFetch(`/clients/${c.id}`, { method: 'DELETE' });
-                            load();
-                          }}
-                          className="text-red-400"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                      <Lamps used={c.trafficUsedBytes} limit={c.trafficLimitBytes ?? 0} count={14} />
+                    </div>
+                  </td>
+                  <td className="text-xs text-(--text-secondary)">
+                    {formatDaysLeft(c.expiresAt, c.firstConnectDays, lang)}
+                  </td>
+                  <td className="text-end font-mono text-xs text-(--text-secondary)">
+                    {c.onlineCount} / {c.deviceLimit ?? '∞'}
+                  </td>
+                  <td className="col-actions">
+                    <div className="row-actions">
+                      <Button size="sm" variant="ghost" onClick={() => copySub(c)} title={t.clients.subLink}>
+                        <Copy className="h-3.5 w-3.5" />
+                        {copiedId === c.id ? t.common.copied : ''}
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setQrClient(c)} title="QR">
+                        <QrIcon className="h-3.5 w-3.5" />
+                      </Button>
+                      <a
+                        href={`${getApiBase()}/clients/${c.id}/profile`}
+                        download
+                        className="inline-flex items-center rounded-xl p-1.5 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-primary)"
+                        title={t.clients.profile}
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                      </a>
+                      <Button size="sm" variant="ghost" onClick={() => openEdit(c)}>
+                        {t.common.edit}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={async () => {
+                          await apiFetch(`/clients/${c.id}/reset-traffic`, { method: 'POST' });
+                          load();
+                        }}
+                        title={t.clients.resetTraffic}
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={async () => {
+                          if (!confirm(t.common.confirmDelete)) return;
+                          await apiFetch(`/clients/${c.id}`, { method: 'DELETE' });
+                          load();
+                        }}
+                        className="text-red-400"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
-        {filtered.length === 0 && (
-          <div className="border-t border-(--border-subtle) py-6">
-            <EmptySonar text={lang === 'fa' ? 'هیچ کاربری پیدا نشد' : 'No clients match the filter'} />
-          </div>
-        )}
-      </Card>
+      )}
 
       {/* Create / Edit Slide-Over Drawer */}
       <Drawer
@@ -765,7 +853,7 @@ export function ClientsPage({
                 {t.common.copy}
               </Button>
               <a
-                href={`/sub/${qrClient.subToken}`}
+                href={buildSubUrl(qrClient.subToken)}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 rounded-xl bg-(--accent) px-3.5 py-2 text-sm font-semibold text-(--accent-fg)"

@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Copy, KeyRound, Plus, Shield, Trash2 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { formatBytes, formatDaysLeft } from '../lib/format';
+import { updateSearchParams, useLocationState } from '../lib/router';
 import { useUi } from '../i18n/context';
-import { Button, Card, Input, Select, StatusPill } from '../components/UiPrimitives';
+import { Button, Card, Input, PageHead, Select, StatusPill, Tabs } from '../components/UiPrimitives';
 import { Modal } from '../components/Modal';
 
 interface AccountItem {
@@ -43,7 +44,14 @@ interface RoleItem {
 
 export function AccountsPage() {
   const { t, lang } = useUi();
-  const [tab, setTab] = useState<'accounts' | 'roles'>('accounts');
+  const { searchParams } = useLocationState();
+  const tab = (searchParams.get('tab') === 'roles' ? 'roles' : 'accounts') as 'accounts' | 'roles';
+  const setTab = (next: 'accounts' | 'roles') => {
+    updateSearchParams((p) => {
+      if (next === 'accounts') p.delete('tab');
+      else p.set('tab', next);
+    }, { replace: true });
+  };
   const [accounts, setAccounts] = useState<AccountItem[]>([]);
   const [roles, setRoles] = useState<RoleItem[]>([]);
   const [groups, setGroups] = useState<{ id: number; name: string }[]>([]);
@@ -108,24 +116,28 @@ export function AccountsPage() {
   };
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-(--text-primary)">{t.accounts.title}</h1>
-        <div className="flex gap-2">
-          <Button variant={tab === 'accounts' ? 'primary' : 'secondary'} onClick={() => setTab('accounts')}>
-            {t.accounts.accountsTab}
-          </Button>
-          <Button variant={tab === 'roles' ? 'primary' : 'secondary'} onClick={() => setTab('roles')}>
-            {t.accounts.rolesTab}
-          </Button>
-          {tab === 'accounts' && (
+    <div className="page">
+      <PageHead
+        title={t.accounts.title}
+        sub={`${accounts.length} accounts · ${roles.length} roles`}
+        actions={
+          tab === 'accounts' ? (
             <Button variant="primary" onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4" />
               {t.accounts.newAccount}
             </Button>
-          )}
-        </div>
-      </div>
+          ) : undefined
+        }
+      />
+
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        items={[
+          { id: 'accounts', label: t.accounts.accountsTab, count: accounts.length },
+          { id: 'roles', label: t.accounts.rolesTab, count: roles.length },
+        ]}
+      />
 
       {tab === 'accounts' && (
         <div className="grid gap-3">

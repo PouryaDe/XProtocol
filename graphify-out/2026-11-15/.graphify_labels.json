@@ -1,21 +1,20 @@
 {
   "0": "OverviewPage.tsx",
-  "1": "index.ts",
+  "1": "App.tsx",
   "2": "linuxEngine.ts",
   "3": "web/package.json",
   "4": "API Integration Test Suite",
   "5": "Server Dependencies & Manifest",
   "6": "Web TypeScript Configuration",
-  "7": "App.tsx",
   "8": "Workspace Monorepo Scripts",
   "9": "Server TypeScript Configuration",
-  "10": "settingsRoutes.ts",
   "11": "Project Documentation & Architecture",
   "12": "install.sh",
-  "13": "ClientsPage.tsx",
-  "14": "Button",
+  "13": "NodesPage.tsx",
+  "14": "ClientsPage.tsx",
   "15": "apiFetch",
-  "16": "SettingsPage.tsx",
-  "17": "en.ts",
-  "18": "node.sh"
+  "16": "context.tsx",
+  "20": "index.ts",
+  "22": "settingsRoutes.ts",
+  "23": "xprotocol-cli.sh"
 }

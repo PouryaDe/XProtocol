@@ -14,8 +14,9 @@ import {
   Trash2,
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
+import { navigate, toPanelUrl } from '../lib/router';
 import { useUi } from '../i18n/context';
-import { Button, Card, Input, Select, StatusPill } from '../components/UiPrimitives';
+import { Button, EmptySonar, Input, PageHead, Select, StatusPill } from '../components/UiPrimitives';
 import { Modal } from '../components/Modal';
 import { Drawer } from '../components/Drawer';
 
@@ -110,6 +111,8 @@ export function InboundsPage() {
   const { t, lang } = useUi();
   const [inbounds, setInbounds] = useState<InboundItem[]>([]);
   const [nodes, setNodes] = useState<NodeOption[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterMode, setFilterMode] = useState<'all' | 'attention' | 'drafts'>('all');
   const [createOpen, setCreateOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
   const [inspectInbound, setInspectInbound] = useState<InboundItem | null>(null);
@@ -257,89 +260,190 @@ export function InboundsPage() {
     setConfigData(data);
   };
 
-  // Group by node
-  const grouped = new Map<string, InboundItem[]>();
-  for (const ib of inbounds) {
-    const label = ib.nodeName || t.inbounds.notOnNode;
-    const arr = grouped.get(label) || [];
-    arr.push(ib);
-    grouped.set(label, arr);
-  }
+  const isAttention = (ib: InboundItem) => Boolean(ib.nodeId && ib.enabled && !ib.running);
+  const isDraft = (ib: InboundItem) => !ib.nodeId;
+
+  const filterCounts = {
+    all: inbounds.length,
+    attention: inbounds.filter(isAttention).length,
+    drafts: inbounds.filter(isDraft).length,
+  };
+
+  const filteredInbounds = inbounds.filter((ib) => {
+    if (filterMode === 'attention' && !isAttention(ib)) return false;
+    if (filterMode === 'drafts' && !isDraft(ib)) return false;
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return `${ib.name} ${ib.protocol} ${ib.transport} ${ib.port} ${ib.nodeName || ''} ${ib.description}`
+      .toLowerCase()
+      .includes(q);
+  });
+
+  const go = (to: string) => (e: React.MouseEvent) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    navigate(to);
+  };
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-(--text-primary)">{t.inbounds.title}</h1>
-        <Button variant="primary" onClick={openWizard}>
-          <Plus className="h-4 w-4" />
-          {t.inbounds.newInbound}
-        </Button>
-      </div>
+    <div className="page inbounds-page">
+      <PageHead
+        title={t.inbounds.title}
+        sub={
+          lang === 'fa'
+            ? `${inbounds.length} سرویس · ${inbounds.filter((i) => i.running).length} فعال`
+            : `${inbounds.length} inbounds · ${inbounds.filter((i) => i.running).length} running`
+        }
+        actions={
+          <Button variant="primary" onClick={openWizard}>
+            <Plus className="h-4 w-4" />
+            {t.inbounds.newInbound}
+          </Button>
+        }
+      />
 
-      {[...grouped.entries()].map(([groupName, list]) => (
-        <div key={groupName} className="space-y-2.5">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-(--text-muted)">{groupName}</h2>
-          <div className="grid gap-3">
-            {list.map((ib) => (
-              <Card key={ib.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
-                <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-lg bg-(--accent-soft) px-2 py-0.5 text-[11px] font-bold uppercase text-(--accent)">
-                      {ib.protocol}
-                    </span>
-                    <span className="font-semibold text-(--text-primary)">{ib.name}</span>
-                    <span className="font-mono text-xs text-(--text-secondary)">
-                      {ib.transport.toUpperCase()}/{ib.port} · {ib.subnet}
-                    </span>
-                    <StatusPill
-                      tone={ib.running ? 'green' : ib.nodeId ? 'amber' : 'gray'}
-                      label={ib.running ? t.inbounds.running : ib.nodeId ? t.inbounds.stopped : t.inbounds.notOnNode}
-                    />
-                  </div>
-                  <div className="text-xs text-(--text-muted)">
-                    {ib.authMode} · {ib.onlineCount} online {ib.description ? `· ${ib.description}` : ''}
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <Button size="sm" onClick={() => openInspect(ib)}>
-                    <FileCode2 className="h-3.5 w-3.5" />
-                    {t.inbounds.configFile}
-                  </Button>
-                  {ib.running ? (
-                    <>
-                      <Button size="sm" onClick={() => runAction(ib.id, 'restart')}>
-                        <RotateCw className="h-3.5 w-3.5" />
-                        {t.inbounds.restart}
-                      </Button>
-                      <Button size="sm" onClick={() => runAction(ib.id, 'stop')}>
-                        <Square className="h-3.5 w-3.5" />
-                        {t.inbounds.stop}
-                      </Button>
-                    </>
-                  ) : (
-                    <Button size="sm" onClick={() => runAction(ib.id, 'start')} disabled={!ib.nodeId}>
-                      <Play className="h-3.5 w-3.5" />
-                      {t.inbounds.start}
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    onClick={async () => {
-                      if (!confirm(t.common.confirmDelete)) return;
-                      await apiFetch(`/inbounds/${ib.id}`, { method: 'DELETE' });
-                      load();
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </Card>
-            ))}
+      {inbounds.length === 0 ? (
+        <div className="panel py-8">
+          <EmptySonar
+            text={lang === 'fa' ? 'هنوز هیچ اینباندی ساخته نشده است' : 'No inbounds configured yet'}
+          />
+          <div className="mt-4 flex justify-center">
+            <Button variant="primary" onClick={openWizard}>
+              <Plus className="h-4 w-4" />
+              {t.inbounds.newInbound}
+            </Button>
           </div>
         </div>
-      ))}
+      ) : (
+        <>
+          <div className="inb-toolbar">
+            <label className="inb-search">
+              <Search aria-hidden="true" />
+              <input
+                className="input"
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={lang === 'fa' ? 'جستجوی سرویس، پورت یا نود...' : 'Search by name, protocol, port or node...'}
+              />
+            </label>
+            <div className="inb-filters" role="group" aria-label={t.inbounds.title}>
+              {([
+                { id: 'all', label: lang === 'fa' ? 'همه' : 'All' },
+                { id: 'attention', label: lang === 'fa' ? 'نیازمند توجه' : 'Attention' },
+                { id: 'drafts', label: lang === 'fa' ? 'بدون نود' : 'Drafts' },
+              ] as const).map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  aria-pressed={filterMode === f.id}
+                  onClick={() => setFilterMode(f.id)}
+                >
+                  {f.label}
+                  <span>{filterCounts[f.id]}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {filteredInbounds.length === 0 ? (
+            <div className="panel py-6">
+              <EmptySonar text={lang === 'fa' ? 'موردی با این فیلتر یافت نشد' : 'No inbounds match this filter'} />
+            </div>
+          ) : (
+            <div className="inb-service-list">
+              {filteredInbounds.map((ib) => {
+                const healthClass = isAttention(ib) ? 'warn' : ib.running ? 'good' : '';
+                return (
+                  <article key={ib.id} className="inb-service">
+                    <header>
+                      <div className="inb-service-identity">
+                        <span className="rounded-lg bg-(--accent-soft) px-2 py-0.5 text-[11px] font-bold uppercase text-(--accent-text)">
+                          {ib.protocol}
+                        </span>
+                        <a href={toPanelUrl(`/inbounds/${ib.id}`)} onClick={go(`/inbounds/${ib.id}`)}>
+                          <bdi>{ib.name}</bdi>
+                        </a>
+                      </div>
+                      <span className={`inb-health ${healthClass}`}>
+                        <StatusPill
+                          tone={ib.running ? 'green' : ib.nodeId ? 'amber' : 'gray'}
+                          label={ib.running ? t.inbounds.running : ib.nodeId ? t.inbounds.stopped : t.inbounds.notOnNode}
+                        />
+                      </span>
+                    </header>
+
+                    {ib.description ? <p className="hint">{ib.description}</p> : null}
+
+                    <div className="inb-service-meta">
+                      <span>
+                        <strong>{ib.onlineCount}</strong> {lang === 'fa' ? 'آنلاین' : 'online'}
+                      </span>
+                      <span dir="ltr">
+                        {ib.transport.toUpperCase()}/{ib.port}
+                      </span>
+                      <span dir="ltr">{ib.subnet}</span>
+                      <span>{ib.authMode}</span>
+                    </div>
+
+                    <footer>
+                      <div className="inb-node-chips">
+                        <span>
+                          <i className={ib.running ? 'good' : ib.nodeId ? 'bad' : ''} aria-hidden="true" />
+                          <bdi>{ib.nodeName || t.inbounds.notOnNode}</bdi>
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Button size="sm" onClick={() => openInspect(ib)}>
+                          <FileCode2 className="h-3.5 w-3.5" />
+                          {t.inbounds.configFile}
+                        </Button>
+                        {ib.running ? (
+                          <>
+                            <Button size="sm" onClick={() => runAction(ib.id, 'restart')}>
+                              <RotateCw className="h-3.5 w-3.5" />
+                              {t.inbounds.restart}
+                            </Button>
+                            <Button size="sm" onClick={() => runAction(ib.id, 'stop')}>
+                              <Square className="h-3.5 w-3.5" />
+                              {t.inbounds.stop}
+                            </Button>
+                          </>
+                        ) : (
+                          <Button size="sm" onClick={() => runAction(ib.id, 'start')} disabled={!ib.nodeId}>
+                            <Play className="h-3.5 w-3.5" />
+                            {t.inbounds.start}
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          onClick={async () => {
+                            if (!confirm(t.common.confirmDelete)) return;
+                            await apiFetch(`/inbounds/${ib.id}`, { method: 'DELETE' });
+                            load();
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                        <a
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-3 py-1.5 text-xs font-medium text-(--text-primary) hover:border-(--accent)"
+                          href={toPanelUrl(`/inbounds/${ib.id}`)}
+                          onClick={go(`/inbounds/${ib.id}`)}
+                        >
+                          {lang === 'fa' ? 'مدیریت' : 'Manage'}
+                          <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" />
+                        </a>
+                      </div>
+                    </footer>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
 
       {/* 3-Step New Inbound Wizard Drawer */}
       <Drawer

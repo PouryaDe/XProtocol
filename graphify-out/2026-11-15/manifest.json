@@ -1,14 +1,14 @@
 {
   "deploy/install.sh": {
-    "mtime": 1794711615.8311663,
-    "seen": 1794711687.6310763,
-    "ast_hash": "dd6f084fa07f78f6a3143954a9fb03ad",
+    "mtime": 1794758834.5844073,
+    "seen": 1794758877.2300808,
+    "ast_hash": "b9a3bfe4a6d6ed2785096e985fd2b26e",
     "semantic_hash": ""
   },
   "deploy/node.sh": {
-    "mtime": 1794710382.576973,
-    "seen": 1794711687.6310809,
-    "ast_hash": "727140412a8255e326094c1aff136266",
+    "mtime": 1794758524.364622,
+    "seen": 1794758545.0787208,
+    "ast_hash": "311f698e4832d0ab3da9b2bc6cae76d0",
     "semantic_hash": ""
   },
   "package.json": {
@@ -198,8 +198,8 @@
     "semantic_hash": ""
   },
   "web/src/App.tsx": {
-    "mtime": 1794711190.824524,
-    "seen": 1794711687.631119,
+    "mtime": 1794711761.53465,
+    "seen": 1794758040.0076163,
     "ast_hash": "9c9a1f6cfd56f24723c68ab29a197a8c",
     "semantic_hash": ""
   },
@@ -246,8 +246,8 @@
     "semantic_hash": ""
   },
   "web/src/i18n/context.tsx": {
-    "mtime": 1794711126.982206,
-    "seen": 1794711687.6311257,
+    "mtime": 1794711761.6894097,
+    "seen": 1794758040.0076232,
     "ast_hash": "c58d9440a3819c0f6dbda87c4e389565",
     "semantic_hash": ""
   },
@@ -342,9 +342,9 @@
     "semantic_hash": ""
   },
   "web/src/pages/SettingsPage.tsx": {
-    "mtime": 1794711495.4654267,
-    "seen": 1794711687.6311386,
-    "ast_hash": "858864148e1fd2d759ab3e5182ac89b1",
+    "mtime": 1794749098.2013988,
+    "seen": 1794758040.0076365,
+    "ast_hash": "286e7903500e8bfcda8ee69c3884dbf2",
     "semantic_hash": ""
   },
   "web/src/pages/SubscriptionPage.tsx": {
@@ -366,14 +366,14 @@
     "semantic_hash": "4ae4798b7830dbe29fe2c43f081405fb"
   },
   "README.md": {
-    "mtime": 1794711634.425859,
-    "seen": 1794711687.6311433,
-    "ast_hash": "af930009e97794c131f06026f034fee7",
+    "mtime": 1794758329.5820296,
+    "seen": 1794758545.0787816,
+    "ast_hash": "07e916b1e21ddfbc9e4b09e8600abcea",
     "semantic_hash": ""
   },
   "web/index.html": {
-    "mtime": 1794711124.9585688,
-    "seen": 1794711687.6311443,
+    "mtime": 1794711761.4498398,
+    "seen": 1794758040.0076423,
     "ast_hash": "dee2c2bba702501e090eb1f5b537af0a",
     "semantic_hash": ""
   },
@@ -384,9 +384,9 @@
     "semantic_hash": ""
   },
   "deploy/xprotocol-cli.sh": {
-    "mtime": 1794710386.4028866,
-    "seen": 1794711687.631083,
-    "ast_hash": "9ee05ce7c0a9b4a515edfae6c5133f52",
+    "mtime": 1794758802.3767476,
+    "seen": 1794758877.230088,
+    "ast_hash": "5e92196562b50ac280b87bef38c8ef31",
     "semantic_hash": ""
   },
   "deploy/xprotocol-tui.sh": {

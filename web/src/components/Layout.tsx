@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useUi, type ThemeMode } from '../i18n/context';
 import { formatBytes, formatDaysLeft } from '../lib/format';
+import { toPanelUrl } from '../lib/router';
 import { BrandMark, useSlidingIndicator } from './UiPrimitives';
 
 export type NavKey =
@@ -35,6 +36,19 @@ export type NavKey =
   | 'certificates'
   | 'accounts'
   | 'settings';
+
+export const NAV_PATHS: Record<NavKey, string> = {
+  overview: '/',
+  clients: '/clients',
+  inbounds: '/inbounds',
+  nodes: '/nodes',
+  connections: '/connections',
+  certificates: '/certificates',
+  routing: '/routing',
+  groups: '/groups',
+  accounts: '/accounts',
+  settings: '/settings',
+};
 
 export interface CurrentAccount {
   id: number;
@@ -102,42 +116,47 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
       : `https://t.me/${supportTelegram.replace(/^@/, '')}`
     : '';
 
-  const items: { key: NavKey; label: string; icon: React.ReactNode; visible: boolean }[] = [
-    { key: 'overview', label: t.nav.overview, icon: <LayoutDashboard className="h-4 w-4" />, visible: true },
+  const items: { key: NavKey; path: string; label: string; icon: React.ReactNode; visible: boolean }[] = [
+    { key: 'overview', path: '/', label: t.nav.overview, icon: <LayoutDashboard className="h-4 w-4" />, visible: true },
     {
       key: 'clients',
+      path: '/clients',
       label: t.nav.clients,
       icon: <Users className="h-4 w-4" />,
       visible: account.isOwner || account.permissions.clients.view !== 'none',
     },
     {
       key: 'inbounds',
+      path: '/inbounds',
       label: t.nav.inbounds,
       icon: <Radio className="h-4 w-4" />,
       visible: account.isOwner || account.permissions.inbounds.view !== 'none',
     },
     {
       key: 'nodes',
+      path: '/nodes',
       label: t.nav.nodes,
       icon: <Server className="h-4 w-4" />,
       visible: account.isOwner || account.permissions.nodes.view !== 'none',
     },
     {
       key: 'connections',
+      path: '/connections',
       label: t.nav.connections,
       icon: <Activity className="h-4 w-4" />,
       visible: account.isOwner || account.permissions.connections.view !== 'none',
     },
-    { key: 'certificates', label: t.nav.certificates, icon: <ShieldCheck className="h-4 w-4" />, visible: account.isOwner },
-    { key: 'routing', label: t.nav.routing, icon: <Network className="h-4 w-4" />, visible: account.isOwner },
+    { key: 'certificates', path: '/certificates', label: t.nav.certificates, icon: <ShieldCheck className="h-4 w-4" />, visible: account.isOwner },
+    { key: 'routing', path: '/routing', label: t.nav.routing, icon: <Network className="h-4 w-4" />, visible: account.isOwner },
     {
       key: 'groups',
+      path: '/groups',
       label: t.nav.groups,
       icon: <FolderKanban className="h-4 w-4" />,
       visible: account.isOwner || account.permissions.groups.view !== 'none',
     },
-    { key: 'accounts', label: t.nav.accounts, icon: <KeyRound className="h-4 w-4" />, visible: account.isOwner },
-    { key: 'settings', label: t.nav.settings, icon: <Settings className="h-4 w-4" />, visible: true },
+    { key: 'accounts', path: '/accounts', label: t.nav.accounts, icon: <KeyRound className="h-4 w-4" />, visible: account.isOwner },
+    { key: 'settings', path: '/settings', label: t.nav.settings, icon: <Settings className="h-4 w-4" />, visible: true },
   ];
 
   const quotaPct =
@@ -175,15 +194,17 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
             .map((item, idx) => {
               const isActive = item.key === active;
               return (
-                <button
+                <a
                   key={item.key}
-                  type="button"
+                  href={toPanelUrl(item.path)}
                   style={{ '--i': idx } as React.CSSProperties}
-                  onClick={() => {
+                  onClick={(e) => {
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                    e.preventDefault();
                     onNavigate(item.key);
                     setMobileOpen(false);
                   }}
-                  className={`xp-nav-item flex h-10 w-full items-center gap-2.5 rounded-xl px-3.5 text-sm font-medium ${
+                  className={`xp-nav-item flex h-10 w-full items-center gap-2.5 rounded-xl px-3.5 text-sm font-medium no-underline ${
                     isActive
                       ? 'xp-nav-active text-(--text-primary) font-semibold'
                       : 'text-(--text-secondary) hover:text-(--text-primary)'
@@ -192,7 +213,7 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
                   {isActive && <span className="xp-led" />}
                   <span className={isActive ? 'text-(--accent-text)' : ''}>{item.icon}</span>
                   <span>{item.label}</span>
-                </button>
+                </a>
               );
             })}
         </nav>

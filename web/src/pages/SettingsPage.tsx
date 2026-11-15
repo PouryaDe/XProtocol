@@ -1,13 +1,39 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Copy, Download, ExternalLink, Key, Plus, Search, Send, ShieldCheck, Trash2, Upload } from 'lucide-react';
-import { apiFetch } from '../lib/api';
+import { apiFetch, getApiBase } from '../lib/api';
 import { formatDateTime } from '../lib/format';
+import { getSubPath, updateSearchParams, useLocationState } from '../lib/router';
 import { ACCENT_PALETTES, useUi, type AccentName } from '../i18n/context';
-import { Button, Card, Input, Select, StatusPill } from '../components/UiPrimitives';
+import { Button, Card, Input, PageHead, Select, StatusPill, Tabs } from '../components/UiPrimitives';
 import { QrCode } from '../components/QrCode';
 import type { CurrentAccount } from '../components/Layout';
 
 type SettingsTab = 'general' | 'subscription' | 'panelAccess' | 'api' | 'myAccount' | 'backup' | 'audit';
+
+const TAB_TO_PARAM: Record<SettingsTab, string> = {
+    general: 'general',
+    subscription: 'sub',
+    panelAccess: 'access',
+    myAccount: 'security',
+    api: 'api',
+    backup: 'backup',
+    audit: 'audit',
+};
+
+const PARAM_TO_TAB: Record<string, SettingsTab> = {
+    general: 'general',
+    sub: 'subscription',
+    subscription: 'subscription',
+    access: 'panelAccess',
+    panelAccess: 'panelAccess',
+    security: 'myAccount',
+    myAccount: 'myAccount',
+    api: 'api',
+    backup: 'backup',
+    audit: 'audit',
+};
+
+const SUB_SWATCHES = ['#a3e635', '#22d3ee', '#34d399', '#fbbf24', '#fb7185', '#a78bfa', '#38bdf8', '#f97316'];
 
 const ACCENTS: AccentName[] = ['lime', 'cyan', 'mint', 'amber', 'coral', 'rose', 'violet', 'sky'];
 const LOOKS = [
@@ -21,7 +47,23 @@ const LOOKS = [
 
 export function SettingsPage({ account }: { account: CurrentAccount }) {
     const { t, lang, setAccent, setBrandName, setSupportTelegram } = useUi();
-    const [tab, setTab] = useState<SettingsTab>(account.isOwner ? 'general' : 'myAccount');
+    const { searchParams } = useLocationState();
+    const defaultTab: SettingsTab = account.isOwner ? 'general' : 'myAccount';
+    const rawParam = searchParams.get('tab');
+    const resolvedTab = (rawParam && PARAM_TO_TAB[rawParam]) || defaultTab;
+    const tab: SettingsTab =
+        !account.isOwner && ['general', 'subscription', 'panelAccess', 'backup'].includes(resolvedTab)
+            ? 'myAccount'
+            : resolvedTab;
+
+    const setTab = (next: SettingsTab) => {
+        updateSearchParams((p) => {
+            if (next === defaultTab) p.delete('tab');
+            else p.set('tab', TAB_TO_PARAM[next]);
+        }, { replace: true });
+    };
+
+    const previewFrameRef = useRef<HTMLIFrameElement | null>(null);
     const [notice, setNotice] = useState('');
 
     // General
@@ -158,30 +200,37 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
         flash(res.message);
     };
 
-    return (
-        <div className="space-y-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <h1 className="text-xl font-bold text-(--text-primary)">{t.settings.title}</h1>
-                {notice && <StatusPill tone="green" label={notice} />}
-            </div>
+    useEffect(() => {
+        if (!subSettings) return;
+        const post = () => {
+            previewFrameRef.current?.contentWindow?.postMessage(
+                { type: 'xp-preview', settings: subSettings },
+                window.location.origin,
+            );
+        };
+        post();
+        const onMsg = (e: MessageEvent) => {
+            if (e.origin === window.location.origin && e.data?.type === 'xp-preview-ready') {
+                post();
+            }
+        };
+        window.addEventListener('message', onMsg);
+        return () => window.removeEventListener('message', onMsg);
+    }, [subSettings]);
 
-            <div className="flex flex-wrap gap-1.5">
-                {availableTabs
-                    .filter((x) => x.show)
-                    .map((item) => (
-                        <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => setTab(item.id)}
-                            className={`rounded-xl px-3 py-1.5 text-xs font-medium transition ${tab === item.id
-                                ? 'bg-(--accent) text-(--accent-fg)'
-                                : 'bg-(--bg-surface) text-(--text-secondary) hover:text-(--text-primary) border border-(--border-subtle)'
-                                }`}
-                        >
-                            {item.label}
-                        </button>
-                    ))}
-            </div>
+    return (
+        <div className="page">
+            <PageHead
+                title={t.settings.title}
+                sub={account.isOwner ? general.brandName : account.username}
+                actions={notice ? <StatusPill tone="green" label={notice} /> : undefined}
+            />
+
+            <Tabs
+                value={tab}
+                onChange={setTab}
+                items={availableTabs.filter((x) => x.show).map((item) => ({ id: item.id, label: item.label }))}
+            />
 
             {tab === 'general' && (
                 <Card className="space-y-5 p-5">
@@ -285,69 +334,144 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
             )}
 
             {tab === 'subscription' && subSettings && (
-                <div className="grid gap-4 lg:grid-cols-2">
-                    <Card className="space-y-4 p-5">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-sm font-semibold text-(--text-primary)">Appearance & Look</h2>
-                            {previewToken && (
-                                <a
-                                    href={`/sub/${previewToken}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-1 text-xs font-medium text-(--accent) hover:underline"
-                                >
-                                    <ExternalLink className="h-3.5 w-3.5" />
-                                    Live preview
-                                </a>
-                            )}
-                        </div>
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                            {LOOKS.map((l) => (
-                                <button
-                                    key={l.id}
-                                    type="button"
-                                    onClick={() => setSubSettings({ ...subSettings, look: l.id })}
-                                    className={`theme-card ${subSettings.look === l.id ? 'on' : ''}`}
-                                >
-                                    <span
-                                        className={`tc-mock ${l.mockClass}`}
-                                        style={{ '--mock': 'var(--accent)' } as React.CSSProperties}
-                                        aria-hidden="true"
+                <div className="sp-layout">
+                    <div className="space-y-4">
+                        <Card className="space-y-4 p-5">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-sm font-semibold text-(--text-primary)">Appearance & Look</h2>
+                                {previewToken && (
+                                    <a
+                                        href={`/${getSubPath()}/${previewToken}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-flex items-center gap-1 text-xs font-medium text-(--accent) hover:underline"
                                     >
-                                        <b>24</b>
-                                        <i />
-                                        <i />
-                                    </span>
-                                    <div className="px-1 text-xs font-bold text-(--text-primary)">{l.name}</div>
-                                    <div className="px-1 text-[11px] leading-snug text-(--text-muted)">{l.desc}</div>
-                                </button>
+                                        <ExternalLink className="h-3.5 w-3.5" />
+                                        Open page
+                                    </a>
+                                )}
+                            </div>
+                            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                {LOOKS.map((l) => (
+                                    <button
+                                        key={l.id}
+                                        type="button"
+                                        onClick={() => setSubSettings({ ...subSettings, look: l.id })}
+                                        className={`theme-card ${subSettings.look === l.id ? 'on' : ''}`}
+                                    >
+                                        <span
+                                            className={`tc-mock ${l.mockClass}`}
+                                            style={{ '--mock': subSettings.accentColor || 'var(--accent)' } as React.CSSProperties}
+                                            aria-hidden="true"
+                                        >
+                                            <b>24</b>
+                                            <i />
+                                            <i />
+                                        </span>
+                                        <div className="px-1 text-xs font-bold text-(--text-primary)">{l.name}</div>
+                                        <div className="px-1 text-[11px] leading-snug text-(--text-muted)">{l.desc}</div>
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div>
+                                <div className="mb-2 text-xs font-medium text-(--text-secondary)">
+                                    {lang === 'fa' ? 'رنگ تاکیدی صفحه اشتراک' : 'Subscription page accent'}
+                                </div>
+                                <div className="swatches">
+                                    <button
+                                        type="button"
+                                        className={`swatch auto ${!subSettings.accentColor ? 'on' : ''}`}
+                                        style={{ '--c': '#a3e635' } as React.CSSProperties}
+                                        onClick={() => setSubSettings({ ...subSettings, accentColor: '' })}
+                                        title="Default"
+                                    />
+                                    {SUB_SWATCHES.map((hex) => (
+                                        <button
+                                            key={hex}
+                                            type="button"
+                                            className={`swatch ${subSettings.accentColor?.toLowerCase() === hex ? 'on' : ''}`}
+                                            style={{ '--c': hex } as React.CSSProperties}
+                                            onClick={() => setSubSettings({ ...subSettings, accentColor: hex })}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <Input
+                                    label="Shop / Brand name"
+                                    value={subSettings.shopName}
+                                    onChange={(e) => setSubSettings({ ...subSettings, shopName: e.target.value })}
+                                />
+                                <Input
+                                    label="Support link (t.me/..., https://..., tel:+98...)"
+                                    value={subSettings.supportLink}
+                                    onChange={(e) => setSubSettings({ ...subSettings, supportLink: e.target.value })}
+                                />
+                                <Input
+                                    label="Support button text"
+                                    value={subSettings.supportButtonText}
+                                    onChange={(e) => setSubSettings({ ...subSettings, supportButtonText: e.target.value })}
+                                />
+                                <Input
+                                    label="Channel link"
+                                    value={subSettings.channelLink}
+                                    onChange={(e) => setSubSettings({ ...subSettings, channelLink: e.target.value })}
+                                />
+                            </div>
+                        </Card>
+
+                        <Card className="space-y-4 p-5">
+                            <h2 className="text-sm font-semibold text-(--text-primary)">Protocol Tabs</h2>
+                            {subSettings.protocols.map((p, idx) => (
+                                <div
+                                    key={p.id}
+                                    className="space-y-2 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-3 text-xs"
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <span className="font-bold uppercase text-(--text-primary)">{p.id}</span>
+                                        <label className="flex items-center gap-1.5">
+                                            <input
+                                                type="checkbox"
+                                                checked={p.shown}
+                                                onChange={(e) => {
+                                                    const next = [...subSettings.protocols];
+                                                    next[idx] = { ...p, shown: e.target.checked };
+                                                    setSubSettings({ ...subSettings, protocols: next });
+                                                }}
+                                            />
+                                            <span>Shown</span>
+                                        </label>
+                                    </div>
+                                    <div className="grid gap-2 sm:grid-cols-2">
+                                        <Input
+                                            placeholder="Custom tab name"
+                                            value={p.tabName}
+                                            onChange={(e) => {
+                                                const next = [...subSettings.protocols];
+                                                next[idx] = { ...p, tabName: e.target.value };
+                                                setSubSettings({ ...subSettings, protocols: next });
+                                            }}
+                                        />
+                                        <Input
+                                            placeholder="Guide note"
+                                            value={p.guideNote}
+                                            onChange={(e) => {
+                                                const next = [...subSettings.protocols];
+                                                next[idx] = { ...p, guideNote: e.target.value };
+                                                setSubSettings({ ...subSettings, protocols: next });
+                                            }}
+                                        />
+                                    </div>
+                                </div>
                             ))}
-                        </div>
+                        </Card>
 
-                        <div className="grid gap-3 sm:grid-cols-2">
-                            <Input
-                                label="Shop / Brand name"
-                                value={subSettings.shopName}
-                                onChange={(e) => setSubSettings({ ...subSettings, shopName: e.target.value })}
-                            />
-                            <Input
-                                label="Support link (t.me/..., https://..., tel:+98...)"
-                                value={subSettings.supportLink}
-                                onChange={(e) => setSubSettings({ ...subSettings, supportLink: e.target.value })}
-                            />
-                            <Input
-                                label="Support button text"
-                                value={subSettings.supportButtonText}
-                                onChange={(e) => setSubSettings({ ...subSettings, supportButtonText: e.target.value })}
-                            />
-                            <Input
-                                label="Channel link"
-                                value={subSettings.channelLink}
-                                onChange={(e) => setSubSettings({ ...subSettings, channelLink: e.target.value })}
-                            />
-                        </div>
-
-                        <div className="flex justify-end">
+                        <div className="savebar">
+                            <span className="text-xs text-(--text-muted)">
+                                {lang === 'fa' ? 'تغییرات پیش‌نمایش بلافاصله نمایش داده می‌شوند' : 'Preview updates live as you edit'}
+                            </span>
                             <Button
                                 variant="primary"
                                 onClick={async () => {
@@ -358,75 +482,24 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
                                 {t.common.save}
                             </Button>
                         </div>
-                    </Card>
+                    </div>
 
-                    <Card className="space-y-4 p-5">
-                        <h2 className="text-sm font-semibold text-(--text-primary)">Protocol Tabs</h2>
-                        {subSettings.protocols.map((p, idx) => (
-                            <div
-                                key={p.id}
-                                className="space-y-2 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-3 text-xs"
-                            >
-                                <div className="flex items-center justify-between">
-                                    <span className="font-bold uppercase text-(--text-primary)">{p.id}</span>
-                                    <label className="flex items-center gap-1.5">
-                                        <input
-                                            type="checkbox"
-                                            checked={p.shown}
-                                            onChange={(e) => {
-                                                const next = [...subSettings.protocols];
-                                                next[idx] = { ...p, shown: e.target.checked };
-                                                setSubSettings({ ...subSettings, protocols: next });
-                                            }}
-                                        />
-                                        <span>Shown</span>
-                                    </label>
-                                </div>
-                                <div className="grid gap-2 sm:grid-cols-2">
-                                    <Input
-                                        placeholder="Custom tab name"
-                                        value={p.tabName}
-                                        onChange={(e) => {
-                                            const next = [...subSettings.protocols];
-                                            next[idx] = { ...p, tabName: e.target.value };
-                                            setSubSettings({ ...subSettings, protocols: next });
-                                        }}
-                                    />
-                                    <Input
-                                        placeholder="Guide note"
-                                        value={p.guideNote}
-                                        onChange={(e) => {
-                                            const next = [...subSettings.protocols];
-                                            next[idx] = { ...p, guideNote: e.target.value };
-                                            setSubSettings({ ...subSettings, protocols: next });
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                        ))}
-
-                        {previewToken && (
-                            <div className="space-y-2 border-t border-(--border-subtle) pt-3">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs font-semibold text-(--text-secondary)">Live Preview</span>
-                                    <a
-                                        href={`/sub/${previewToken}`}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="inline-flex items-center gap-1 text-xs font-medium text-(--accent) hover:underline"
-                                    >
-                                        <ExternalLink className="h-3.5 w-3.5" />
-                                        Open in tab
-                                    </a>
-                                </div>
+                    <aside className="sp-preview" aria-label="Live Preview">
+                        <p className="eyebrow">{lang === 'fa' ? 'پیش‌نمایش زنده موبایل' : 'Live mobile preview'}</p>
+                        <div className="phone">
+                            {previewToken ? (
                                 <iframe
+                                    ref={previewFrameRef}
                                     title="Subscription page live preview"
-                                    src={`/sub/${previewToken}`}
-                                    className="h-80 w-full rounded-xl border border-(--border-subtle) bg-(--bg-app)"
+                                    src={`/${getSubPath()}/${previewToken}?preview=1`}
                                 />
-                            </div>
-                        )}
-                    </Card>
+                            ) : (
+                                <p className="phone-empty">
+                                    {lang === 'fa' ? 'ابتدا یک کاربر بسازید تا پیش‌نمایش فعال شود' : 'Create a client first to preview the subscription page'}
+                                </p>
+                            )}
+                        </div>
+                    </aside>
                 </div>
             )}
 
@@ -484,11 +557,11 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
                         <div>
                             <h2 className="text-sm font-semibold text-(--text-primary)">API Tokens</h2>
                             <p className="text-xs text-(--text-muted)">
-                                Base URL: <code className="font-mono">{window.location.origin}/api</code>
+                                Base URL: <code className="font-mono">{`${window.location.origin}${getApiBase()}`}</code>
                             </p>
                         </div>
                         <a
-                            href="./api/settings/openapi.json"
+                            href={`${getApiBase()}/settings/openapi.json`}
                             target="_blank"
                             rel="noreferrer"
                             className="text-xs font-medium text-(--accent) hover:underline"
@@ -694,7 +767,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
                         </p>
                         <div className="flex flex-wrap gap-3">
                             <a
-                                href="./api/settings/backup/download"
+                                href={`${getApiBase()}/settings/backup/download`}
                                 className="inline-flex items-center gap-2 rounded-xl bg-(--accent) px-4 py-2 text-sm font-semibold text-(--accent-fg)"
                             >
                                 <Download className="h-4 w-4" />

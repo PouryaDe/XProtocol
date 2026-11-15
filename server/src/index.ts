@@ -115,7 +115,7 @@ export function createApp(initialConfig: RuntimeConfig) {
   // Serve built frontend when available
   const webDist = path.resolve(__dirname, '../../web/dist');
   if (fs.existsSync(webDist)) {
-    // Allow relative ./assets/* requests from nested paths like /sub/:token or /:secretPath/
+    // Allow relative ./assets/* requests from nested paths like /sub/:token, /clients/1, or /:secretPath/
     app.use((req, _res, next) => {
       const m = req.url.match(/(\/assets\/[^?#]+(?:\?[^#]*)?)$/);
       if (m && !req.url.startsWith('/api/')) {
@@ -123,23 +123,15 @@ export function createApp(initialConfig: RuntimeConfig) {
       }
       next();
     });
-    app.use(express.static(webDist));
+    app.use(express.static(webDist, { index: false }));
     app.get('*', (req, res) => {
       if (req.path.startsWith('/assets/')) {
         res.status(404).end();
         return;
       }
-      const subPrefix = `/${runtimeConfig.subPath}`;
-      if (req.path === subPrefix || req.path.startsWith(`${subPrefix}/`)) {
-        const html = fs.readFileSync(path.join(webDist, 'index.html'), 'utf-8');
-        const injected = html.replace(
-          '</head>',
-          `<script>window.__XP_SUB_PATH__=${JSON.stringify(runtimeConfig.subPath)};</script></head>`,
-        );
-        res.type('html').send(injected);
-        return;
-      }
-      res.sendFile(path.join(webDist, 'index.html'));
+      const html = fs.readFileSync(path.join(webDist, 'index.html'), 'utf-8');
+      const cfgScript = `<script>window.__XP_BASE_PATH__=${JSON.stringify(runtimeConfig.secretPath || '')};window.__XP_SUB_PATH__=${JSON.stringify(runtimeConfig.subPath || 'sub')};</script>`;
+      res.type('html').send(html.replace('</head>', `${cfgScript}</head>`));
     });
   } else {
     app.get('/', (_req, res) => {

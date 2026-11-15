@@ -1,3 +1,5 @@
+import { getBasePath } from './router';
+
 let csrfToken: string | null = null;
 
 export function setCsrfToken(token: string | null): void {
@@ -5,7 +7,8 @@ export function setCsrfToken(token: string | null): void {
 }
 
 export function getApiBase(): string {
-  return './api';
+  const base = getBasePath();
+  return base ? `${base}/api` : '/api';
 }
 
 export class ApiError extends Error {
