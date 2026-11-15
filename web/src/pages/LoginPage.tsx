@@ -55,7 +55,7 @@ export function LoginPage({ onSuccess }: { onSuccess: (acc: CurrentAccount) => v
         <button
           type="button"
           onClick={cycleTheme}
-          className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] inline-flex items-center gap-1.5"
+          className="rounded-xl border border-(--border-subtle) bg-(--bg-surface) px-3 py-1.5 text-xs text-(--text-secondary) hover:text-(--text-primary) inline-flex items-center gap-1.5"
         >
           {theme === 'system' ? (
             <Monitor className="h-3.5 w-3.5" />
@@ -69,7 +69,7 @@ export function LoginPage({ onSuccess }: { onSuccess: (acc: CurrentAccount) => v
         <button
           type="button"
           onClick={() => setLang(lang === 'en' ? 'fa' : 'en')}
-          className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] inline-flex items-center gap-1.5"
+          className="rounded-xl border border-(--border-subtle) bg-(--bg-surface) px-3 py-1.5 text-xs text-(--text-secondary) hover:text-(--text-primary) inline-flex items-center gap-1.5"
         >
           <Globe className="h-3.5 w-3.5" />
           {lang === 'en' ? 'فارسی' : 'English'}
@@ -78,12 +78,12 @@ export function LoginPage({ onSuccess }: { onSuccess: (acc: CurrentAccount) => v
 
       <Card className="w-full max-w-md p-6 sm:p-8">
         <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--accent)] text-[var(--accent-fg)] font-bold text-lg">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-(--accent) text-(--accent-fg) font-bold text-lg">
             ◆
           </div>
           <div>
-            <h1 className="text-lg font-bold text-[var(--text-primary)]">{brandName}</h1>
-            <p className="text-xs text-[var(--text-secondary)]">{t.auth.subtitle}</p>
+            <h1 className="text-lg font-bold text-(--text-primary)">{brandName}</h1>
+            <p className="text-xs text-(--text-secondary)">{t.auth.subtitle}</p>
           </div>
         </div>
 

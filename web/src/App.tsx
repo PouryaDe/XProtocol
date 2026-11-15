@@ -68,7 +68,7 @@ function PanelRoot() {
 
   if (checking) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--bg-app)] text-sm text-[var(--text-secondary)]">
+      <div className="flex min-h-screen items-center justify-center bg-(--bg-app) text-sm text-(--text-secondary)">
         Loading…
       </div>
     );

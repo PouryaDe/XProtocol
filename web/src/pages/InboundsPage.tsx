@@ -269,7 +269,7 @@ export function InboundsPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-[var(--text-primary)]">{t.inbounds.title}</h1>
+        <h1 className="text-xl font-bold text-(--text-primary)">{t.inbounds.title}</h1>
         <Button variant="primary" onClick={openWizard}>
           <Plus className="h-4 w-4" />
           {t.inbounds.newInbound}
@@ -278,17 +278,17 @@ export function InboundsPage() {
 
       {[...grouped.entries()].map(([groupName, list]) => (
         <div key={groupName} className="space-y-2.5">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">{groupName}</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-(--text-muted)">{groupName}</h2>
           <div className="grid gap-3">
             {list.map((ib) => (
               <Card key={ib.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-lg bg-[var(--accent-soft)] px-2 py-0.5 text-[11px] font-bold uppercase text-[var(--accent)]">
+                    <span className="rounded-lg bg-(--accent-soft) px-2 py-0.5 text-[11px] font-bold uppercase text-(--accent)">
                       {ib.protocol}
                     </span>
-                    <span className="font-semibold text-[var(--text-primary)]">{ib.name}</span>
-                    <span className="font-mono text-xs text-[var(--text-secondary)]">
+                    <span className="font-semibold text-(--text-primary)">{ib.name}</span>
+                    <span className="font-mono text-xs text-(--text-secondary)">
                       {ib.transport.toUpperCase()}/{ib.port} · {ib.subnet}
                     </span>
                     <StatusPill
@@ -296,7 +296,7 @@ export function InboundsPage() {
                       label={ib.running ? t.inbounds.running : ib.nodeId ? t.inbounds.stopped : t.inbounds.notOnNode}
                     />
                   </div>
-                  <div className="text-xs text-[var(--text-muted)]">
+                  <div className="text-xs text-(--text-muted)">
                     {ib.authMode} · {ib.onlineCount} online {ib.description ? `· ${ib.description}` : ''}
                   </div>
                 </div>
@@ -375,7 +375,7 @@ export function InboundsPage() {
                 <span
                   key={step}
                   className={`h-2 rounded-full transition-all ${
-                    step === wizardStep ? 'w-6 bg-[var(--accent)]' : 'w-2 bg-[var(--border-strong)]'
+                    step === wizardStep ? 'w-6 bg-(--accent)' : 'w-2 bg-(--border-strong)'
                   }`}
                 />
               ))}
@@ -410,7 +410,7 @@ export function InboundsPage() {
           {wizardStep === 1 && (
             <>
               <div>
-                <div className="mb-2 text-xs font-medium text-[var(--text-secondary)]">
+                <div className="mb-2 text-xs font-medium text-(--text-secondary)">
                   {lang === 'fa' ? 'پروتکل VPN را انتخاب کنید' : 'Choose a protocol'}
                 </div>
                 <div className="grid gap-2.5 sm:grid-cols-2">
@@ -423,20 +423,20 @@ export function InboundsPage() {
                         onClick={() => selectProtocolCard(card.id)}
                         className={`flex flex-col items-start rounded-2xl border p-3.5 text-start transition ${
                           selected
-                            ? 'border-[var(--accent)] bg-[var(--accent-soft)]'
-                            : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:border-[var(--border-strong)]'
+                            ? 'border-(--accent) bg-(--accent-soft)'
+                            : 'border-(--border-subtle) bg-(--bg-elevated) hover:border-(--border-strong)'
                         }`}
                       >
                         <div className="flex w-full items-center justify-between gap-2">
-                          <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)]">
-                            <Shield className="h-4 w-4 text-[var(--accent)]" />
+                          <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-(--text-primary)">
+                            <Shield className="h-4 w-4 text-(--accent)" />
                             {card.title}
                           </span>
-                          <span className="rounded-md bg-[var(--bg-surface)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text-muted)]">
+                          <span className="rounded-md bg-(--bg-surface) px-1.5 py-0.5 font-mono text-[10px] text-(--text-muted)">
                             {card.badge}
                           </span>
                         </div>
-                        <p className="mt-1 text-[11px] text-[var(--text-secondary)]">{card.desc}</p>
+                        <p className="mt-1 text-[11px] text-(--text-secondary)">{card.desc}</p>
                       </button>
                     );
                   })}
@@ -459,22 +459,22 @@ export function InboundsPage() {
           {wizardStep === 2 && (
             <div className="space-y-3">
               <div className="relative">
-                <Search className="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-[var(--text-muted)]" />
+                <Search className="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-(--text-muted)" />
                 <input
                   value={nodeSearch}
                   onChange={(e) => setNodeSearch(e.target.value)}
                   placeholder={lang === 'fa' ? 'جستجوی نود...' : 'Search nodes…'}
-                  className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] py-2 ps-9 pe-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+                  className="w-full rounded-xl border border-(--border-subtle) bg-(--bg-elevated) py-2 ps-9 pe-3 text-sm text-(--text-primary) outline-none focus:border-(--accent)"
                 />
               </div>
 
-              <label className="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3.5 py-2.5 text-xs text-[var(--text-primary)] cursor-pointer">
+              <label className="flex items-center justify-between rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3.5 py-2.5 text-xs text-(--text-primary) cursor-pointer">
                 <span>{lang === 'fa' ? 'فعلاً به نودی متصل نشود (پیش‌نویس)' : 'Create as unattached draft (no nodes yet)'}</span>
                 <input
                   type="checkbox"
                   checked={draftOnly}
                   onChange={(e) => setDraftOnly(e.target.checked)}
-                  className="rounded accent-[var(--accent)]"
+                  className="rounded accent-(--accent)"
                 />
               </label>
 
@@ -493,22 +493,22 @@ export function InboundsPage() {
                         }
                         className={`flex w-full items-center justify-between rounded-2xl border px-3.5 py-3 text-start transition ${
                           checked
-                            ? 'border-[var(--accent)] bg-[var(--accent-soft)]'
-                            : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:border-[var(--border-strong)]'
+                            ? 'border-(--accent) bg-(--accent-soft)'
+                            : 'border-(--border-subtle) bg-(--bg-elevated) hover:border-(--border-strong)'
                         }`}
                       >
                         <div className="flex items-center gap-2.5">
-                          <Server className="h-4 w-4 text-[var(--accent)]" />
+                          <Server className="h-4 w-4 text-(--accent)" />
                           <div>
-                            <div className="text-sm font-semibold text-[var(--text-primary)]">{n.name}</div>
-                            {n.address && <div className="font-mono text-[11px] text-[var(--text-muted)]">{n.address}</div>}
+                            <div className="text-sm font-semibold text-(--text-primary)">{n.name}</div>
+                            {n.address && <div className="font-mono text-[11px] text-(--text-muted)">{n.address}</div>}
                           </div>
                         </div>
                         <div
                           className={`flex h-5 w-5 items-center justify-center rounded-md border ${
                             checked
-                              ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-fg)]'
-                              : 'border-[var(--border-strong)]'
+                              ? 'border-(--accent) bg-(--accent) text-(--accent-fg)'
+                              : 'border-(--border-strong)'
                           }`}
                         >
                           {checked && <Check className="h-3.5 w-3.5" />}
@@ -533,8 +533,8 @@ export function InboundsPage() {
               </div>
 
               {(protocol === 'wireguard' || protocol === 'amneziawg') && (
-                <div className="space-y-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3.5">
-                  <div className="text-xs font-semibold text-[var(--text-primary)]">
+                <div className="space-y-3 rounded-2xl border border-(--border-subtle) bg-(--bg-elevated) p-3.5">
+                  <div className="text-xs font-semibold text-(--text-primary)">
                     {protocol === 'amneziawg' ? 'AmneziaWG & Obfuscation' : 'WireGuard Settings'}
                   </div>
                   <div className="grid gap-3 sm:grid-cols-3">
@@ -553,8 +553,8 @@ export function InboundsPage() {
               )}
 
               {protocol === 'openvpn' && (
-                <div className="space-y-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3.5">
-                  <div className="text-xs font-semibold text-[var(--text-primary)]">OpenVPN Settings</div>
+                <div className="space-y-3 rounded-2xl border border-(--border-subtle) bg-(--bg-elevated) p-3.5">
+                  <div className="text-xs font-semibold text-(--text-primary)">OpenVPN Settings</div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Select label="Cipher" value={ovpnCipher} onChange={(e) => setOvpnCipher(e.target.value)}>
                       <option value="AES-256-GCM">AES-256-GCM</option>
@@ -562,12 +562,12 @@ export function InboundsPage() {
                     </Select>
                     <Input label="Push DNS" value={wgDns} onChange={(e) => setWgDns(e.target.value)} />
                   </div>
-                  <label className="flex items-center gap-2 text-xs text-[var(--text-primary)] cursor-pointer">
+                  <label className="flex items-center gap-2 text-xs text-(--text-primary) cursor-pointer">
                     <input
                       type="checkbox"
                       checked={ovpnTlsCrypt}
                       onChange={(e) => setOvpnTlsCrypt(e.target.checked)}
-                      className="rounded accent-[var(--accent)]"
+                      className="rounded accent-(--accent)"
                     />
                     Enable tls-crypt control-channel obfuscation
                   </label>
@@ -575,15 +575,15 @@ export function InboundsPage() {
               )}
 
               {protocol === 'openconnect' && (
-                <div className="space-y-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3.5">
-                  <div className="text-xs font-semibold text-[var(--text-primary)]">OpenConnect (ocserv) Settings</div>
+                <div className="space-y-3 rounded-2xl border border-(--border-subtle) bg-(--bg-elevated) p-3.5">
+                  <div className="text-xs font-semibold text-(--text-primary)">OpenConnect (ocserv) Settings</div>
                   <Input label="DNS" value={wgDns} onChange={(e) => setWgDns(e.target.value)} />
-                  <label className="flex items-center gap-2 text-xs text-[var(--text-primary)] cursor-pointer">
+                  <label className="flex items-center gap-2 text-xs text-(--text-primary) cursor-pointer">
                     <input
                       type="checkbox"
                       checked={ocDtls}
                       onChange={(e) => setOcDtls(e.target.checked)}
-                      className="rounded accent-[var(--accent)]"
+                      className="rounded accent-(--accent)"
                     />
                     Enable UDP DTLS acceleration
                   </label>
@@ -591,8 +591,8 @@ export function InboundsPage() {
               )}
 
               {protocol === 'ikev2' && (
-                <div className="space-y-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3.5">
-                  <div className="text-xs font-semibold text-[var(--text-primary)]">IKEv2 / strongSwan Settings</div>
+                <div className="space-y-3 rounded-2xl border border-(--border-subtle) bg-(--bg-elevated) p-3.5">
+                  <div className="text-xs font-semibold text-(--text-primary)">IKEv2 / strongSwan Settings</div>
                   <Input
                     label="Server Identity (FQDN)"
                     value={ikeFqdn}
@@ -603,8 +603,8 @@ export function InboundsPage() {
               )}
 
               {protocol === 'l2tp' && (
-                <div className="space-y-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3.5">
-                  <div className="text-xs font-semibold text-[var(--text-primary)]">L2TP / IPsec Settings</div>
+                <div className="space-y-3 rounded-2xl border border-(--border-subtle) bg-(--bg-elevated) p-3.5">
+                  <div className="text-xs font-semibold text-(--text-primary)">L2TP / IPsec Settings</div>
                   <Input
                     label="IPsec Pre-Shared Key (PSK)"
                     value={l2tpPsk}
@@ -629,13 +629,13 @@ export function InboundsPage() {
                 </Select>
               </div>
 
-              <label className="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3.5 py-2.5 text-xs text-[var(--text-primary)] cursor-pointer">
+              <label className="flex items-center justify-between rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3.5 py-2.5 text-xs text-(--text-primary) cursor-pointer">
                 <span>{lang === 'fa' ? 'اینباند بلافاصله فعال شود' : 'Enable inbound immediately'}</span>
                 <input
                   type="checkbox"
                   checked={enabled}
                   onChange={(e) => setEnabled(e.target.checked)}
-                  className="rounded accent-[var(--accent)]"
+                  className="rounded accent-(--accent)"
                 />
               </label>
             </div>
@@ -666,14 +666,14 @@ export function InboundsPage() {
           </div>
           {configData && inspectTab === 'config' && (
             <div>
-              <div className="mb-1.5 font-mono text-xs text-[var(--text-muted)]">{configData.path}</div>
-              <pre className="max-h-96 overflow-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-app)] p-3 font-mono text-xs text-[var(--text-primary)]">
+              <div className="mb-1.5 font-mono text-xs text-(--text-muted)">{configData.path}</div>
+              <pre className="max-h-96 overflow-auto rounded-xl border border-(--border-subtle) bg-(--bg-app) p-3 font-mono text-xs text-(--text-primary)">
                 {configData.content}
               </pre>
             </div>
           )}
           {configData && inspectTab === 'logs' && (
-            <pre className="max-h-96 overflow-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-app)] p-3 font-mono text-xs text-[var(--text-secondary)]">
+            <pre className="max-h-96 overflow-auto rounded-xl border border-(--border-subtle) bg-(--bg-app) p-3 font-mono text-xs text-(--text-secondary)">
               {configData.logs.join('\n')}
             </pre>
           )}

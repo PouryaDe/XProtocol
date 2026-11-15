@@ -147,12 +147,12 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
       <div>
         <div className="mb-5 flex items-center justify-between px-2 pt-1">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--accent)] text-[var(--accent-fg)] font-bold shadow-sm">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-(--accent) text-(--accent-fg) font-bold shadow-sm">
               ◆
             </div>
             <div>
-              <div className="text-sm font-bold tracking-tight text-[var(--text-primary)]">{brandName}</div>
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              <div className="text-sm font-bold tracking-tight text-(--text-primary)">{brandName}</div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-(--text-muted)">
                 {lang === 'fa' ? 'پنل کنترل وی‌پی‌ان' : 'VPN CONTROL PANEL'}
               </div>
             </div>
@@ -160,7 +160,7 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
           <button
             type="button"
             onClick={() => setMobileOpen(false)}
-            className="rounded-lg p-1 text-[var(--text-secondary)] lg:hidden"
+            className="rounded-lg p-1 text-(--text-secondary) lg:hidden"
           >
             <X className="h-4 w-4" />
           </button>
@@ -182,12 +182,12 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
                   }}
                   className={`ovira-nav-item flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium ${
                     isActive
-                      ? 'ovira-nav-active text-[var(--text-primary)] font-semibold'
-                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]/60 hover:text-[var(--text-primary)]'
+                      ? 'ovira-nav-active text-(--text-primary) font-semibold'
+                      : 'text-(--text-secondary) hover:bg-(--bg-hover)/60 hover:text-(--text-primary)'
                   }`}
                 >
                   {isActive && <span className="ovira-led" />}
-                  <span className={isActive ? 'text-[var(--accent)]' : ''}>{item.icon}</span>
+                  <span className={isActive ? 'text-(--accent)' : ''}>{item.icon}</span>
                   <span>{item.label}</span>
                 </button>
               );
@@ -195,19 +195,19 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
         </nav>
       </div>
 
-      <div className="space-y-2.5 border-t border-[var(--border-subtle)] pt-3">
+      <div className="space-y-2.5 border-t border-(--border-subtle) pt-3">
         {supportHref && (
           <a
             href={supportHref}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-xs text-[var(--text-secondary)] hover:border-[var(--accent)]/40 hover:text-[var(--text-primary)] transition"
+            className="flex items-center justify-between rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3 py-2 text-xs text-(--text-secondary) hover:border-(--accent)/40 hover:text-(--text-primary) transition"
           >
             <span className="inline-flex items-center gap-2 font-medium">
-              <LifeBuoy className="h-3.5 w-3.5 text-[var(--accent)]" />
+              <LifeBuoy className="h-3.5 w-3.5 text-(--accent)" />
               {lang === 'fa' ? 'پشتیبانی' : 'Support'}
             </span>
-            <span className="inline-flex items-center gap-1 text-[11px] text-[var(--text-muted)]">
+            <span className="inline-flex items-center gap-1 text-[11px] text-(--text-muted)">
               {supportTelegram}
               <ExternalLink className="h-3 w-3" />
             </span>
@@ -218,7 +218,7 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
           <button
             type="button"
             onClick={() => setLang(lang === 'en' ? 'fa' : 'en')}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] py-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) py-1.5 text-xs text-(--text-secondary) hover:text-(--text-primary)"
           >
             <Globe className="h-3.5 w-3.5" />
             <span>{lang === 'en' ? 'فارسی' : 'English'}</span>
@@ -226,7 +226,7 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
           <button
             type="button"
             onClick={cycleTheme}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] py-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) py-1.5 text-xs text-(--text-secondary) hover:text-(--text-primary)"
           >
             {themeIcon}
             <span>{themeLabel}</span>
@@ -234,40 +234,40 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
         </div>
 
         {(account.trafficPoolBytes !== null || account.expiresAt) && (
-          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-2.5 space-y-1.5">
+          <div className="rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-2.5 space-y-1.5">
             <div className="flex items-center justify-between text-[11px]">
-              <span className="text-[var(--text-muted)]">{lang === 'fa' ? 'سهمیه ترافیک' : 'Traffic quota'}</span>
-              <span className="font-mono font-medium text-[var(--text-primary)]">
+              <span className="text-(--text-muted)">{lang === 'fa' ? 'سهمیه ترافیک' : 'Traffic quota'}</span>
+              <span className="font-mono font-medium text-(--text-primary)">
                 {formatBytes(account.trafficUsedBytes, lang)} / {formatBytes(account.trafficPoolBytes, lang)}
               </span>
             </div>
             {account.trafficPoolBytes !== null && (
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--bg-hover)]">
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-(--bg-hover)">
                 <div
-                  className="h-full rounded-full bg-[var(--accent)] transition-all"
+                  className="h-full rounded-full bg-(--accent) transition-all"
                   style={{ width: `${quotaPct}%` }}
                 />
               </div>
             )}
             <div className="flex items-center justify-between text-[11px]">
-              <span className="text-[var(--text-muted)]">{lang === 'fa' ? 'اعتبار حساب' : 'Account validity'}</span>
-              <span className="text-[var(--text-secondary)]">
+              <span className="text-(--text-muted)">{lang === 'fa' ? 'اعتبار حساب' : 'Account validity'}</span>
+              <span className="text-(--text-secondary)">
                 {formatDaysLeft(account.expiresAt, null, lang)}
               </span>
             </div>
           </div>
         )}
 
-        <div className="flex items-center justify-between rounded-xl bg-[var(--bg-elevated)] px-3 py-2">
+        <div className="flex items-center justify-between rounded-xl bg-(--bg-elevated) px-3 py-2">
           <div className="min-w-0">
-            <div className="truncate text-xs font-semibold text-[var(--text-primary)]">{account.username}</div>
-            <div className="text-[11px] text-[var(--text-muted)]">{account.roleName}</div>
+            <div className="truncate text-xs font-semibold text-(--text-primary)">{account.username}</div>
+            <div className="text-[11px] text-(--text-muted)">{account.roleName}</div>
           </div>
           <button
             type="button"
             onClick={onLogout}
             title={t.nav.signOut}
-            className="rounded-lg p-1.5 text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-red-400"
+            className="rounded-lg p-1.5 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-red-400"
           >
             <LogOut className="h-4 w-4" />
           </button>
@@ -295,15 +295,15 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
 
       {/* Main Content */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3 lg:hidden">
+        <header className="flex items-center justify-between border-b border-(--border-subtle) bg-(--bg-surface) px-4 py-3 lg:hidden">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="rounded-lg p-1.5 text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+            className="rounded-lg p-1.5 text-(--text-secondary) hover:bg-(--bg-hover)"
           >
             <Menu className="h-5 w-5" />
           </button>
-          <span className="text-sm font-bold text-[var(--text-primary)]">{brandName}</span>
+          <span className="text-sm font-bold text-(--text-primary)">{brandName}</span>
           <div className="w-8" />
         </header>
 

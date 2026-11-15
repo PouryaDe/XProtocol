@@ -30,17 +30,17 @@ export function Modal({ open, onClose, title, subtitle, maxWidth = 'max-w-xl', c
       }}
     >
       <div
-        className={`ovira-dialog w-full ${maxWidth} max-h-[90vh] overflow-hidden border border-[var(--border-strong)] bg-[var(--bg-surface)] flex flex-col`}
+        className={`ovira-dialog w-full ${maxWidth} max-h-[90vh] overflow-hidden border border-(--border-strong) bg-(--bg-surface) flex flex-col`}
       >
-        <div className="flex items-start justify-between border-b border-[var(--border-subtle)] px-5 py-4">
+        <div className="flex items-start justify-between border-b border-(--border-subtle) px-5 py-4">
           <div>
-            <h3 className="text-base font-semibold text-[var(--text-primary)]">{title}</h3>
-            {subtitle && <p className="mt-0.5 text-xs text-[var(--text-secondary)]">{subtitle}</p>}
+            <h3 className="text-base font-semibold text-(--text-primary)">{title}</h3>
+            {subtitle && <p className="mt-0.5 text-xs text-(--text-secondary)">{subtitle}</p>}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition"
+            className="rounded-lg p-1.5 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-primary) transition"
           >
             <X className="h-4 w-4" />
           </button>

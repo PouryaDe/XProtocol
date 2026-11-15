@@ -100,8 +100,8 @@ export function ConnectionsPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-[var(--text-primary)]">{t.connections.title}</h1>
-          <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+          <h1 className="text-xl font-bold text-(--text-primary)">{t.connections.title}</h1>
+          <p className="mt-0.5 text-xs text-(--text-secondary)">
             {live.length} {lang === 'fa' ? 'تانل باز' : 'open tunnels'}
           </p>
         </div>
@@ -121,7 +121,7 @@ export function ConnectionsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t.common.search}
-          className="min-w-48 flex-1 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-elevated)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
+          className="min-w-48 flex-1 rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-3 py-2 text-sm text-(--text-primary) focus:border-(--accent) focus:outline-none"
         />
         <Select value={protoFilter} onChange={(e) => setProtoFilter(e.target.value)} className="w-40">
           <option value="all">{t.common.all}</option>
@@ -131,12 +131,12 @@ export function ConnectionsPage() {
           <option value="openconnect">OpenConnect</option>
         </Select>
         {tab === 'live' && (
-          <div className="flex gap-1 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-1">
+          <div className="flex gap-1 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-1">
             <button
               type="button"
               onClick={() => setViewMode('sessions')}
               className={`rounded-lg px-2.5 py-1 text-xs font-medium ${
-                viewMode === 'sessions' ? 'bg-[var(--accent)] text-[var(--accent-fg)]' : 'text-[var(--text-secondary)]'
+                viewMode === 'sessions' ? 'bg-(--accent) text-(--accent-fg)' : 'text-(--text-secondary)'
               }`}
             >
               {t.connections.sessionsView}
@@ -145,7 +145,7 @@ export function ConnectionsPage() {
               type="button"
               onClick={() => setViewMode('by_client')}
               className={`rounded-lg px-2.5 py-1 text-xs font-medium ${
-                viewMode === 'by_client' ? 'bg-[var(--accent)] text-[var(--accent-fg)]' : 'text-[var(--text-secondary)]'
+                viewMode === 'by_client' ? 'bg-(--accent) text-(--accent-fg)' : 'text-(--text-secondary)'
               }`}
             >
               {t.connections.byClientView}
@@ -158,7 +158,7 @@ export function ConnectionsPage() {
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-start text-sm">
-              <thead className="border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-xs text-[var(--text-secondary)]">
+              <thead className="border-b border-(--border-subtle) bg-(--bg-elevated) text-xs text-(--text-secondary)">
                 <tr>
                   <th className="px-4 py-3 text-start">{t.clients.columns.client}</th>
                   <th className="px-4 py-3 text-start">{t.nav.inbounds}</th>
@@ -170,20 +170,20 @@ export function ConnectionsPage() {
                   <th className="px-4 py-3 text-end">{t.common.actions}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[var(--border-subtle)] text-xs">
+              <tbody className="divide-y divide-(--border-subtle) text-xs">
                 {filteredLive.map((c) => (
                   <tr key={c.id}>
-                    <td className="px-4 py-3 font-semibold text-[var(--text-primary)]">{c.clientName}</td>
-                    <td className="px-4 py-3 text-[var(--text-secondary)]">
+                    <td className="px-4 py-3 font-semibold text-(--text-primary)">{c.clientName}</td>
+                    <td className="px-4 py-3 text-(--text-secondary)">
                       {c.inboundName} · {c.nodeName}
                     </td>
-                    <td className="px-4 py-3 font-mono text-[var(--text-secondary)]">{c.remoteIp}</td>
-                    <td className="px-4 py-3 font-mono text-[var(--text-secondary)]">{c.tunnelIp}</td>
-                    <td className="px-4 py-3 text-[var(--text-secondary)]">{c.device}</td>
-                    <td className="px-4 py-3 font-mono text-[var(--text-primary)]">
+                    <td className="px-4 py-3 font-mono text-(--text-secondary)">{c.remoteIp}</td>
+                    <td className="px-4 py-3 font-mono text-(--text-secondary)">{c.tunnelIp}</td>
+                    <td className="px-4 py-3 text-(--text-secondary)">{c.device}</td>
+                    <td className="px-4 py-3 font-mono text-(--text-primary)">
                       {formatBytes(c.bytesIn + c.bytesOut, lang)}
                     </td>
-                    <td className="px-4 py-3 font-mono text-[var(--text-secondary)]">
+                    <td className="px-4 py-3 font-mono text-(--text-secondary)">
                       ↓ {formatSpeed(c.speedOutBps)}
                     </td>
                     <td className="px-4 py-3 text-end">
@@ -195,7 +195,7 @@ export function ConnectionsPage() {
                 ))}
                 {filteredLive.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-xs text-[var(--text-muted)]">
+                    <td colSpan={8} className="px-4 py-8 text-center text-xs text-(--text-muted)">
                       No open tunnels match these filters.
                     </td>
                   </tr>
@@ -214,14 +214,14 @@ export function ConnectionsPage() {
               <Card key={clientId} className="p-4 space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-[var(--text-primary)]">{g.clientName}</span>
+                    <span className="font-bold text-(--text-primary)">{g.clientName}</span>
                     {overLimit && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs text-amber-400">
                         <AlertTriangle className="h-3 w-3" /> {t.connections.overLimitFlag}
                       </span>
                     )}
                   </div>
-                  <div className="font-mono text-xs text-[var(--text-secondary)]">
+                  <div className="font-mono text-xs text-(--text-secondary)">
                     Devices: {g.items.length} · IPs: {g.uniqueIps.size} · Allowed: {g.deviceLimit ?? '∞'}
                   </div>
                 </div>
@@ -229,13 +229,13 @@ export function ConnectionsPage() {
                   {g.items.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-center justify-between rounded-xl bg-[var(--bg-elevated)] px-3 py-2 text-xs"
+                      className="flex items-center justify-between rounded-xl bg-(--bg-elevated) px-3 py-2 text-xs"
                     >
                       <div>
-                        <div className="font-mono text-[var(--text-primary)]">
+                        <div className="font-mono text-(--text-primary)">
                           {item.remoteIp} → {item.tunnelIp}
                         </div>
-                        <div className="text-[var(--text-muted)]">
+                        <div className="text-(--text-muted)">
                           {item.inboundName} · {item.device}
                         </div>
                       </div>
@@ -255,7 +255,7 @@ export function ConnectionsPage() {
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-start text-sm">
-              <thead className="border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-xs text-[var(--text-secondary)]">
+              <thead className="border-b border-(--border-subtle) bg-(--bg-elevated) text-xs text-(--text-secondary)">
                 <tr>
                   <th className="px-4 py-3 text-start">{t.clients.columns.client}</th>
                   <th className="px-4 py-3 text-start">{t.nav.inbounds}</th>
@@ -265,16 +265,16 @@ export function ConnectionsPage() {
                   <th className="px-4 py-3 text-start">{t.common.status}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[var(--border-subtle)] text-xs">
+              <tbody className="divide-y divide-(--border-subtle) text-xs">
                 {history.map((h) => (
                   <tr key={h.id}>
-                    <td className="px-4 py-3 font-semibold text-[var(--text-primary)]">{h.clientName}</td>
-                    <td className="px-4 py-3 text-[var(--text-secondary)]">{h.inboundName}</td>
-                    <td className="px-4 py-3 font-mono text-[var(--text-secondary)]">{h.remoteIp}</td>
-                    <td className="px-4 py-3 text-[var(--text-secondary)]">
+                    <td className="px-4 py-3 font-semibold text-(--text-primary)">{h.clientName}</td>
+                    <td className="px-4 py-3 text-(--text-secondary)">{h.inboundName}</td>
+                    <td className="px-4 py-3 font-mono text-(--text-secondary)">{h.remoteIp}</td>
+                    <td className="px-4 py-3 text-(--text-secondary)">
                       {formatDateTime(h.connectedAt, lang)} · {formatDuration(h.durationSec, lang)}
                     </td>
-                    <td className="px-4 py-3 font-mono text-[var(--text-primary)]">{formatBytes(h.bytesTotal, lang)}</td>
+                    <td className="px-4 py-3 font-mono text-(--text-primary)">{formatBytes(h.bytesTotal, lang)}</td>
                     <td className="px-4 py-3">
                       <StatusPill tone="gray" label={h.reason} />
                     </td>

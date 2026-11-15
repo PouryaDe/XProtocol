@@ -110,7 +110,7 @@ export function AccountsPage() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-[var(--text-primary)]">{t.accounts.title}</h1>
+        <h1 className="text-xl font-bold text-(--text-primary)">{t.accounts.title}</h1>
         <div className="flex gap-2">
           <Button variant={tab === 'accounts' ? 'primary' : 'secondary'} onClick={() => setTab('accounts')}>
             {t.accounts.accountsTab}
@@ -132,18 +132,18 @@ export function AccountsPage() {
           {accounts.map((a) => (
             <Card key={a.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-(--accent-soft) text-(--accent)">
                   <KeyRound className="h-5 w-5" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-[var(--text-primary)]">{a.username}</span>
-                    <span className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)]">
+                    <span className="font-bold text-(--text-primary)">{a.username}</span>
+                    <span className="rounded-lg border border-(--border-subtle) bg-(--bg-elevated) px-2 py-0.5 text-[11px] text-(--text-secondary)">
                       {a.roleName}
                     </span>
                     <StatusPill tone={a.status === 'active' ? 'green' : 'red'} label={a.status} />
                   </div>
-                  <div className="text-xs text-[var(--text-muted)]">
+                  <div className="text-xs text-(--text-muted)">
                     {a.clientCount} clients · {a.onlineCount} online
                     {a.trafficPoolBytes !== null &&
                       ` · Pool: ${formatBytes(a.trafficUsedBytes, lang)} / ${formatBytes(a.trafficPoolBytes, lang)}`}
@@ -213,15 +213,15 @@ export function AccountsPage() {
           {roles.map((r) => (
             <Card key={r.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-(--accent-soft) text-(--accent)">
                   <Shield className="h-5 w-5" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-[var(--text-primary)]">{r.name}</span>
+                    <span className="font-bold text-(--text-primary)">{r.name}</span>
                     {r.builtIn && <StatusPill tone="gray" label="Built-in" />}
                   </div>
-                  <div className="text-xs text-[var(--text-muted)]">
+                  <div className="text-xs text-(--text-muted)">
                     {r.accountCount} accounts · Clients: {r.permissions.clients.view} · Max clients:{' '}
                     {r.limits.clientLimit ?? '∞'}
                   </div>
@@ -276,7 +276,7 @@ export function AccountsPage() {
                 <Input label="Validity (days)" type="number" value={days} onChange={(e) => setDays(e.target.value)} />
               </div>
               <div>
-                <div className="mb-1.5 text-xs font-medium text-[var(--text-secondary)]">Allowed groups</div>
+                <div className="mb-1.5 text-xs font-medium text-(--text-secondary)">Allowed groups</div>
                 <div className="flex flex-wrap gap-2">
                   {groups.map((g) => {
                     const checked = allowedGroupIds.includes(g.id);
@@ -291,8 +291,8 @@ export function AccountsPage() {
                         }
                         className={`rounded-xl border px-3 py-1 text-xs ${
                           checked
-                            ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]'
-                            : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
+                            ? 'border-(--accent) bg-(--accent-soft) text-(--accent)'
+                            : 'border-(--border-subtle) bg-(--bg-elevated) text-(--text-secondary)'
                         }`}
                       >
                         {g.name}

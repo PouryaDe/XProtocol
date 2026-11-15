@@ -112,7 +112,7 @@ export function OverviewPage({
   };
 
   if (!data) {
-    return <div className="py-12 text-center text-sm text-[var(--text-secondary)]">{t.common.loading}</div>;
+    return <div className="py-12 text-center text-sm text-(--text-secondary)">{t.common.loading}</div>;
   }
 
   const chartData =
@@ -142,8 +142,8 @@ export function OverviewPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-[var(--text-primary)]">{t.overview.title}</h1>
-          <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+          <h1 className="text-xl font-bold text-(--text-primary)">{t.overview.title}</h1>
+          <p className="mt-0.5 text-xs text-(--text-secondary)">
             {lang === 'fa'
               ? `${data.summary.onlineClients} کاربر آنلاین · ${data.summary.runningOutCount} اشتراک رو به اتمام`
               : `${data.summary.onlineClients} online now · ${data.summary.runningOutCount} plans run out soon`}
@@ -168,61 +168,61 @@ export function OverviewPage({
       )}
 
       {/* Unified 4-KPI Strip */}
-      <Card className="grid divide-y divide-[var(--border-subtle)] sm:grid-cols-2 sm:divide-y-0 sm:divide-x xl:grid-cols-4 rtl:sm:divide-x-reverse">
+      <Card className="grid divide-y divide-(--border-subtle) sm:grid-cols-2 sm:divide-y-0 sm:divide-x xl:grid-cols-4 rtl:sm:divide-x-reverse">
         <div className="p-4">
-          <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
+          <div className="flex items-center justify-between text-xs text-(--text-secondary)">
             <span>{t.overview.onlineNow}</span>
-            <Activity className="h-4 w-4 text-[var(--accent)]" />
+            <Activity className="h-4 w-4 text-(--accent)" />
           </div>
           <div className="mt-2 flex items-baseline justify-between gap-2">
-            <div className="text-2xl font-bold text-[var(--text-primary)]">{data.summary.onlineClients}</div>
+            <div className="text-2xl font-bold text-(--text-primary)">{data.summary.onlineClients}</div>
             <button
               type="button"
               onClick={() => onNavigate('connections')}
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--accent)] hover:underline"
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-(--accent) hover:underline"
             >
               {lang === 'fa' ? 'مشاهده لیست' : 'View list'}
               <ArrowRight className="h-3 w-3" />
             </button>
           </div>
-          <div className="mt-1 text-xs text-[var(--text-muted)]">
+          <div className="mt-1 text-xs text-(--text-muted)">
             {data.summary.openTunnels} {lang === 'fa' ? 'تانل باز' : 'open tunnels'}
           </div>
         </div>
 
         <div className="p-4">
-          <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
+          <div className="flex items-center justify-between text-xs text-(--text-secondary)">
             <span>{t.overview.activeClients}</span>
-            <Users className="h-4 w-4 text-[var(--info)]" />
+            <Users className="h-4 w-4 text-(--info)" />
           </div>
-          <div className="mt-2 text-2xl font-bold text-[var(--text-primary)]">{data.summary.activeClients}</div>
-          <div className="mt-1 text-xs text-[var(--text-muted)]">
+          <div className="mt-2 text-2xl font-bold text-(--text-primary)">{data.summary.activeClients}</div>
+          <div className="mt-1 text-xs text-(--text-muted)">
             {lang === 'fa' ? `از ${data.summary.totalClients} کاربر` : `out of ${data.summary.totalClients} clients`}
           </div>
         </div>
 
         <div className="p-4">
-          <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
+          <div className="flex items-center justify-between text-xs text-(--text-secondary)">
             <span>{t.overview.trafficToday}</span>
             <ArrowDownUp className="h-4 w-4 text-emerald-400" />
           </div>
-          <div className="mt-2 text-2xl font-bold text-[var(--text-primary)]">
+          <div className="mt-2 text-2xl font-bold text-(--text-primary)">
             {formatBytes(data.summary.todayDownloadBytes + data.summary.todayUploadBytes, lang)}
           </div>
-          <div className="mt-1 text-xs text-[var(--text-muted)]">
+          <div className="mt-1 text-xs text-(--text-muted)">
             30d: {formatBytes(data.summary.total30dBytes, lang)}
           </div>
         </div>
 
         <div className="p-4">
-          <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
+          <div className="flex items-center justify-between text-xs text-(--text-secondary)">
             <span>{t.overview.throughputNow}</span>
             <Radio className="h-4 w-4 text-violet-400" />
           </div>
-          <div className="mt-2 text-lg font-bold text-[var(--text-primary)]">
+          <div className="mt-2 text-lg font-bold text-(--text-primary)">
             ↓ {formatSpeed(data.summary.speedDownBps)}
           </div>
-          <div className="mt-1 text-xs text-[var(--text-muted)]">
+          <div className="mt-1 text-xs text-(--text-muted)">
             ↑ {formatSpeed(data.summary.speedUpBps)}
           </div>
         </div>
@@ -232,11 +232,11 @@ export function OverviewPage({
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="p-5 lg:col-span-2">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+            <h2 className="text-sm font-semibold text-(--text-primary)">
               {lang === 'fa' ? 'نمای کلی ترافیک' : 'Traffic overview'}
             </h2>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-0.5 text-[11px]">
+              <div className="inline-flex rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-0.5 text-[11px]">
                 {([
                   { id: '24h', label: lang === 'fa' ? '۲۴ ساعت' : '24 hours' },
                   { id: '7d', label: lang === 'fa' ? '۷ روز' : '7 days' },
@@ -248,15 +248,15 @@ export function OverviewPage({
                     onClick={() => setChartRange(r.id)}
                     className={`rounded-lg px-2.5 py-1 font-medium transition ${
                       chartRange === r.id
-                        ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
-                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                        ? 'bg-(--accent-soft) text-(--accent)'
+                        : 'text-(--text-secondary) hover:text-(--text-primary)'
                     }`}
                   >
                     {r.label}
                   </button>
                 ))}
               </div>
-              <div className="inline-flex rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-0.5 text-[11px]">
+              <div className="inline-flex rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-0.5 text-[11px]">
                 {([
                   { id: 'bars', label: lang === 'fa' ? 'میله‌ای' : 'Bars' },
                   { id: 'trend', label: lang === 'fa' ? 'روند' : 'Trend' },
@@ -267,8 +267,8 @@ export function OverviewPage({
                     onClick={() => setChartMode(m.id)}
                     className={`rounded-lg px-2.5 py-1 font-medium transition ${
                       chartMode === m.id
-                        ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
-                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                        ? 'bg-(--accent-soft) text-(--accent)'
+                        : 'text-(--text-secondary) hover:text-(--text-primary)'
                     }`}
                   >
                     {m.label}
@@ -283,13 +283,13 @@ export function OverviewPage({
         <Card className="p-5 flex flex-col justify-between">
           <div>
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+              <h2 className="text-sm font-semibold text-(--text-primary)">
                 {lang === 'fa' ? 'وضعیت کاربران' : 'Client status'}
               </h2>
               <button
                 type="button"
                 onClick={() => onNavigate('clients')}
-                className="text-xs font-medium text-[var(--accent)] hover:underline"
+                className="text-xs font-medium text-(--accent) hover:underline"
               >
                 {t.common.all}
               </button>
@@ -306,13 +306,13 @@ export function OverviewPage({
                 key={seg.label}
                 type="button"
                 onClick={() => onNavigate('clients')}
-                className="flex items-center justify-between rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 py-1.5 hover:border-[var(--accent)]/40"
+                className="flex items-center justify-between rounded-lg border border-(--border-subtle) bg-(--bg-elevated) px-2.5 py-1.5 hover:border-(--accent)/40"
               >
-                <span className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+                <span className="flex items-center gap-1.5 text-(--text-secondary)">
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: seg.color }} />
                   {seg.label}
                 </span>
-                <span className="font-mono font-semibold text-[var(--text-primary)]">{seg.value}</span>
+                <span className="font-mono font-semibold text-(--text-primary)">{seg.value}</span>
               </button>
             ))}
           </div>
@@ -323,28 +323,28 @@ export function OverviewPage({
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
         <Card className="p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+            <h2 className="text-sm font-semibold text-(--text-primary)">
               {lang === 'fa' ? 'نیازمند توجه' : 'Needs attention'}
             </h2>
             <button
               type="button"
               onClick={() => onNavigate('clients')}
-              className="text-xs font-medium text-[var(--accent)] hover:underline"
+              className="text-xs font-medium text-(--accent) hover:underline"
             >
               {t.common.all}
             </button>
           </div>
           {data.runningOut.length === 0 ? (
-            <p className="py-6 text-center text-xs text-[var(--text-muted)]">{t.overview.noRunningOut}</p>
+            <p className="py-6 text-center text-xs text-(--text-muted)">{t.overview.noRunningOut}</p>
           ) : (
             <div className="space-y-2">
               {data.runningOut.map((c) => (
                 <div
                   key={c.id}
-                  className="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2"
+                  className="flex items-center justify-between rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3 py-2"
                 >
                   <div className="min-w-0">
-                    <div className="truncate text-xs font-semibold text-[var(--text-primary)]">{c.name}</div>
+                    <div className="truncate text-xs font-semibold text-(--text-primary)">{c.name}</div>
                     <div className="text-[11px] text-amber-400">
                       {c.reason === 'traffic' && c.trafficLimitBytes
                         ? `${Math.round((c.trafficUsedBytes / c.trafficLimitBytes) * 100)}% used`
@@ -362,11 +362,11 @@ export function OverviewPage({
         {data.inbounds.length > 0 && (
           <Card className="p-5">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-[var(--text-primary)]">{t.overview.inbounds}</h2>
+              <h2 className="text-sm font-semibold text-(--text-primary)">{t.overview.inbounds}</h2>
               <button
                 type="button"
                 onClick={() => onNavigate('inbounds')}
-                className="text-xs font-medium text-[var(--accent)] hover:underline"
+                className="text-xs font-medium text-(--accent) hover:underline"
               >
                 {t.common.all}
               </button>
@@ -375,16 +375,16 @@ export function OverviewPage({
               {data.inbounds.map((ib) => (
                 <div
                   key={ib.id}
-                  className="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-xs"
+                  className="flex items-center justify-between rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3 py-2 text-xs"
                 >
                   <div>
-                    <div className="font-semibold text-[var(--text-primary)]">{ib.name}</div>
-                    <div className="text-[11px] text-[var(--text-muted)]">
+                    <div className="font-semibold text-(--text-primary)">{ib.name}</div>
+                    <div className="text-[11px] text-(--text-muted)">
                       {ib.protocol.toUpperCase()} · {ib.transport.toUpperCase()}/{ib.port}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-[var(--text-secondary)]">{ib.onlineCount} online</span>
+                    <span className="text-[11px] text-(--text-secondary)">{ib.onlineCount} online</span>
                     <StatusPill
                       tone={ib.running ? 'green' : ib.enabled ? 'amber' : 'gray'}
                       label={ib.running ? t.inbounds.running : t.inbounds.stopped}
@@ -397,15 +397,15 @@ export function OverviewPage({
         )}
 
         <Card className="p-5">
-          <h2 className="mb-3 text-sm font-semibold text-[var(--text-primary)]">{t.overview.heaviestUsers}</h2>
+          <h2 className="mb-3 text-sm font-semibold text-(--text-primary)">{t.overview.heaviestUsers}</h2>
           <div className="space-y-2">
             {data.heaviestUsers.map((u) => (
               <div
                 key={u.id}
-                className="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-xs"
+                className="flex items-center justify-between rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3 py-2 text-xs"
               >
-                <span className="font-medium text-[var(--text-primary)]">{u.name}</span>
-                <span className="font-mono text-[var(--text-secondary)]">{formatBytes(u.trafficUsedBytes, lang)}</span>
+                <span className="font-medium text-(--text-primary)">{u.name}</span>
+                <span className="font-mono text-(--text-secondary)">{formatBytes(u.trafficUsedBytes, lang)}</span>
               </div>
             ))}
           </div>
@@ -414,8 +414,8 @@ export function OverviewPage({
         {data.server ? (
           <Card className="p-5">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-[var(--text-primary)]">{t.overview.thisServer}</h2>
-              <span className="inline-flex items-center gap-1 text-[11px] text-[var(--text-muted)]">
+              <h2 className="text-sm font-semibold text-(--text-primary)">{t.overview.thisServer}</h2>
+              <span className="inline-flex items-center gap-1 text-[11px] text-(--text-muted)">
                 <Server className="h-3.5 w-3.5" />
                 {data.server.driverMode}
               </span>
@@ -441,7 +441,7 @@ export function OverviewPage({
                 },
               ].map((m) => (
                 <div key={m.label}>
-                  <div className="mb-1 flex justify-between text-[var(--text-secondary)]">
+                  <div className="mb-1 flex justify-between text-(--text-secondary)">
                     <span className="inline-flex items-center gap-1">
                       <Cpu className="h-3 w-3" /> {m.label}
                     </span>
@@ -449,33 +449,33 @@ export function OverviewPage({
                       {m.pct}%{m.sub ? ` · ${m.sub}` : ''}
                     </span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
+                  <div className="h-2 overflow-hidden rounded-full bg-(--bg-elevated)">
                     <div
-                      className="h-full rounded-full bg-[var(--accent)] transition-all"
+                      className="h-full rounded-full bg-(--accent) transition-all"
                       style={{ width: `${Math.min(100, m.pct)}%` }}
                     />
                   </div>
                 </div>
               ))}
-              <div className="pt-1 text-[11px] text-[var(--text-muted)]">
+              <div className="pt-1 text-[11px] text-(--text-muted)">
                 Uptime: {formatDuration(data.server.uptimeSeconds, lang)} · {data.server.platform}
               </div>
             </div>
           </Card>
         ) : data.resellerAccount ? (
           <Card className="p-5">
-            <h2 className="mb-3 text-sm font-semibold text-[var(--text-primary)]">{t.overview.yourAccount}</h2>
-            <div className="space-y-2 text-xs text-[var(--text-secondary)]">
+            <h2 className="mb-3 text-sm font-semibold text-(--text-primary)">{t.overview.yourAccount}</h2>
+            <div className="space-y-2 text-xs text-(--text-secondary)">
               <div className="flex justify-between">
                 <span>Traffic pool</span>
-                <span className="font-mono text-[var(--text-primary)]">
+                <span className="font-mono text-(--text-primary)">
                   {formatBytes(data.resellerAccount.trafficUsedBytes, lang)} /{' '}
                   {formatBytes(data.resellerAccount.trafficPoolBytes, lang)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Clients</span>
-                <span className="font-mono text-[var(--text-primary)]">
+                <span className="font-mono text-(--text-primary)">
                   {data.resellerAccount.clientCount} / {data.resellerAccount.clientLimit ?? '∞'}
                 </span>
               </div>

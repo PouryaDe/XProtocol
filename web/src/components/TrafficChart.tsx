@@ -24,7 +24,7 @@ export function TrafficChart({
   const [tableOpen, setTableOpen] = useState(false);
 
   if (!data || data.length === 0) {
-    return <div className="flex h-32 items-center justify-center text-xs text-[var(--text-muted)]">—</div>;
+    return <div className="flex h-32 items-center justify-center text-xs text-(--text-muted)">—</div>;
   }
 
   const maxTotal = Math.max(1, ...data.map((d) => d.download_bytes + d.upload_bytes));
@@ -45,13 +45,13 @@ export function TrafficChart({
 
   return (
     <div>
-      <div className="mb-3 flex items-center gap-4 text-xs text-[var(--text-secondary)]">
+      <div className="mb-3 flex items-center gap-4 text-xs text-(--text-secondary)">
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-sm bg-[var(--accent)]" />
+          <span className="h-2.5 w-2.5 rounded-sm bg-(--accent)" />
           {t.overview.download}
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-sm bg-[var(--info)]" />
+          <span className="h-2.5 w-2.5 rounded-sm bg-(--info)" />
           {t.overview.upload}
         </span>
       </div>
@@ -64,7 +64,7 @@ export function TrafficChart({
             const label = item.ts.length > 10 ? item.ts.slice(11, 16) : item.ts.slice(5);
             return (
               <div key={item.ts} className="group relative flex h-full flex-1 flex-col justify-end">
-                <div className="pointer-events-none absolute -top-9 left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] px-2 py-1 text-[10px] text-[var(--text-primary)] shadow-lg group-hover:block">
+                <div className="pointer-events-none absolute -top-9 left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded-lg border border-(--border-strong) bg-(--bg-elevated) px-2 py-1 text-[10px] text-(--text-primary) shadow-lg group-hover:block">
                   <div className="font-mono">{label}</div>
                   <div>
                     ↓ {formatBytes(item.download_bytes, lang)} · ↑ {formatBytes(item.upload_bytes, lang)}
@@ -72,11 +72,11 @@ export function TrafficChart({
                 </div>
                 <div className="flex w-full flex-col justify-end overflow-hidden rounded-t-sm" style={{ height: '100%' }}>
                   <div
-                    className="w-full bg-[var(--info)] opacity-85 transition-all group-hover:opacity-100"
+                    className="w-full bg-(--info) opacity-85 transition-all group-hover:opacity-100"
                     style={{ height: `${Math.max(ulPct, item.upload_bytes > 0 ? 2 : 0)}%` }}
                   />
                   <div
-                    className="w-full bg-[var(--accent)] opacity-90 transition-all group-hover:opacity-100"
+                    className="w-full bg-(--accent) opacity-90 transition-all group-hover:opacity-100"
                     style={{ height: `${Math.max(dlPct, item.download_bytes > 0 ? 3 : 0)}%` }}
                   />
                 </div>
@@ -105,33 +105,33 @@ export function TrafficChart({
       )}
 
       {showTableToggle && (
-        <div className="mt-3 border-t border-[var(--border-subtle)] pt-2">
+        <div className="mt-3 border-t border-(--border-subtle) pt-2">
           <button
             type="button"
             onClick={() => setTableOpen((v) => !v)}
-            className="inline-flex items-center gap-1 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            className="inline-flex items-center gap-1 text-xs font-medium text-(--text-secondary) hover:text-(--text-primary)"
           >
             {tableOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             <span>View data table</span>
           </button>
           {tableOpen && (
-            <div className="mt-2 max-h-44 overflow-auto rounded-xl border border-[var(--border-subtle)]">
+            <div className="mt-2 max-h-44 overflow-auto rounded-xl border border-(--border-subtle)">
               <table className="w-full text-xs">
-                <thead className="bg-[var(--bg-elevated)] text-[var(--text-muted)]">
+                <thead className="bg-(--bg-elevated) text-(--text-muted)">
                   <tr>
                     <th className="px-3 py-1.5 text-start">Time</th>
                     <th className="px-3 py-1.5 text-end">{t.overview.download}</th>
                     <th className="px-3 py-1.5 text-end">{t.overview.upload}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[var(--border-subtle)] font-mono">
+                <tbody className="divide-y divide-(--border-subtle) font-mono">
                   {data.map((d) => (
                     <tr key={d.ts}>
-                      <td className="px-3 py-1 text-[var(--text-secondary)]">
+                      <td className="px-3 py-1 text-(--text-secondary)">
                         {d.ts.length > 10 ? d.ts.slice(0, 16).replace('T', ' ') : d.ts}
                       </td>
-                      <td className="px-3 py-1 text-end text-[var(--text-primary)]">{formatBytes(d.download_bytes, lang)}</td>
-                      <td className="px-3 py-1 text-end text-[var(--text-secondary)]">{formatBytes(d.upload_bytes, lang)}</td>
+                      <td className="px-3 py-1 text-end text-(--text-primary)">{formatBytes(d.download_bytes, lang)}</td>
+                      <td className="px-3 py-1 text-end text-(--text-secondary)">{formatBytes(d.upload_bytes, lang)}</td>
                     </tr>
                   ))}
                 </tbody>

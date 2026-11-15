@@ -60,7 +60,7 @@ export function CertificatesPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-[var(--text-primary)]">{t.certificates.title}</h1>
+        <h1 className="text-xl font-bold text-(--text-primary)">{t.certificates.title}</h1>
         <Button variant="primary" onClick={() => setModalOpen(true)}>
           <Plus className="h-4 w-4" />
           {t.certificates.newCert}
@@ -71,15 +71,15 @@ export function CertificatesPage() {
         {certs.map((c) => (
           <Card key={c.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-(--accent-soft) text-(--accent)">
                 <ShieldCheck className="h-5 w-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-[var(--text-primary)]">{c.name}</span>
+                  <span className="font-semibold text-(--text-primary)">{c.name}</span>
                   <StatusPill tone={c.status === 'valid' ? 'green' : 'amber'} label={c.status} />
                 </div>
-                <div className="text-xs text-[var(--text-muted)]">
+                <div className="text-xs text-(--text-muted)">
                   {c.nodeName} · {c.certType} · {t.certificates.expires}: {formatDateTime(c.expiresAt, lang)}
                   {c.usedByInbounds.length > 0 && ` · Used by ${c.usedByInbounds.map((i) => i.name).join(', ')}`}
                 </div>

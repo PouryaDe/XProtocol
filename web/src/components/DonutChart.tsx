@@ -56,7 +56,7 @@ export function DonutChart({
           x="58"
           y="55"
           textAnchor="middle"
-          className="fill-[var(--text-primary)] text-lg font-bold"
+          className="fill-(--text-primary) text-lg font-bold"
           style={{ fontSize: 18, fontWeight: 700 }}
         >
           {total}
@@ -65,7 +65,7 @@ export function DonutChart({
           x="58"
           y="71"
           textAnchor="middle"
-          className="fill-[var(--text-muted)]"
+          className="fill-(--text-muted)"
           style={{ fontSize: 10 }}
         >
           {totalLabel}

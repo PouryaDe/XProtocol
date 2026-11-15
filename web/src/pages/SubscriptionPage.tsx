@@ -184,7 +184,7 @@ export function SubscriptionPage({ token }: { token: string }) {
                   onClick={() => setActiveTab(i)}
                   className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition ${
                     i === activeTab
-                      ? 'bg-[var(--accent)] text-[var(--accent-fg)]'
+                      ? 'bg-(--accent) text-(--accent-fg)'
                       : 'border border-current/15 opacity-75 hover:opacity-100'
                   }`}
                 >
@@ -210,7 +210,7 @@ export function SubscriptionPage({ token }: { token: string }) {
                       type="button"
                       onClick={() => setOsTab(os)}
                       className={`rounded-lg px-2 py-0.5 uppercase ${
-                        osTab === os ? 'bg-[var(--accent)] text-[var(--accent-fg)] font-bold' : 'opacity-65'
+                        osTab === os ? 'bg-(--accent) text-(--accent-fg) font-bold' : 'opacity-65'
                       }`}
                     >
                       {os}
@@ -263,7 +263,7 @@ export function SubscriptionPage({ token }: { token: string }) {
                       </button>
                       <a
                         href={`${subBase}/profile/${prof.inboundId}`}
-                        className="inline-flex items-center gap-1 rounded-xl bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[var(--accent-fg)]"
+                        className="inline-flex items-center gap-1 rounded-xl bg-(--accent) px-3 py-1.5 text-xs font-semibold text-(--accent-fg)"
                       >
                         <Download className="h-3.5 w-3.5" />
                         {isFa ? 'دانلود' : 'Download'}
@@ -298,7 +298,7 @@ export function SubscriptionPage({ token }: { token: string }) {
                 href={data.appearance.supportLink}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-[var(--accent-fg)]"
+                className="inline-flex items-center gap-2 rounded-xl bg-(--accent) px-4 py-2 text-xs font-semibold text-(--accent-fg)"
               >
                 <MessageCircle className="h-4 w-4" />
                 {data.appearance.supportButtonText || (isFa ? 'پشتیبانی' : 'Contact support')}

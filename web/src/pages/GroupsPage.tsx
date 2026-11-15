@@ -82,7 +82,7 @@ export function GroupsPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-[var(--text-primary)]">{t.groups.title}</h1>
+        <h1 className="text-xl font-bold text-(--text-primary)">{t.groups.title}</h1>
         <Button variant="primary" onClick={openCreate}>
           <Plus className="h-4 w-4" />
           {t.groups.newGroup}
@@ -93,15 +93,15 @@ export function GroupsPage() {
         {groups.map((g) => (
           <Card key={g.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-(--accent-soft) text-(--accent)">
                 <FolderKanban className="h-5 w-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-[var(--text-primary)]">{g.name}</span>
+                  <span className="font-semibold text-(--text-primary)">{g.name}</span>
                   <StatusPill tone={g.enabled ? 'green' : 'gray'} label={g.enabled ? t.common.enabled : t.common.disabled} />
                 </div>
-                <div className="text-xs text-[var(--text-muted)]">
+                <div className="text-xs text-(--text-muted)">
                   {g.allInbounds ? t.groups.allInbounds : `${g.inboundIds.length} ${t.groups.inboundsCount}`} ·{' '}
                   {g.clientCount} {t.groups.clientsCount}
                   {g.note ? ` · ${g.note}` : ''}
@@ -134,17 +134,17 @@ export function GroupsPage() {
           <Input label={t.common.name} value={name} onChange={(e) => setName(e.target.value)} required />
           <Input label={t.common.note} value={note} onChange={(e) => setNote(e.target.value)} />
 
-          <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
+          <label className="flex items-center gap-2 text-sm text-(--text-primary)">
             <input type="checkbox" checked={allInbounds} onChange={(e) => setAllInbounds(e.target.checked)} />
             <span>{t.groups.allInbounds}</span>
           </label>
 
           {!allInbounds && (
-            <div className="space-y-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
+            <div className="space-y-1.5 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-3">
               {inbounds.map((ib) => {
                 const checked = inboundIds.includes(ib.id);
                 return (
-                  <label key={ib.id} className="flex items-center gap-2 text-xs text-[var(--text-primary)]">
+                  <label key={ib.id} className="flex items-center gap-2 text-xs text-(--text-primary)">
                     <input
                       type="checkbox"
                       checked={checked}
@@ -163,7 +163,7 @@ export function GroupsPage() {
             </div>
           )}
 
-          <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
+          <label className="flex items-center gap-2 text-sm text-(--text-primary)">
             <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
             <span>{t.common.enabled}</span>
           </label>

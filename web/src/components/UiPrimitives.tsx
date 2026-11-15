@@ -24,9 +24,9 @@ export function Button({
   const variants = {
     primary: 'ovira-btn-primary',
     secondary:
-      'border border-[var(--border-strong)] bg-gradient-to-b from-[var(--bg-elevated)] to-[var(--bg-surface)] text-[var(--text-primary)] shadow-[inset_0_1px_0_var(--edge)] hover:bg-[var(--bg-hover)]',
+      'border border-(--border-strong) bg-gradient-to-b from-(--bg-elevated) to-(--bg-surface) text-(--text-primary) shadow-[inset_0_1px_0_var(--edge)] hover:bg-(--bg-hover)',
     danger: 'border border-red-500/30 bg-red-500/15 text-red-400 hover:bg-red-500/25',
-    ghost: 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
+    ghost: 'text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-primary)',
   }[variant];
 
   return (
@@ -46,10 +46,10 @@ export function Input({
 }: React.InputHTMLAttributes<HTMLInputElement> & { label?: string }) {
   return (
     <label className="block">
-      {label && <span className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">{label}</span>}
+      {label && <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">{label}</span>}
       <input
         {...rest}
-        className={`w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-elevated)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none ${className}`}
+        className={`w-full rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-3 py-2 text-sm text-(--text-primary) placeholder:text-(--text-muted) focus:border-(--accent) focus:outline-none ${className}`}
       />
     </label>
   );
@@ -63,10 +63,10 @@ export function Select({
 }: React.SelectHTMLAttributes<HTMLSelectElement> & { label?: string }) {
   return (
     <label className="block">
-      {label && <span className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">{label}</span>}
+      {label && <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">{label}</span>}
       <select
         {...rest}
-        className={`w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-elevated)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none ${className}`}
+        className={`w-full rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-3 py-2 text-sm text-(--text-primary) focus:border-(--accent) focus:outline-none ${className}`}
       >
         {children}
       </select>
@@ -83,11 +83,11 @@ export function StatusPill({
 }) {
   const styles: Record<string, string> = {
     green: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
-    lime: 'bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/30',
+    lime: 'bg-(--accent-soft) text-(--accent) border-(--accent)/30',
     amber: 'bg-amber-500/15 text-amber-400 border-amber-500/25',
     red: 'bg-red-500/15 text-red-400 border-red-500/25',
     blue: 'bg-sky-500/15 text-sky-400 border-sky-500/25',
-    gray: 'bg-slate-500/15 text-[var(--text-secondary)] border-[var(--border-subtle)]',
+    gray: 'bg-slate-500/15 text-(--text-secondary) border-(--border-subtle)',
   };
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${styles[tone]}`}>

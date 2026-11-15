@@ -39,17 +39,17 @@ export function Drawer({
       }}
     >
       <div
-        className={`ovira-sheet flex h-full w-full ${widthClass} flex-col border-s border-[var(--border-strong)] bg-[var(--bg-surface)]`}
+        className={`ovira-sheet flex h-full w-full ${widthClass} flex-col border-s border-(--border-strong) bg-(--bg-surface)`}
       >
-        <div className="flex items-start justify-between border-b border-[var(--border-subtle)] px-6 py-4">
+        <div className="flex items-start justify-between border-b border-(--border-subtle) px-6 py-4">
           <div>
-            <h3 className="text-base font-bold text-[var(--text-primary)]">{title}</h3>
-            {subtitle && <p className="mt-0.5 text-xs text-[var(--text-secondary)]">{subtitle}</p>}
+            <h3 className="text-base font-bold text-(--text-primary)">{title}</h3>
+            {subtitle && <p className="mt-0.5 text-xs text-(--text-secondary)">{subtitle}</p>}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition"
+            className="rounded-lg p-1.5 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-primary) transition"
           >
             <X className="h-4 w-4" />
           </button>
@@ -58,7 +58,7 @@ export function Drawer({
         <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
 
         {footer && (
-          <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] px-6 py-4">{footer}</div>
+          <div className="border-t border-(--border-subtle) bg-(--bg-surface) px-6 py-4">{footer}</div>
         )}
       </div>
     </div>

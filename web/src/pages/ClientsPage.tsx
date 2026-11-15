@@ -259,7 +259,7 @@ export function ClientsPage({
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-[var(--text-primary)]">{t.clients.title}</h1>
+        <h1 className="text-xl font-bold text-(--text-primary)">{t.clients.title}</h1>
         <div className="flex items-center gap-2">
           <Button onClick={() => openNew(true)}>
             <Users className="h-4 w-4" />
@@ -282,8 +282,8 @@ export function ClientsPage({
               onClick={() => setTab(k)}
               className={`rounded-xl px-3 py-1.5 text-xs font-medium transition ${
                 tab === k
-                  ? 'bg-[var(--accent)] text-[var(--accent-fg)]'
-                  : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  ? 'bg-(--accent) text-(--accent-fg)'
+                  : 'bg-(--bg-elevated) text-(--text-secondary) hover:text-(--text-primary)'
               }`}
             >
               {t.clients.tabs[k]}
@@ -293,12 +293,12 @@ export function ClientsPage({
 
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="relative">
-            <Search className="pointer-events-none absolute top-2.5 start-3 h-4 w-4 text-[var(--text-muted)]" />
+            <Search className="pointer-events-none absolute top-2.5 start-3 h-4 w-4 text-(--text-muted)" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t.common.search}
-              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-elevated)] py-2 ps-9 pe-3 text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
+              className="w-full rounded-xl border border-(--border-strong) bg-(--bg-elevated) py-2 ps-9 pe-3 text-sm text-(--text-primary) focus:border-(--accent) focus:outline-none"
             />
           </div>
           <Select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
@@ -318,8 +318,8 @@ export function ClientsPage({
         </div>
 
         {selectedIds.length > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-3 py-2 text-xs">
-            <span className="font-semibold text-[var(--accent)]">{selectedIds.length} selected</span>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-(--accent)/30 bg-(--accent-soft) px-3 py-2 text-xs">
+            <span className="font-semibold text-(--accent)">{selectedIds.length} selected</span>
             <div className="flex flex-wrap gap-1.5">
               <Button size="sm" onClick={() => bulkAction('extend')}>+30d</Button>
               <Button size="sm" onClick={() => bulkAction('enable')}>Enable</Button>
@@ -335,7 +335,7 @@ export function ClientsPage({
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-start text-sm">
-            <thead className="border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-xs text-[var(--text-secondary)]">
+            <thead className="border-b border-(--border-subtle) bg-(--bg-elevated) text-xs text-(--text-secondary)">
               <tr>
                 <th className="w-10 px-4 py-3">
                   <input
@@ -352,14 +352,14 @@ export function ClientsPage({
                 <th className="px-4 py-3 text-end">{t.common.actions}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--border-subtle)]">
+            <tbody className="divide-y divide-(--border-subtle)">
               {filtered.map((c) => {
                 const pct =
                   c.trafficLimitBytes && c.trafficLimitBytes > 0
                     ? Math.min(100, Math.round((c.trafficUsedBytes / c.trafficLimitBytes) * 100))
                     : 0;
                 return (
-                  <tr key={c.id} className="hover:bg-[var(--bg-hover)]/50">
+                  <tr key={c.id} className="hover:bg-(--bg-hover)/50">
                     <td className="px-4 py-3">
                       <input
                         type="checkbox"
@@ -372,8 +372,8 @@ export function ClientsPage({
                       />
                     </td>
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-[var(--text-primary)]">{c.name}</div>
-                      <div className="text-xs text-[var(--text-muted)]">
+                      <div className="font-semibold text-(--text-primary)">{c.name}</div>
+                      <div className="text-xs text-(--text-muted)">
                         {c.note || c.contact || c.groups.map((g) => g.name).join(', ') || '—'}
                       </div>
                     </td>
@@ -381,19 +381,19 @@ export function ClientsPage({
                       <StatusPill tone={statusTone(c.status)} label={t.clients.statuses[c.status]} />
                     </td>
                     <td className="px-4 py-3">
-                      <div className="font-mono text-xs text-[var(--text-primary)]">
+                      <div className="font-mono text-xs text-(--text-primary)">
                         {formatBytes(c.trafficUsedBytes, lang)} / {formatBytes(c.trafficLimitBytes, lang)}
                       </div>
                       {c.trafficLimitBytes && (
-                        <div className="mt-1 h-1.5 w-28 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
-                          <div className="h-full bg-[var(--accent)]" style={{ width: `${pct}%` }} />
+                        <div className="mt-1 h-1.5 w-28 overflow-hidden rounded-full bg-(--bg-elevated)">
+                          <div className="h-full bg-(--accent)" style={{ width: `${pct}%` }} />
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-xs text-[var(--text-secondary)]">
+                    <td className="px-4 py-3 text-xs text-(--text-secondary)">
                       {formatDaysLeft(c.expiresAt, c.firstConnectDays, lang)}
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-[var(--text-secondary)]">
+                    <td className="px-4 py-3 font-mono text-xs text-(--text-secondary)">
                       {c.onlineCount} / {c.deviceLimit ?? '∞'}
                     </td>
                     <td className="px-4 py-3">
@@ -407,7 +407,7 @@ export function ClientsPage({
                         </Button>
                         <a
                           href={`./api/clients/${c.id}/profile`}
-                          className="inline-flex items-center rounded-xl p-1.5 text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                          className="inline-flex items-center rounded-xl p-1.5 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-primary)"
                           title={t.clients.profile}
                         >
                           <Download className="h-3.5 w-3.5" />
@@ -511,9 +511,9 @@ export function ClientsPage({
                 />
               </div>
               {name.trim() && (
-                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-xs text-[var(--text-secondary)]">
+                <div className="rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3 py-2 text-xs text-(--text-secondary)">
                   {lang === 'fa' ? 'پیش‌نمایش: ' : 'Preview: '}
-                  <span className="font-mono font-semibold text-[var(--accent)]">
+                  <span className="font-mono font-semibold text-(--accent)">
                     {name.trim()}-{String(Math.max(1, Number(startNumber || 1))).padStart(2, '0')} …{' '}
                     {name.trim()}-
                     {String(Math.max(1, Number(startNumber || 1)) + Math.max(2, Number(bulkCount || 2)) - 1).padStart(
@@ -553,8 +553,8 @@ export function ClientsPage({
                     onClick={() => setTrafficGb(preset)}
                     className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition ${
                       active
-                        ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]'
-                        : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                        ? 'border-(--accent) bg-(--accent-soft) text-(--accent)'
+                        : 'border-(--border-subtle) bg-(--bg-elevated) text-(--text-secondary) hover:text-(--text-primary)'
                     }`}
                   >
                     {preset ? `${preset} GB` : t.common.unlimited}
@@ -565,12 +565,12 @@ export function ClientsPage({
           </div>
 
           {!editing && (
-            <div className="space-y-2.5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3.5">
+            <div className="space-y-2.5 rounded-2xl border border-(--border-subtle) bg-(--bg-elevated) p-3.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs font-medium text-[var(--text-secondary)]">
+                <span className="text-xs font-medium text-(--text-secondary)">
                   {lang === 'fa' ? 'شروع محاسبه زمان' : 'Start the clock'}
                 </span>
-                <div className="inline-flex rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-0.5 text-xs">
+                <div className="inline-flex rounded-xl border border-(--border-subtle) bg-(--bg-surface) p-0.5 text-xs">
                   <button
                     type="button"
                     onClick={() => {
@@ -579,8 +579,8 @@ export function ClientsPage({
                     }}
                     className={`rounded-lg px-2.5 py-1 font-medium transition ${
                       expiryMode === 'days'
-                        ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
-                        : 'text-[var(--text-secondary)]'
+                        ? 'bg-(--accent-soft) text-(--accent)'
+                        : 'text-(--text-secondary)'
                     }`}
                   >
                     {lang === 'fa' ? 'اکنون' : 'Now'}
@@ -590,8 +590,8 @@ export function ClientsPage({
                     onClick={() => setExpiryMode('first_connect')}
                     className={`rounded-lg px-2.5 py-1 font-medium transition ${
                       expiryMode === 'first_connect'
-                        ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
-                        : 'text-[var(--text-secondary)]'
+                        ? 'bg-(--accent-soft) text-(--accent)'
+                        : 'text-(--text-secondary)'
                     }`}
                   >
                     {lang === 'fa' ? 'اولین اتصال' : 'At first connection'}
@@ -621,8 +621,8 @@ export function ClientsPage({
                       }}
                       className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition ${
                         active
-                          ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]'
-                          : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                          ? 'border-(--accent) bg-(--accent-soft) text-(--accent)'
+                          : 'border-(--border-subtle) bg-(--bg-surface) text-(--text-secondary) hover:text-(--text-primary)'
                       }`}
                     >
                       {d}d
@@ -634,8 +634,8 @@ export function ClientsPage({
                   onClick={() => setExpiryMode('unlimited')}
                   className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition ${
                     expiryMode === 'unlimited'
-                      ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]'
-                      : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                      ? 'border-(--accent) bg-(--accent-soft) text-(--accent)'
+                      : 'border-(--border-subtle) bg-(--bg-surface) text-(--text-secondary) hover:text-(--text-primary)'
                   }`}
                 >
                   {lang === 'fa' ? 'بدون تاریخ انقضا' : 'No end date'}
@@ -657,7 +657,7 @@ export function ClientsPage({
 
           {groups.length > 0 && (
             <div>
-              <div className="mb-1.5 text-xs font-medium text-[var(--text-secondary)]">{t.nav.groups}</div>
+              <div className="mb-1.5 text-xs font-medium text-(--text-secondary)">{t.nav.groups}</div>
               <div className="flex flex-wrap gap-2">
                 {groups.map((g) => {
                   const checked = selectedGroupIds.includes(g.id);
@@ -672,8 +672,8 @@ export function ClientsPage({
                       }
                       className={`rounded-xl border px-3 py-1 text-xs transition ${
                         checked
-                          ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]'
-                          : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
+                          ? 'border-(--accent) bg-(--accent-soft) text-(--accent)'
+                          : 'border-(--border-subtle) bg-(--bg-elevated) text-(--text-secondary)'
                       }`}
                     >
                       {g.name}
@@ -685,17 +685,17 @@ export function ClientsPage({
           )}
 
           {/* Collapsible More Options */}
-          <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
+          <div className="rounded-2xl border border-(--border-subtle) bg-(--bg-elevated)">
             <button
               type="button"
               onClick={() => setShowMoreOptions((s) => !s)}
-              className="flex w-full items-center justify-between px-3.5 py-2.5 text-xs font-semibold text-[var(--text-primary)]"
+              className="flex w-full items-center justify-between px-3.5 py-2.5 text-xs font-semibold text-(--text-primary)"
             >
               <span>{lang === 'fa' ? 'تنظیمات بیشتر' : 'More options'}</span>
               {showMoreOptions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
             {showMoreOptions && (
-              <div className="space-y-3 border-t border-[var(--border-subtle)] p-3.5">
+              <div className="space-y-3 border-t border-(--border-subtle) p-3.5">
                 {!bulkMode && (
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Input
@@ -716,13 +716,13 @@ export function ClientsPage({
                   <Input label={t.clients.contact} value={contact} onChange={(e) => setContact(e.target.value)} />
                   <Input label={t.common.note} value={note} onChange={(e) => setNote(e.target.value)} />
                 </div>
-                <label className="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-xs text-[var(--text-primary)] cursor-pointer">
+                <label className="flex items-center justify-between rounded-xl border border-(--border-subtle) bg-(--bg-surface) px-3 py-2 text-xs text-(--text-primary) cursor-pointer">
                   <span>{lang === 'fa' ? 'حساب کاربر فعال باشد' : 'Enabled'}</span>
                   <input
                     type="checkbox"
                     checked={enabled}
                     onChange={(e) => setEnabled(e.target.checked)}
-                    className="rounded accent-[var(--accent)]"
+                    className="rounded accent-(--accent)"
                   />
                 </label>
               </div>
@@ -751,7 +751,7 @@ export function ClientsPage({
         {qrClient && (
           <div className="flex flex-col items-center space-y-4 text-center">
             <QrCode value={buildSubUrl(qrClient.subToken)} size={200} />
-            <code className="w-full break-all rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-xs text-[var(--text-primary)]">
+            <code className="w-full break-all rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3 py-2 text-xs text-(--text-primary)">
               {buildSubUrl(qrClient.subToken)}
             </code>
             <div className="flex flex-wrap justify-center gap-2">
@@ -763,7 +763,7 @@ export function ClientsPage({
                 href={`/sub/${qrClient.subToken}`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--accent)] px-3.5 py-2 text-sm font-semibold text-[var(--accent-fg)]"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-(--accent) px-3.5 py-2 text-sm font-semibold text-(--accent-fg)"
               >
                 <ExternalLink className="h-4 w-4" />
                 Open page

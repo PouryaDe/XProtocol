@@ -251,7 +251,7 @@ export function RoutingPage() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-[var(--text-primary)]">{t.routing.title}</h1>
+        <h1 className="text-xl font-bold text-(--text-primary)">{t.routing.title}</h1>
         <div className="flex gap-2">
           <Button variant={tab === 'outbounds' ? 'primary' : 'secondary'} onClick={() => setTab('outbounds')}>
             {t.routing.outbounds}
@@ -288,10 +288,10 @@ export function RoutingPage() {
               <Card key={ob.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="rounded-lg bg-[var(--accent-soft)] px-2 py-0.5 text-[11px] font-bold uppercase text-[var(--accent)]">
+                    <span className="rounded-lg bg-(--accent-soft) px-2 py-0.5 text-[11px] font-bold uppercase text-(--accent)">
                       {ob.type}
                     </span>
-                    <span className="font-semibold text-[var(--text-primary)]">{ob.name}</span>
+                    <span className="font-semibold text-(--text-primary)">{ob.name}</span>
                     {ob.lastTest && (
                       <StatusPill
                         tone={ob.lastTest.reachable ? 'green' : 'red'}
@@ -299,7 +299,7 @@ export function RoutingPage() {
                       />
                     )}
                   </div>
-                  <div className="mt-0.5 font-mono text-xs text-[var(--text-muted)]">
+                  <div className="mt-0.5 font-mono text-xs text-(--text-muted)">
                     {String(ob.config.address || '—')}:{String(ob.config.port || '—')}
                   </div>
                 </div>
@@ -329,7 +329,7 @@ export function RoutingPage() {
               </Card>
             ))}
             {outbounds.length === 0 && (
-              <Card className="p-8 text-center text-xs text-[var(--text-muted)]">
+              <Card className="p-8 text-center text-xs text-(--text-muted)">
                 No outbounds configured yet. Add a VLESS/VMess/Trojan/WireGuard outbound or create a 1-click WARP outbound.
               </Card>
             )}
@@ -352,7 +352,7 @@ export function RoutingPage() {
               ))}
             </Select>
 
-            <label className="flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
+            <label className="flex items-center gap-2 text-sm font-medium text-(--text-primary)">
               <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
               <span>{t.routing.enableRouting}</span>
             </label>
@@ -384,7 +384,7 @@ export function RoutingPage() {
 
             <div>
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <div className="text-xs font-medium text-[var(--text-secondary)]">{t.routing.quickStart}</div>
+                <div className="text-xs font-medium text-(--text-secondary)">{t.routing.quickStart}</div>
                 <div className="flex flex-wrap gap-1.5">
                   <Button size="sm" onClick={updateGeoLists} disabled={geoUpdating}>
                     <RefreshCw className={`h-3.5 w-3.5 ${geoUpdating ? 'animate-spin' : ''}`} />
@@ -407,13 +407,13 @@ export function RoutingPage() {
               {rules.map((r, idx) => (
                 <div
                   key={r.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3 text-xs"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-3 text-xs"
                 >
                   <div className="space-y-1">
-                    <div className="font-mono text-[var(--text-primary)]">
+                    <div className="font-mono text-(--text-primary)">
                       {[...(r.geosite || []), ...(r.geoip || []), ...(r.domains || []), ...(r.ips || [])].join(', ') || '*'}
                     </div>
-                    <div className="text-[var(--text-muted)]">
+                    <div className="text-(--text-muted)">
                       → {r.action} {r.outboundTag ? `(${r.outboundTag})` : ''}
                     </div>
                   </div>
@@ -444,8 +444,8 @@ export function RoutingPage() {
           </Card>
 
           <Card className="p-5">
-            <h2 className="mb-2 text-sm font-semibold text-[var(--text-primary)]">Generated Xray Routing Policy</h2>
-            <pre className="max-h-[460px] overflow-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-app)] p-3 font-mono text-xs text-[var(--text-secondary)]">
+            <h2 className="mb-2 text-sm font-semibold text-(--text-primary)">Generated Xray Routing Policy</h2>
+            <pre className="max-h-[460px] overflow-auto rounded-xl border border-(--border-subtle) bg-(--bg-app) p-3 font-mono text-xs text-(--text-secondary)">
               {renderedConfig}
             </pre>
           </Card>
@@ -507,12 +507,12 @@ export function RoutingPage() {
                   </Select>
                   <Input label="SNI (optional)" value={obSni} onChange={(e) => setObSni(e.target.value)} placeholder="cdn.example.com" />
                 </div>
-                <label className="flex items-center gap-2 text-xs text-[var(--text-primary)] cursor-pointer">
+                <label className="flex items-center gap-2 text-xs text-(--text-primary) cursor-pointer">
                   <input
                     type="checkbox"
                     checked={obMux}
                     onChange={(e) => setObMux(e.target.checked)}
-                    className="rounded accent-[var(--accent)]"
+                    className="rounded accent-(--accent)"
                   />
                   Enable Xray Mux multiplexing
                 </label>
@@ -522,7 +522,7 @@ export function RoutingPage() {
                 rows={6}
                 value={obJson}
                 onChange={(e) => setObJson(e.target.value)}
-                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-3 font-mono text-xs text-[var(--text-primary)]"
+                className="w-full rounded-xl border border-(--border-strong) bg-(--bg-elevated) p-3 font-mono text-xs text-(--text-primary)"
               />
             )}
             <div className="flex justify-end gap-2">
@@ -543,12 +543,12 @@ export function RoutingPage() {
         <form onSubmit={saveNewRule} className="space-y-4">
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-medium text-[var(--text-secondary)]">Geosite</span>
+              <span className="text-xs font-medium text-(--text-secondary)">Geosite</span>
               <input
                 value={geoSearch}
                 onChange={(e) => setGeoSearch(e.target.value)}
                 placeholder={lang === 'fa' ? 'فیلتر...' : 'Search geosite…'}
-                className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 py-1 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+                className="rounded-lg border border-(--border-subtle) bg-(--bg-elevated) px-2.5 py-1 text-xs text-(--text-primary) outline-none focus:border-(--accent)"
               />
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -563,8 +563,8 @@ export function RoutingPage() {
                     }
                     className={`rounded-lg border px-2.5 py-1 font-mono text-[11px] transition ${
                       active
-                        ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]'
-                        : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                        ? 'border-(--accent) bg-(--accent-soft) text-(--accent)'
+                        : 'border-(--border-subtle) bg-(--bg-elevated) text-(--text-secondary) hover:text-(--text-primary)'
                     }`}
                   >
                     {chip}
@@ -575,7 +575,7 @@ export function RoutingPage() {
           </div>
 
           <div className="space-y-2">
-            <div className="text-xs font-medium text-[var(--text-secondary)]">GeoIP</div>
+            <div className="text-xs font-medium text-(--text-secondary)">GeoIP</div>
             <div className="flex flex-wrap gap-1.5">
               {GEOIP_PRESETS.map((chip) => {
                 const active = ruleGeoip.includes(chip);
@@ -588,8 +588,8 @@ export function RoutingPage() {
                     }
                     className={`rounded-lg border px-2.5 py-1 font-mono text-[11px] transition ${
                       active
-                        ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]'
-                        : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                        ? 'border-(--accent) bg-(--accent-soft) text-(--accent)'
+                        : 'border-(--border-subtle) bg-(--bg-elevated) text-(--text-secondary) hover:text-(--text-primary)'
                     }`}
                   >
                     {chip}

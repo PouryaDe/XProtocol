@@ -222,7 +222,7 @@ export function NodesPage() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-[var(--text-primary)]">{t.nodes.title}</h1>
+        <h1 className="text-xl font-bold text-(--text-primary)">{t.nodes.title}</h1>
         <Button variant="primary" onClick={openCreate}>
           <Plus className="h-4 w-4" />
           {t.nodes.connectNode}
@@ -230,22 +230,22 @@ export function NodesPage() {
       </div>
 
       {/* Summary Strip */}
-      <Card className="grid divide-y divide-[var(--border-subtle)] sm:grid-cols-2 sm:divide-y-0 sm:divide-x xl:grid-cols-4 rtl:sm:divide-x-reverse">
+      <Card className="grid divide-y divide-(--border-subtle) sm:grid-cols-2 sm:divide-y-0 sm:divide-x xl:grid-cols-4 rtl:sm:divide-x-reverse">
         <div className="p-4">
-          <div className="text-xs text-[var(--text-secondary)]">{lang === 'fa' ? 'کل نودها' : 'Total nodes'}</div>
-          <div className="mt-1 text-2xl font-bold text-[var(--text-primary)]">{summary.total}</div>
+          <div className="text-xs text-(--text-secondary)">{lang === 'fa' ? 'کل نودها' : 'Total nodes'}</div>
+          <div className="mt-1 text-2xl font-bold text-(--text-primary)">{summary.total}</div>
         </div>
         <div className="p-4">
-          <div className="text-xs text-[var(--text-secondary)]">{t.nodes.connected}</div>
+          <div className="text-xs text-(--text-secondary)">{t.nodes.connected}</div>
           <div className="mt-1 text-2xl font-bold text-emerald-400">{summary.connected}</div>
         </div>
         <div className="p-4">
-          <div className="text-xs text-[var(--text-secondary)]">{lang === 'fa' ? 'نیازمند توجه' : 'Needs attention'}</div>
+          <div className="text-xs text-(--text-secondary)">{lang === 'fa' ? 'نیازمند توجه' : 'Needs attention'}</div>
           <div className="mt-1 text-2xl font-bold text-amber-400">{summary.attention}</div>
         </div>
         <div className="p-4">
-          <div className="text-xs text-[var(--text-secondary)]">{t.overview.onlineNow}</div>
-          <div className="mt-1 text-2xl font-bold text-[var(--accent)]">{summary.onlineNow}</div>
+          <div className="text-xs text-(--text-secondary)">{t.overview.onlineNow}</div>
+          <div className="mt-1 text-2xl font-bold text-(--accent)">{summary.onlineNow}</div>
         </div>
       </Card>
 
@@ -267,12 +267,12 @@ export function NodesPage() {
             onClick={() => setFilterTab(tab.id)}
             className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-medium transition ${
               filterTab === tab.id
-                ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]'
-                : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                ? 'border-(--accent) bg-(--accent-soft) text-(--accent)'
+                : 'border-(--border-subtle) bg-(--bg-surface) text-(--text-secondary) hover:text-(--text-primary)'
             }`}
           >
             <span>{tab.label}</span>
-            <span className="rounded-md bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[10px]">{tab.count}</span>
+            <span className="rounded-md bg-(--bg-elevated) px-1.5 py-0.5 text-[10px]">{tab.count}</span>
           </button>
         ))}
       </div>
@@ -282,21 +282,21 @@ export function NodesPage() {
           <Card key={n.id} className="space-y-4 p-5">
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-(--accent-soft) text-(--accent)">
                   <Server className="h-5 w-5" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-[var(--text-primary)]">{n.name}</span>
+                    <span className="font-bold text-(--text-primary)">{n.name}</span>
                     <StatusPill
                       tone={n.status === 'connected' ? 'green' : n.status === 'disabled' ? 'gray' : 'red'}
                       label={n.status === 'connected' ? t.nodes.connected : n.status}
                     />
-                    <span className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 py-0.5 font-mono text-[11px] text-[var(--text-secondary)]">
+                    <span className="rounded-lg border border-(--border-subtle) bg-(--bg-elevated) px-2 py-0.5 font-mono text-[11px] text-(--text-secondary)">
                       ×{n.multiplier}
                     </span>
                   </div>
-                  <div className="font-mono text-xs text-[var(--text-muted)]">
+                  <div className="font-mono text-xs text-(--text-muted)">
                     {n.address}:{n.port}
                   </div>
                 </div>
@@ -323,37 +323,37 @@ export function NodesPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 rounded-xl bg-[var(--bg-elevated)] p-3 text-xs">
+            <div className="grid grid-cols-3 gap-2 rounded-xl bg-(--bg-elevated) p-3 text-xs">
               <div>
-                <div className="text-[var(--text-muted)]">{t.overview.onlineNow}</div>
-                <div className="mt-0.5 font-bold text-[var(--text-primary)]">{n.onlineCount}</div>
+                <div className="text-(--text-muted)">{t.overview.onlineNow}</div>
+                <div className="mt-0.5 font-bold text-(--text-primary)">{n.onlineCount}</div>
               </div>
               <div>
-                <div className="text-[var(--text-muted)]">{t.nodes.realTraffic}</div>
-                <div className="mt-0.5 font-mono font-semibold text-[var(--text-primary)]">
+                <div className="text-(--text-muted)">{t.nodes.realTraffic}</div>
+                <div className="mt-0.5 font-mono font-semibold text-(--text-primary)">
                   {formatBytes(n.realTrafficBytes, lang)}
                 </div>
               </div>
               <div>
-                <div className="text-[var(--text-muted)]">{t.nodes.uptime}</div>
-                <div className="mt-0.5 font-semibold text-[var(--text-primary)]">{formatDuration(n.uptimeSec, lang)}</div>
+                <div className="text-(--text-muted)">{t.nodes.uptime}</div>
+                <div className="mt-0.5 font-semibold text-(--text-primary)">{formatDuration(n.uptimeSec, lang)}</div>
               </div>
             </div>
 
-            <div className="text-xs text-[var(--text-secondary)]">
+            <div className="text-xs text-(--text-secondary)">
               Ovira {n.oviraVersion} · OpenVPN {n.openvpnVersion} ·{' '}
               {n.wireguardReady ? 'WireGuard ready' : 'No TUN'} · OpenConnect {n.openconnectVersion}
             </div>
 
             {n.connectAddresses.length > 0 && (
-              <div className="text-xs text-[var(--text-muted)]">
-                Relays: <span className="font-mono text-[var(--text-primary)]">{n.connectAddresses.join(', ')}</span>
+              <div className="text-xs text-(--text-muted)">
+                Relays: <span className="font-mono text-(--text-primary)">{n.connectAddresses.join(', ')}</span>
               </div>
             )}
 
-            <div className="space-y-2 border-t border-[var(--border-subtle)] pt-3">
+            <div className="space-y-2 border-t border-(--border-subtle) pt-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-[var(--text-secondary)]">{t.nav.inbounds}</span>
+                <span className="text-xs font-semibold text-(--text-secondary)">{t.nav.inbounds}</span>
                 <Button
                   size="sm"
                   onClick={() => {
@@ -366,16 +366,16 @@ export function NodesPage() {
                 </Button>
               </div>
               {n.inbounds.length === 0 ? (
-                <div className="text-xs text-[var(--text-muted)]">No inbounds attached.</div>
+                <div className="text-xs text-(--text-muted)">No inbounds attached.</div>
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {n.inbounds.map((ib) => (
                     <div
                       key={ib.id}
-                      className="inline-flex items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 py-1 text-xs"
+                      className="inline-flex items-center gap-2 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-2.5 py-1 text-xs"
                     >
-                      <span className="font-semibold text-[var(--text-primary)]">{ib.name}</span>
-                      <span className="font-mono text-[var(--text-muted)]">:{ib.port}</span>
+                      <span className="font-semibold text-(--text-primary)">{ib.name}</span>
+                      <span className="font-mono text-(--text-muted)">:{ib.port}</span>
                       <button
                         type="button"
                         onClick={async () => {
@@ -386,7 +386,7 @@ export function NodesPage() {
                           load();
                         }}
                         title={t.nodes.detach}
-                        className="text-[var(--text-muted)] hover:text-red-400"
+                        className="text-(--text-muted) hover:text-red-400"
                       >
                         <Unlink className="h-3 w-3" />
                       </button>
@@ -409,7 +409,7 @@ export function NodesPage() {
       >
         {detailNode && (
           <div className="space-y-4">
-            <div className="flex flex-wrap gap-1.5 border-b border-[var(--border-subtle)] pb-3">
+            <div className="flex flex-wrap gap-1.5 border-b border-(--border-subtle) pb-3">
               {([
                 { id: 'overview', label: lang === 'fa' ? 'نمای کلی' : 'Overview' },
                 { id: 'protocols', label: lang === 'fa' ? 'پروتکل‌ها و نصب' : 'Protocols' },
@@ -422,8 +422,8 @@ export function NodesPage() {
                   onClick={() => setDetailTab(tab.id)}
                   className={`rounded-xl px-3 py-1.5 text-xs font-medium transition ${
                     detailTab === tab.id
-                      ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
-                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
+                      ? 'bg-(--accent-soft) text-(--accent)'
+                      : 'text-(--text-secondary) hover:bg-(--bg-elevated) hover:text-(--text-primary)'
                   }`}
                 >
                   {tab.label}
@@ -434,34 +434,34 @@ export function NodesPage() {
             {detailTab === 'overview' && (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3 text-xs">
-                    <div className="text-[var(--text-muted)]">CPU</div>
-                    <div className="mt-1 font-mono text-base font-bold text-[var(--text-primary)]">{detailNode.cpuPct}%</div>
+                  <div className="rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-3 text-xs">
+                    <div className="text-(--text-muted)">CPU</div>
+                    <div className="mt-1 font-mono text-base font-bold text-(--text-primary)">{detailNode.cpuPct}%</div>
                   </div>
-                  <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3 text-xs">
-                    <div className="text-[var(--text-muted)]">Memory</div>
-                    <div className="mt-1 font-mono text-base font-bold text-[var(--text-primary)]">{detailNode.memPct}%</div>
+                  <div className="rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-3 text-xs">
+                    <div className="text-(--text-muted)">Memory</div>
+                    <div className="mt-1 font-mono text-base font-bold text-(--text-primary)">{detailNode.memPct}%</div>
                   </div>
-                  <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3 text-xs">
-                    <div className="text-[var(--text-muted)]">{t.overview.onlineNow}</div>
-                    <div className="mt-1 font-mono text-base font-bold text-[var(--accent)]">{detailNode.onlineCount}</div>
+                  <div className="rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-3 text-xs">
+                    <div className="text-(--text-muted)">{t.overview.onlineNow}</div>
+                    <div className="mt-1 font-mono text-base font-bold text-(--accent)">{detailNode.onlineCount}</div>
                   </div>
-                  <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3 text-xs">
-                    <div className="text-[var(--text-muted)]">{t.nodes.uptime}</div>
-                    <div className="mt-1 font-semibold text-[var(--text-primary)]">{formatDuration(detailNode.uptimeSec, lang)}</div>
+                  <div className="rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-3 text-xs">
+                    <div className="text-(--text-muted)">{t.nodes.uptime}</div>
+                    <div className="mt-1 font-semibold text-(--text-primary)">{formatDuration(detailNode.uptimeSec, lang)}</div>
                   </div>
                 </div>
-                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3.5 text-xs space-y-1.5">
+                <div className="rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-3.5 text-xs space-y-1.5">
                   <div className="flex justify-between">
-                    <span className="text-[var(--text-muted)]">Ovira Core</span>
-                    <span className="font-mono text-[var(--text-primary)]">{detailNode.oviraVersion}</span>
+                    <span className="text-(--text-muted)">Ovira Core</span>
+                    <span className="font-mono text-(--text-primary)">{detailNode.oviraVersion}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[var(--text-muted)]">{t.nodes.realTraffic}</span>
-                    <span className="font-mono text-[var(--text-primary)]">{formatBytes(detailNode.realTrafficBytes, lang)}</span>
+                    <span className="text-(--text-muted)">{t.nodes.realTraffic}</span>
+                    <span className="font-mono text-(--text-primary)">{formatBytes(detailNode.realTrafficBytes, lang)}</span>
                   </div>
                   {detailNode.note && (
-                    <div className="pt-1 text-[var(--text-secondary)]">Note: {detailNode.note}</div>
+                    <div className="pt-1 text-(--text-secondary)">Note: {detailNode.note}</div>
                   )}
                 </div>
               </div>
@@ -470,17 +470,17 @@ export function NodesPage() {
             {detailTab === 'protocols' && (
               <div className="space-y-3">
                 {protoLoading ? (
-                  <div className="py-6 text-center text-xs text-[var(--text-muted)]">{t.common.loading}</div>
+                  <div className="py-6 text-center text-xs text-(--text-muted)">{t.common.loading}</div>
                 ) : (
                   <div className="space-y-2">
                     {protocols.map((p) => (
                       <div
                         key={p.protocol}
-                        className="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3.5 py-2.5 text-xs"
+                        className="flex items-center justify-between rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3.5 py-2.5 text-xs"
                       >
                         <div>
-                          <div className="font-semibold uppercase text-[var(--text-primary)]">{p.protocol}</div>
-                          <div className="text-[11px] text-[var(--text-muted)]">
+                          <div className="font-semibold uppercase text-(--text-primary)">{p.protocol}</div>
+                          <div className="text-[11px] text-(--text-muted)">
                             {p.version || (p.installed ? 'Installed' : 'Not installed')}
                           </div>
                         </div>
@@ -515,7 +515,7 @@ export function NodesPage() {
                   </div>
                 )}
                 {installLog && (
-                  <pre className="max-h-48 overflow-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-app)] p-3 font-mono text-[11px] text-[var(--text-secondary)]">
+                  <pre className="max-h-48 overflow-auto rounded-xl border border-(--border-subtle) bg-(--bg-app) p-3 font-mono text-[11px] text-(--text-secondary)">
                     {installLog}
                   </pre>
                 )}
@@ -525,7 +525,7 @@ export function NodesPage() {
             {detailTab === 'inbounds' && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-[var(--text-secondary)]">{detailNode.inbounds.length} attached</span>
+                  <span className="text-xs text-(--text-secondary)">{detailNode.inbounds.length} attached</span>
                   <Button
                     size="sm"
                     onClick={() => {
@@ -540,11 +540,11 @@ export function NodesPage() {
                 {detailNode.inbounds.map((ib) => (
                   <div
                     key={ib.id}
-                    className="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3.5 py-2.5 text-xs"
+                    className="flex items-center justify-between rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3.5 py-2.5 text-xs"
                   >
                     <div>
-                      <span className="font-semibold text-[var(--text-primary)]">{ib.name}</span>
-                      <span className="ms-2 font-mono text-[var(--text-muted)]">
+                      <span className="font-semibold text-(--text-primary)">{ib.name}</span>
+                      <span className="ms-2 font-mono text-(--text-muted)">
                         {ib.protocol.toUpperCase()} :{ib.port}
                       </span>
                     </div>
@@ -568,22 +568,22 @@ export function NodesPage() {
 
             {detailTab === 'addresses' && (
               <div className="space-y-3 text-xs">
-                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3.5">
-                  <div className="text-[var(--text-muted)]">Control endpoint</div>
-                  <div className="mt-1 font-mono font-semibold text-[var(--text-primary)]">
+                <div className="rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-3.5">
+                  <div className="text-(--text-muted)">Control endpoint</div>
+                  <div className="mt-1 font-mono font-semibold text-(--text-primary)">
                     {detailNode.address}:{detailNode.port}
                   </div>
                 </div>
-                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3.5">
-                  <div className="text-[var(--text-muted)]">{t.nodes.connectAddresses}</div>
+                <div className="rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-3.5">
+                  <div className="text-(--text-muted)">{t.nodes.connectAddresses}</div>
                   {detailNode.connectAddresses.length === 0 ? (
-                    <div className="mt-1 text-[var(--text-secondary)]">Default node address</div>
+                    <div className="mt-1 text-(--text-secondary)">Default node address</div>
                   ) : (
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
                       {detailNode.connectAddresses.map((addr) => (
                         <span
                           key={addr}
-                          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1 font-mono text-[var(--text-primary)]"
+                          className="rounded-lg border border-(--border-subtle) bg-(--bg-surface) px-2.5 py-1 font-mono text-(--text-primary)"
                         >
                           {addr}
                         </span>
@@ -629,12 +629,12 @@ export function NodesPage() {
           )}
 
           {!editing && connectStep === 2 && (
-            <div className="space-y-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
-              <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-primary)]">
-                <Terminal className="h-4 w-4 text-[var(--accent)]" />
+            <div className="space-y-3 rounded-2xl border border-(--border-subtle) bg-(--bg-elevated) p-4">
+              <div className="flex items-center gap-2 text-xs font-semibold text-(--text-primary)">
+                <Terminal className="h-4 w-4 text-(--accent)" />
                 {lang === 'fa' ? 'این دستور را روی سرور نود Ubuntu اجرا کنید:' : 'Run on the remote Ubuntu 22.04+ server:'}
               </div>
-              <pre className="overflow-x-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-app)] p-3 font-mono text-xs text-[var(--text-primary)]">
+              <pre className="overflow-x-auto rounded-xl border border-(--border-subtle) bg-(--bg-app) p-3 font-mono text-xs text-(--text-primary)">
                 {nodeInstallCmd}
               </pre>
               <Button
@@ -718,7 +718,7 @@ export function NodesPage() {
       <Modal open={attachNodeId !== null} onClose={() => setAttachNodeId(null)} title={t.nodes.attachInbound}>
         <form onSubmit={attachInbound} className="space-y-4">
           {unattached.length === 0 ? (
-            <p className="text-xs text-[var(--text-secondary)]">
+            <p className="text-xs text-(--text-secondary)">
               All existing inbounds are already attached to a node. Create a new inbound first.
             </p>
           ) : (

@@ -161,7 +161,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-[var(--text-primary)]">{t.settings.title}</h1>
+        <h1 className="text-xl font-bold text-(--text-primary)">{t.settings.title}</h1>
         {notice && <StatusPill tone="green" label={notice} />}
       </div>
 
@@ -175,8 +175,8 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
               onClick={() => setTab(item.id)}
               className={`rounded-xl px-3 py-1.5 text-xs font-medium transition ${
                 tab === item.id
-                  ? 'bg-[var(--accent)] text-[var(--accent-fg)]'
-                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)]'
+                  ? 'bg-(--accent) text-(--accent-fg)'
+                  : 'bg-(--bg-surface) text-(--text-secondary) hover:text-(--text-primary) border border-(--border-subtle)'
               }`}
             >
               {item.label}
@@ -238,7 +238,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
           </div>
 
           <div>
-            <div className="mb-2 text-xs font-medium text-[var(--text-secondary)]">Panel accent colour</div>
+            <div className="mb-2 text-xs font-medium text-(--text-secondary)">Panel accent colour</div>
             <div className="flex flex-wrap gap-2">
               {ACCENTS.map((c) => (
                 <button
@@ -250,8 +250,8 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
                   }}
                   className={`rounded-xl border px-3 py-1.5 text-xs capitalize ${
                     general.panelColor === c
-                      ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)] font-semibold'
-                      : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
+                      ? 'border-(--accent) bg-(--accent-soft) text-(--accent) font-semibold'
+                      : 'border-(--border-subtle) bg-(--bg-elevated) text-(--text-secondary)'
                   }`}
                 >
                   {c}
@@ -260,10 +260,10 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-4 text-xs text-[var(--text-muted)]">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-(--border-subtle) pt-4 text-xs text-(--text-muted)">
             <span>
               Version: {sysInfo.version} · {sysInfo.platform} · Machine ID:{' '}
-              <code className="font-mono text-[var(--text-primary)]">{sysInfo.machineId}</code>
+              <code className="font-mono text-(--text-primary)">{sysInfo.machineId}</code>
             </span>
             <Button
               variant="primary"
@@ -282,13 +282,13 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
         <div className="grid gap-4 lg:grid-cols-2">
           <Card className="space-y-4 p-5">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-[var(--text-primary)]">Appearance & Look</h2>
+              <h2 className="text-sm font-semibold text-(--text-primary)">Appearance & Look</h2>
               {previewToken && (
                 <a
                   href={`/sub/${previewToken}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:underline"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-(--accent) hover:underline"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
                   Live preview
@@ -303,12 +303,12 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
                   onClick={() => setSubSettings({ ...subSettings, look: l.id })}
                   className={`rounded-xl border p-3 text-start transition ${
                     subSettings.look === l.id
-                      ? 'border-[var(--accent)] bg-[var(--accent-soft)]'
-                      : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)]'
+                      ? 'border-(--accent) bg-(--accent-soft)'
+                      : 'border-(--border-subtle) bg-(--bg-elevated)'
                   }`}
                 >
-                  <div className="text-xs font-bold text-[var(--text-primary)]">{l.name}</div>
-                  <div className="mt-0.5 text-[11px] text-[var(--text-muted)]">{l.desc}</div>
+                  <div className="text-xs font-bold text-(--text-primary)">{l.name}</div>
+                  <div className="mt-0.5 text-[11px] text-(--text-muted)">{l.desc}</div>
                 </button>
               ))}
             </div>
@@ -350,14 +350,14 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
           </Card>
 
           <Card className="space-y-4 p-5">
-            <h2 className="text-sm font-semibold text-[var(--text-primary)]">Protocol Tabs</h2>
+            <h2 className="text-sm font-semibold text-(--text-primary)">Protocol Tabs</h2>
             {subSettings.protocols.map((p, idx) => (
               <div
                 key={p.id}
-                className="space-y-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3 text-xs"
+                className="space-y-2 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-3 text-xs"
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-bold uppercase text-[var(--text-primary)]">{p.id}</span>
+                  <span className="font-bold uppercase text-(--text-primary)">{p.id}</span>
                   <label className="flex items-center gap-1.5">
                     <input
                       type="checkbox"
@@ -395,14 +395,14 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
             ))}
 
             {previewToken && (
-              <div className="space-y-2 border-t border-[var(--border-subtle)] pt-3">
+              <div className="space-y-2 border-t border-(--border-subtle) pt-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-[var(--text-secondary)]">Live Preview</span>
+                  <span className="text-xs font-semibold text-(--text-secondary)">Live Preview</span>
                   <a
                     href={`/sub/${previewToken}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:underline"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-(--accent) hover:underline"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
                     Open in tab
@@ -411,7 +411,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
                 <iframe
                   title="Subscription page live preview"
                   src={`/sub/${previewToken}`}
-                  className="h-80 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-app)]"
+                  className="h-80 w-full rounded-xl border border-(--border-subtle) bg-(--bg-app)"
                 />
               </div>
             )}
@@ -445,7 +445,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
               onChange={(e) => setPanelAccess({ ...panelAccess, subPath: e.target.value })}
             />
           </div>
-          <label className="flex items-center gap-2 text-xs text-[var(--text-primary)]">
+          <label className="flex items-center gap-2 text-xs text-(--text-primary)">
             <input
               type="checkbox"
               checked={panelAccess.trustProxy}
@@ -471,8 +471,8 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
         <Card className="space-y-4 p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h2 className="text-sm font-semibold text-[var(--text-primary)]">API Tokens</h2>
-              <p className="text-xs text-[var(--text-muted)]">
+              <h2 className="text-sm font-semibold text-(--text-primary)">API Tokens</h2>
+              <p className="text-xs text-(--text-muted)">
                 Base URL: <code className="font-mono">{window.location.origin}/api</code>
               </p>
             </div>
@@ -480,7 +480,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
               href="./api/settings/openapi.json"
               target="_blank"
               rel="noreferrer"
-              className="text-xs font-medium text-[var(--accent)] hover:underline"
+              className="text-xs font-medium text-(--accent) hover:underline"
             >
               OpenAPI 3.0 Document →
             </a>
@@ -516,7 +516,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs">
               <div className="font-semibold text-emerald-400">Copy this secret now — it will not be shown again:</div>
               <div className="mt-1 flex items-center gap-2">
-                <code className="font-mono text-[var(--text-primary)]">{createdSecret}</code>
+                <code className="font-mono text-(--text-primary)">{createdSecret}</code>
                 <Button size="sm" onClick={() => navigator.clipboard.writeText(createdSecret)}>
                   <Copy className="h-3 w-3" />
                 </Button>
@@ -528,12 +528,12 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
             {tokens.map((tok) => (
               <div
                 key={tok.id}
-                className="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-xs"
+                className="flex items-center justify-between rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3 py-2 text-xs"
               >
                 <div className="flex items-center gap-2">
-                  <Key className="h-3.5 w-3.5 text-[var(--accent)]" />
-                  <span className="font-semibold text-[var(--text-primary)]">{tok.name}</span>
-                  <code className="font-mono text-[var(--text-muted)]">{tok.prefix}…</code>
+                  <Key className="h-3.5 w-3.5 text-(--accent)" />
+                  <span className="font-semibold text-(--text-primary)">{tok.name}</span>
+                  <code className="font-mono text-(--text-muted)">{tok.prefix}…</code>
                 </div>
                 <Button
                   size="sm"
@@ -554,7 +554,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
       {tab === 'myAccount' && (
         <div className="grid gap-4 lg:grid-cols-2">
           <Card className="space-y-4 p-5">
-            <h2 className="text-sm font-semibold text-[var(--text-primary)]">Change password</h2>
+            <h2 className="text-sm font-semibold text-(--text-primary)">Change password</h2>
             <Input
               label="Current password"
               type="password"
@@ -585,7 +585,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
 
           <Card className="space-y-4 p-5">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-[var(--text-primary)]">Two-factor authentication (TOTP)</h2>
+              <h2 className="text-sm font-semibold text-(--text-primary)">Two-factor authentication (TOTP)</h2>
               <StatusPill tone={totpEnabled ? 'green' : 'gray'} label={totpEnabled ? 'Enabled' : 'Off'} />
             </div>
 
@@ -604,7 +604,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
             {totpSetup && (
               <div className="space-y-3">
                 <QrCode value={totpSetup.uri} size={160} />
-                <div className="font-mono text-xs text-[var(--text-secondary)]">Secret: {totpSetup.secret}</div>
+                <div className="font-mono text-xs text-(--text-secondary)">Secret: {totpSetup.secret}</div>
                 <div className="flex gap-2">
                   <Input
                     placeholder="6-digit code"
@@ -632,7 +632,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
             {recoveryCodes.length > 0 && (
               <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
                 <div className="font-semibold text-amber-400">Save your recovery codes:</div>
-                <div className="mt-1 grid grid-cols-2 gap-1 font-mono text-[var(--text-primary)]">
+                <div className="mt-1 grid grid-cols-2 gap-1 font-mono text-(--text-primary)">
                   {recoveryCodes.map((rc) => (
                     <span key={rc}>{rc}</span>
                   ))}
@@ -640,18 +640,18 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
               </div>
             )}
 
-            <div className="border-t border-[var(--border-subtle)] pt-3">
-              <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">Signed-in devices</div>
+            <div className="border-t border-(--border-subtle) pt-3">
+              <div className="mb-2 text-xs font-semibold text-(--text-secondary)">Signed-in devices</div>
               <div className="space-y-1.5">
                 {sessions.map((s) => (
                   <div
                     key={s.id}
-                    className="flex items-center justify-between rounded-xl bg-[var(--bg-elevated)] px-3 py-2 text-xs"
+                    className="flex items-center justify-between rounded-xl bg-(--bg-elevated) px-3 py-2 text-xs"
                   >
                     <div>
-                      <span className="font-mono text-[var(--text-primary)]">{s.ip}</span>
-                      {s.current && <span className="ms-2 text-[var(--accent)]">(this device)</span>}
-                      <div className="text-[11px] text-[var(--text-muted)]">
+                      <span className="font-mono text-(--text-primary)">{s.ip}</span>
+                      {s.current && <span className="ms-2 text-(--accent)">(this device)</span>}
+                      <div className="text-[11px] text-(--text-muted)">
                         {formatDateTime(s.lastSeenAt, lang)}
                       </div>
                     </div>
@@ -677,19 +677,19 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
       {tab === 'backup' && (
         <div className="grid gap-4 lg:grid-cols-2">
           <Card className="space-y-4 p-5">
-            <h2 className="text-sm font-semibold text-[var(--text-primary)]">Database Backup & Restore</h2>
-            <p className="text-xs text-[var(--text-secondary)]">
+            <h2 className="text-sm font-semibold text-(--text-primary)">Database Backup & Restore</h2>
+            <p className="text-xs text-(--text-secondary)">
               Download a hot snapshot of your SQLite database (`ovira.db`) containing clients, groups, inbounds, nodes, accounts, and settings.
             </p>
             <div className="flex flex-wrap gap-3">
               <a
                 href="./api/settings/backup/download"
-                className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[var(--accent-fg)]"
+                className="inline-flex items-center gap-2 rounded-xl bg-(--accent) px-4 py-2 text-sm font-semibold text-(--accent-fg)"
               >
                 <Download className="h-4 w-4" />
                 Download backup (.db)
               </a>
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-elevated)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-hover)]">
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-4 py-2 text-sm font-medium text-(--text-primary) hover:bg-(--bg-hover)">
                 <Upload className="h-4 w-4" />
                 <span>Restore from .db</span>
                 <input type="file" accept=".db" className="hidden" onChange={handleRestoreUpload} />
@@ -699,7 +699,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
 
           <Card className="space-y-4 p-5">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+              <h2 className="text-sm font-semibold text-(--text-primary)">
                 {lang === 'fa' ? 'پشتیبان‌گیری از طریق تلگرام' : 'Backups over Telegram'}
               </h2>
               <StatusPill
@@ -708,13 +708,13 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
               />
             </div>
 
-            <label className="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3.5 py-2.5 text-xs text-[var(--text-primary)] cursor-pointer">
+            <label className="flex items-center justify-between rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3.5 py-2.5 text-xs text-(--text-primary) cursor-pointer">
               <span>{lang === 'fa' ? 'ارسال خودکار بکاپ به تلگرام' : 'Enable scheduled Telegram backups'}</span>
               <input
                 type="checkbox"
                 checked={tgBackup.enabled}
                 onChange={(e) => setTgBackup({ ...tgBackup, enabled: e.target.checked })}
-                className="rounded accent-[var(--accent)]"
+                className="rounded accent-(--accent)"
               />
             </label>
 
@@ -772,7 +772,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
                     key={c.chatId}
                     type="button"
                     onClick={() => setTgBackup({ ...tgBackup, chatId: c.chatId })}
-                    className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 py-1 text-[11px] text-[var(--text-primary)] hover:border-[var(--accent)]"
+                    className="rounded-lg border border-(--border-subtle) bg-(--bg-elevated) px-2.5 py-1 text-[11px] text-(--text-primary) hover:border-(--accent)"
                   >
                     {c.title} ({c.chatId})
                   </button>
@@ -802,7 +802,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
             </div>
 
             {tgBackup.lastSentAt && (
-              <div className="text-[11px] text-[var(--text-muted)]">
+              <div className="text-[11px] text-(--text-muted)">
                 Last sent: {formatDateTime(tgBackup.lastSentAt, lang)}
               </div>
             )}
@@ -854,7 +854,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-start text-xs">
-              <thead className="border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]">
+              <thead className="border-b border-(--border-subtle) bg-(--bg-elevated) text-(--text-secondary)">
                 <tr>
                   <th className="px-4 py-3 text-start">When</th>
                   <th className="px-4 py-3 text-start">Who</th>
@@ -863,16 +863,16 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
                   <th className="px-4 py-3 text-start">IP</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[var(--border-subtle)]">
+              <tbody className="divide-y divide-(--border-subtle)">
                 {auditEntries.map((e) => (
                   <tr key={e.id}>
-                    <td className="px-4 py-2.5 text-[var(--text-secondary)]">{formatDateTime(e.ts, lang)}</td>
-                    <td className="px-4 py-2.5 font-medium text-[var(--text-primary)]">{e.username}</td>
-                    <td className={`px-4 py-2.5 font-mono ${e.action.includes('failed') ? 'text-red-400' : 'text-[var(--accent)]'}`}>
+                    <td className="px-4 py-2.5 text-(--text-secondary)">{formatDateTime(e.ts, lang)}</td>
+                    <td className="px-4 py-2.5 font-medium text-(--text-primary)">{e.username}</td>
+                    <td className={`px-4 py-2.5 font-mono ${e.action.includes('failed') ? 'text-red-400' : 'text-(--accent)'}`}>
                       {e.action}
                     </td>
-                    <td className="px-4 py-2.5 text-[var(--text-secondary)]">{e.target}</td>
-                    <td className="px-4 py-2.5 font-mono text-[var(--text-muted)]">{e.ip}</td>
+                    <td className="px-4 py-2.5 text-(--text-secondary)">{e.target}</td>
+                    <td className="px-4 py-2.5 font-mono text-(--text-muted)">{e.ip}</td>
                   </tr>
                 ))}
               </tbody>
