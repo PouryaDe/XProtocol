@@ -49,6 +49,7 @@ DOMAIN=""
 EMAIL=""
 YES=0
 FRESH=0
+UPDATE_ONLY=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -64,6 +65,7 @@ while [[ $# -gt 0 ]]; do
     --domain) DOMAIN="$2"; shift 2 ;;
     --email) EMAIL="$2"; shift 2 ;;
     --fresh) FRESH=1; shift ;;
+    --update) UPDATE_ONLY=1; shift ;;
     -y|--yes) YES=1; shift ;;
     -h|--help)
       echo "Usage: sudo bash deploy/install.sh [options]"
@@ -78,6 +80,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --ssl domain|none    Configure Let's Encrypt HTTPS or plain HTTP"
       echo "  --domain DOMAIN      Domain for Let's Encrypt"
       echo "  --email EMAIL        Optional Let's Encrypt email"
+      echo "  --update             Update an existing installation (preserve data & settings)"
       echo "  --fresh              Wipe previous database before installing"
       echo "  -y, --yes            Non-interactive mode using flags/defaults"
       exit 0
@@ -99,7 +102,130 @@ INSTALL_DIR="/opt/xprotocol"
 DATA_DIR="/var/lib/xprotocol"
 SERVICE_NAME="xprotocol.service"
 
+export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=a
+export NEEDRESTART_SUSPEND=1
+export npm_config_loglevel=error
+export npm_config_update_notifier=false
+export npm_config_fund=false
+export npm_config_audit=false
+INSTALL_LOG="/var/log/xprotocol-install.log"
+: >"$INSTALL_LOG"
+
+run_q() {
+  if ! "$@" >>"$INSTALL_LOG" 2>&1; then
+    echo "" >&2
+    warn "Command failed: $* (last 20 lines of $INSTALL_LOG):"
+    tail -n 20 "$INSTALL_LOG" >&2 || true
+    return 1
+  fi
+}
+
+sync_cli_scripts() {
+  mkdir -p "$INSTALL_DIR/deploy"
+  cp "$HERE/xprotocol-cli.sh" "$HERE/xprotocol-tui.sh" "$HERE/node.sh" "$INSTALL_DIR/deploy/" 2>/dev/null || true
+  install -m 0755 "$HERE/xprotocol-cli.sh" /usr/local/bin/xprotocol
+  chmod +x "$INSTALL_DIR/deploy/xprotocol-tui.sh" "$INSTALL_DIR/deploy/node.sh" 2>/dev/null || true
+}
+
+do_update_from_src() {
+  section "UPDATING XPROTOCOL OPEN-CORE"
+  info "Copying updated source and building server + React dashboard..."
+  mkdir -p "$INSTALL_DIR"
+  rm -rf "$INSTALL_DIR/server" "$INSTALL_DIR/web" "$INSTALL_DIR/deploy" "$INSTALL_DIR/.git"
+  cp -r "$SRC_DIR/package.json" "$SRC_DIR/server" "$SRC_DIR/web" "$SRC_DIR/deploy" "$INSTALL_DIR/"
+  if [[ -d "$SRC_DIR/.git" ]]; then
+    cp -r "$SRC_DIR/.git" "$INSTALL_DIR/"
+    git -C "$INSTALL_DIR" rev-parse --short HEAD >"$INSTALL_DIR/.xprotocol-commit" 2>/dev/null || true
+  fi
+  cd "$INSTALL_DIR"
+  run_q npm install --prefix server --loglevel=error --no-audit --no-fund
+  run_q npm install --prefix web --loglevel=error --no-audit --no-fund
+  run_q npm run build --prefix server --loglevel=error
+  run_q npm run build --prefix web --loglevel=error
+  sync_cli_scripts
+
+  local new_ver="1.0.4" new_commit=""
+  if [[ -f "$INSTALL_DIR/package.json" ]]; then
+    new_ver="$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('$INSTALL_DIR/package.json','utf8')).version)}catch{console.log('1.0.4')}" 2>/dev/null || echo "1.0.4")"
+  fi
+  if [[ -f "$INSTALL_DIR/.xprotocol-commit" ]]; then
+    new_commit="$(tr -d '[:space:]' <"$INSTALL_DIR/.xprotocol-commit" 2>/dev/null || true)"
+  fi
+  ok "Build complete (v${new_ver}${new_commit:+ · ${new_commit}})"
+
+  if [[ -f "/etc/systemd/system/${SERVICE_NAME}" ]]; then
+    run_q systemctl daemon-reload
+    run_q systemctl restart "$SERVICE_NAME"
+    ok "Restarted ${SERVICE_NAME} (data & settings preserved)"
+  fi
+}
+
+launch_cli_menu() {
+  ui_restore_terminal
+  if [[ -e /dev/tty ]]; then
+    /usr/local/bin/xprotocol </dev/tty
+  else
+    /usr/local/bin/xprotocol
+  fi
+}
+
 ui_header big "Ubuntu 22.04+ Panel Setup"
+
+IS_INSTALLED=0
+if [[ -d "$INSTALL_DIR/server" && ( -f "/etc/systemd/system/$SERVICE_NAME" || -f "$DATA_DIR/config.json" ) ]]; then
+  IS_INSTALLED=1
+fi
+
+if (( IS_INSTALLED )) && (( FRESH == 0 )); then
+  sync_cli_scripts
+  CUR_VER="unknown"
+  CUR_COMMIT=""
+  if [[ -f "$INSTALL_DIR/package.json" ]]; then
+    CUR_VER="$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('$INSTALL_DIR/package.json','utf8')).version)}catch{console.log('unknown')}" 2>/dev/null || echo "unknown")"
+  fi
+  if [[ -d "$INSTALL_DIR/.git" ]]; then
+    CUR_COMMIT="$(git -C "$INSTALL_DIR" rev-parse --short HEAD 2>/dev/null || true)"
+  elif [[ -f "$INSTALL_DIR/.xprotocol-commit" ]]; then
+    CUR_COMMIT="$(tr -d '[:space:]' <"$INSTALL_DIR/.xprotocol-commit" 2>/dev/null || true)"
+  fi
+
+  ok "Existing installation detected: XProtocol v${CUR_VER}${CUR_COMMIT:+ (${CUR_COMMIT})}"
+  info "Management script (/usr/local/bin/xprotocol) updated to latest version."
+
+  if (( UPDATE_ONLY )); then
+    do_update_from_src
+    exit 0
+  fi
+
+  if ui_has_input; then
+    existing_idx=0
+    ui_choose existing_idx 0 \
+      "Open management menu (xprotocol)" \
+      "Update XProtocol from GitHub (keep settings & database)" \
+      "Reinstall / reconfigure panel" \
+      "Exit" || exit 0
+    case "$existing_idx" in
+      0)
+        launch_cli_menu
+        exit $?
+        ;;
+      1)
+        do_update_from_src
+        if pick_yesno "Open management menu (xprotocol) now?" y; then
+          launch_cli_menu
+        fi
+        exit 0
+        ;;
+      2)
+        ;;
+      *)
+        info "Cancelled."
+        exit 0
+        ;;
+    esac
+  fi
+fi
 
 # 4-Step Interactive Wizard when input is available
 if ui_has_input; then
@@ -149,24 +275,6 @@ if [[ -z "$ADMIN_PASS" ]]; then
 fi
 
 section "INSTALLING XPROTOCOL OPEN-CORE"
-export DEBIAN_FRONTEND=noninteractive
-export NEEDRESTART_MODE=a
-export NEEDRESTART_SUSPEND=1
-export npm_config_loglevel=error
-export npm_config_update_notifier=false
-export npm_config_fund=false
-export npm_config_audit=false
-INSTALL_LOG="/var/log/xprotocol-install.log"
-: >"$INSTALL_LOG"
-
-run_q() {
-  if ! "$@" >>"$INSTALL_LOG" 2>&1; then
-    echo "" >&2
-    warn "Command failed: $* (last 20 lines of $INSTALL_LOG):"
-    tail -n 20 "$INSTALL_LOG" >&2 || true
-    return 1
-  fi
-}
 
 info "Installing base Ubuntu packages..."
 run_q apt-get update -qq

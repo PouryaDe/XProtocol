@@ -191,14 +191,25 @@ cmd_update() {
   echo "$remote_sha" >"$INSTALL_DIR/.xprotocol-commit"
 
   info "Installing dependencies and building..."
+  export npm_config_loglevel=error
+  export npm_config_update_notifier=false
+  export npm_config_fund=false
+  export npm_config_audit=false
+  local update_log="/var/log/xprotocol-update.log"
+  : >"$update_log"
   cd "$INSTALL_DIR"
-  npm install --prefix server --loglevel=error --no-audit --no-fund >/dev/null 2>&1
-  npm install --prefix web --loglevel=error --no-audit --no-fund >/dev/null 2>&1
-  npm run build --prefix server --loglevel=error >/dev/null 2>&1
-  npm run build --prefix web --loglevel=error >/dev/null 2>&1
+  if ! npm install --prefix server --loglevel=error --no-audit --no-fund >>"$update_log" 2>&1 || \
+     ! npm install --prefix web --loglevel=error --no-audit --no-fund >>"$update_log" 2>&1 || \
+     ! npm run build --prefix server --loglevel=error >>"$update_log" 2>&1 || \
+     ! npm run build --prefix web --loglevel=error >>"$update_log" 2>&1; then
+    warn "Build failed (last 20 lines of $update_log):"
+    tail -n 20 "$update_log" >&2 || true
+    return 1
+  fi
 
-  cp "$INSTALL_DIR/deploy/xprotocol-cli.sh" /usr/local/bin/xprotocol
-  chmod +x /usr/local/bin/xprotocol
+  install -m 0755 "$INSTALL_DIR/deploy/xprotocol-cli.sh" /usr/local/bin/xprotocol
+  chmod +x "$INSTALL_DIR/deploy/xprotocol-tui.sh" "$INSTALL_DIR/deploy/node.sh" 2>/dev/null || true
+  UPDATED_CLI=1
 
   local new_ver
   new_ver="$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('$INSTALL_DIR/package.json','utf8')).version)}catch{console.log('unknown')}" 2>/dev/null || echo "unknown")"
@@ -248,6 +259,7 @@ show_menu() {
       "Exit" || break
 
     MENU_ACTIVE=0
+    UPDATED_CLI=0
     echo ""
     case "$choice" in
       0) cmd_status ;;
@@ -264,6 +276,10 @@ show_menu() {
     esac
     echo ""
     read -r -p "  Press Enter to return to menu..." _ <&"$UI_FD" || break
+    if (( UPDATED_CLI )) && [[ -x /usr/local/bin/xprotocol ]]; then
+      ui_restore_terminal
+      exec /usr/local/bin/xprotocol
+    fi
     MENU_ACTIVE=1
   done
 }
