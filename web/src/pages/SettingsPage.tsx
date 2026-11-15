@@ -740,7 +740,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
             />
 
             <div className="flex flex-wrap items-end gap-2">
-              <div className="flex-1 min-w-[160px]">
+              <div className="flex-1 min-w-40">
                 <Input
                   label="Chat ID"
                   value={tgBackup.chatId}
