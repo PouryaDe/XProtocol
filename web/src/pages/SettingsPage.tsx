@@ -255,22 +255,20 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
               </p>
             </div>
             <div className="ed-fields">
-              <div className="form-row">
-                <Input
-                  label={isFa ? 'نام برند پنل' : 'Brand name'}
-                  value={general.brandName}
-                  onChange={(e) => {
-                    setGeneral({ ...general, brandName: e.target.value });
-                    setBrandName(e.target.value);
-                  }}
-                />
-                <Input
-                  label={isFa ? 'آدرس عمومی (IP یا دامنه)' : 'Public address (IP or domain)'}
-                  dir="ltr"
-                  value={general.publicAddress}
-                  onChange={(e) => setGeneral({ ...general, publicAddress: e.target.value })}
-                />
-              </div>
+              <Input
+                label={isFa ? 'نام برند پنل' : 'Brand name'}
+                value={general.brandName}
+                onChange={(e) => {
+                  setGeneral({ ...general, brandName: e.target.value });
+                  setBrandName(e.target.value);
+                }}
+              />
+              <Input
+                label={isFa ? 'آدرس عمومی (IP یا دامنه)' : 'Public address (IP or domain)'}
+                dir="ltr"
+                value={general.publicAddress}
+                onChange={(e) => setGeneral({ ...general, publicAddress: e.target.value })}
+              />
               <Input
                 label={isFa ? 'آدرس پایه لینک اشتراک (اختیاری)' : 'Subscription base URL (optional)'}
                 dir="ltr"
@@ -350,44 +348,42 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
               </p>
             </div>
             <div className="ed-fields">
-              <div className="form-row">
-                <label className="block">
-                  <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
-                    {isFa ? 'هشدار نزدیک شدن به انقضا' : 'Warn when plan ends within'}
-                  </span>
-                  <div className="input-group">
-                    <input
-                      type="number"
-                      className="input"
-                      dir="ltr"
-                      value={general.warnExpiresWithinDays}
-                      onChange={(e) => setGeneral({ ...general, warnExpiresWithinDays: Number(e.target.value) })}
-                    />
-                    <span className="suffix">{isFa ? 'روز' : 'days'}</span>
-                  </div>
+              <div className="field">
+                <label className="label">
+                  {isFa ? 'هشدار نزدیک شدن به انقضا' : 'Warn when a plan ends within'}
                 </label>
-
-                <label className="block">
-                  <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
-                    {isFa ? 'هشدار مصرف حجم' : 'Warn when traffic reaches'}
-                  </span>
-                  <div className="input-group">
-                    <input
-                      type="number"
-                      className="input"
-                      dir="ltr"
-                      value={general.warnTrafficPercent}
-                      onChange={(e) => setGeneral({ ...general, warnTrafficPercent: Number(e.target.value) })}
-                    />
-                    <span className="suffix">%</span>
-                  </div>
-                </label>
+                <div className="input-group">
+                  <input
+                    type="number"
+                    className="input"
+                    dir="ltr"
+                    value={general.warnExpiresWithinDays}
+                    onChange={(e) => setGeneral({ ...general, warnExpiresWithinDays: Number(e.target.value) })}
+                  />
+                  <span className="suffix">{isFa ? 'روز' : 'days'}</span>
+                </div>
               </div>
 
-              <label className="block max-w-xs">
-                <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
-                  {isFa ? 'زمان بیکاری نشست مدیر' : 'Admin session inactivity'}
-                </span>
+              <div className="field">
+                <label className="label">
+                  {isFa ? 'هشدار مصرف حجم' : 'Warn when traffic used reaches'}
+                </label>
+                <div className="input-group">
+                  <input
+                    type="number"
+                    className="input"
+                    dir="ltr"
+                    value={general.warnTrafficPercent}
+                    onChange={(e) => setGeneral({ ...general, warnTrafficPercent: Number(e.target.value) })}
+                  />
+                  <span className="suffix">%</span>
+                </div>
+              </div>
+
+              <div className="field">
+                <label className="label">
+                  {isFa ? 'زمان بیکاری نشست مدیر' : 'Sign out after inactivity'}
+                </label>
                 <div className="input-group">
                   <input
                     type="number"
@@ -398,7 +394,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
                   />
                   <span className="suffix">{isFa ? 'ساعت' : 'hours'}</span>
                 </div>
-              </label>
+              </div>
             </div>
           </section>
 
