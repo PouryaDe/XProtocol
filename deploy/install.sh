@@ -150,14 +150,27 @@ fi
 
 section "INSTALLING XPROTOCOL OPEN-CORE"
 export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=a
+export NEEDRESTART_SUSPEND=1
+INSTALL_LOG="/var/log/xprotocol-install.log"
+: >"$INSTALL_LOG"
+
+run_q() {
+  if ! "$@" >>"$INSTALL_LOG" 2>&1; then
+    echo "" >&2
+    warn "Command failed: $* (last 20 lines of $INSTALL_LOG):"
+    tail -n 20 "$INSTALL_LOG" >&2 || true
+    return 1
+  fi
+}
 
 info "Installing base Ubuntu packages..."
-apt-get update -qq
+run_q apt-get update -qq
 PKGS=(curl ca-certificates gnupg openssl ufw iptables certbot wireguard-tools)
 if (( LOCAL_NODE )); then
   PKGS+=(openvpn ocserv strongswan xl2tpd)
 fi
-apt-get install -y -qq "${PKGS[@]}" >/dev/null
+run_q apt-get install -y -qq "${PKGS[@]}"
 ok "System packages installed"
 
 info "Configuring kernel IPv4 forwarding and BBR..."
@@ -170,9 +183,9 @@ sysctl --system >/dev/null 2>&1 || true
 ok "Kernel forwarding enabled"
 
 if ! command -v node >/dev/null 2>&1 || [[ "$(node -v | cut -d. -f1 | tr -d v)" -lt 22 ]]; then
-  info "Installing Node.js 24..."
-  curl -fsSL https://deb.nodesource.com/setup_24.x | bash - >/dev/null
-  apt-get install -y -qq nodejs >/dev/null
+  info "Installing Node.js 24 (this may take 20-40s)..."
+  run_q bash -c "curl -fsSL https://deb.nodesource.com/setup_24.x | bash -"
+  run_q apt-get install -y -qq nodejs
 fi
 ok "Node.js $(node -v) ready"
 
@@ -188,10 +201,10 @@ info "Copying source and building server + React dashboard..."
 rm -rf "$INSTALL_DIR/server" "$INSTALL_DIR/web" "$INSTALL_DIR/deploy"
 cp -r "$SRC_DIR/package.json" "$SRC_DIR/server" "$SRC_DIR/web" "$SRC_DIR/deploy" "$INSTALL_DIR/"
 cd "$INSTALL_DIR"
-npm install --prefix server >/dev/null
-npm install --prefix web >/dev/null
-npm run build --prefix server >/dev/null
-npm run build --prefix web >/dev/null
+run_q npm install --prefix server --no-audit --no-fund
+run_q npm install --prefix web --no-audit --no-fund
+run_q npm run build --prefix server
+run_q npm run build --prefix web
 ok "Build complete"
 
 TLS_CERT=""

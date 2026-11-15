@@ -31,9 +31,11 @@ if [[ -n "$HERE" && -f "$HERE/xprotocol-tui.sh" ]]; then
 fi
 
 export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=a
+export NEEDRESTART_SUSPEND=1
 echo "  Installing WireGuard, OpenVPN, OpenConnect, strongSwan, xl2tpd..."
-apt-get update -qq
-apt-get install -y -qq wireguard wireguard-tools openvpn ocserv strongswan strongswan-pki xl2tpd iptables ufw curl >/dev/null
+apt-get update -qq >/dev/null 2>&1
+apt-get install -y -qq wireguard wireguard-tools openvpn ocserv strongswan strongswan-pki xl2tpd iptables ufw curl >/dev/null 2>&1
 
 cat >/etc/sysctl.d/99-xprotocol-node.conf <<'EOF'
 net.ipv4.ip_forward = 1
