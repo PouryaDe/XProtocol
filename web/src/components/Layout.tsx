@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Activity,
   ExternalLink,
@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useUi, type ThemeMode } from '../i18n/context';
 import { formatBytes, formatDaysLeft } from '../lib/format';
+import { BrandMark, useSlidingIndicator } from './UiPrimitives';
 
 export type NavKey =
   | 'overview'
@@ -64,6 +65,8 @@ interface LayoutProps {
 export function Layout({ active, onNavigate, account, onLogout, children }: LayoutProps) {
   const { t, lang, setLang, theme, resolvedTheme, setTheme, brandName, supportTelegram } = useUi();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const desktopNavRef = useRef<HTMLElement | null>(null);
+  useSlidingIndicator(desktopNavRef, '.xp-nav-active', active);
 
   const cycleTheme = () => {
     const order: ThemeMode[] = ['system', 'dark', 'light'];
@@ -142,17 +145,17 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
       ? Math.min(100, Math.round((account.trafficUsedBytes / account.trafficPoolBytes) * 100))
       : 0;
 
-  const navBody = (
-    <div className="flex h-full flex-col justify-between p-3.5">
+  const renderNavBody = (navRef?: React.RefObject<HTMLElement | null>) => (
+    <div className="flex h-full flex-col justify-between px-3 py-4">
       <div>
-        <div className="mb-5 flex items-center justify-between px-2 pt-1">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-(--accent) text-(--accent-fg) font-bold shadow-sm">
-              ◆
-            </div>
+        <div className="xp-brand mb-5 flex items-center justify-between px-2 pt-0.5">
+          <div className="flex items-center gap-3">
+            <BrandMark size={30} />
             <div>
-              <div className="text-sm font-bold tracking-tight text-(--text-primary)">{brandName}</div>
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-(--text-muted)">
+              <div className="font-display text-lg font-bold tracking-tight text-(--text-primary) leading-none">
+                {brandName}
+              </div>
+              <div className="mt-1 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-(--text-muted)">
                 {lang === 'fa' ? 'پنل کنترل وی‌پی‌ان' : 'VPN CONTROL PANEL'}
               </div>
             </div>
@@ -166,7 +169,7 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
           </button>
         </div>
 
-        <nav className="space-y-1">
+        <nav ref={navRef} className="xp-nav-track space-y-1">
           {items
             .filter((i) => i.visible)
             .map((item, idx) => {
@@ -180,14 +183,14 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
                     onNavigate(item.key);
                     setMobileOpen(false);
                   }}
-                  className={`xp-nav-item flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium ${
+                  className={`xp-nav-item flex h-10 w-full items-center gap-2.5 rounded-xl px-3.5 text-sm font-medium ${
                     isActive
                       ? 'xp-nav-active text-(--text-primary) font-semibold'
-                      : 'text-(--text-secondary) hover:bg-(--bg-hover)/60 hover:text-(--text-primary)'
+                      : 'text-(--text-secondary) hover:text-(--text-primary)'
                   }`}
                 >
                   {isActive && <span className="xp-led" />}
-                  <span className={isActive ? 'text-(--accent)' : ''}>{item.icon}</span>
+                  <span className={isActive ? 'text-(--accent-text)' : ''}>{item.icon}</span>
                   <span>{item.label}</span>
                 </button>
               );
@@ -201,10 +204,10 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
             href={supportHref}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center justify-between rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3 py-2 text-xs text-(--text-secondary) hover:border-(--accent)/40 hover:text-(--text-primary) transition"
+            className="flex items-center justify-between rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-3 py-2 text-xs text-(--text-secondary) hover:border-(--accent) hover:bg-(--accent-wash) hover:text-(--text-primary) transition"
           >
             <span className="inline-flex items-center gap-2 font-medium">
-              <LifeBuoy className="h-3.5 w-3.5 text-(--accent)" />
+              <LifeBuoy className="h-3.5 w-3.5 text-(--accent-text)" />
               {lang === 'fa' ? 'پشتیبانی' : 'Support'}
             </span>
             <span className="inline-flex items-center gap-1 text-[11px] text-(--text-muted)">
@@ -218,7 +221,7 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
           <button
             type="button"
             onClick={() => setLang(lang === 'en' ? 'fa' : 'en')}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) py-1.5 text-xs text-(--text-secondary) hover:text-(--text-primary)"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) py-1.5 text-xs text-(--text-secondary) hover:border-(--border-strong) hover:text-(--text-primary) transition"
           >
             <Globe className="h-3.5 w-3.5" />
             <span>{lang === 'en' ? 'فارسی' : 'English'}</span>
@@ -226,7 +229,7 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
           <button
             type="button"
             onClick={cycleTheme}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) py-1.5 text-xs text-(--text-secondary) hover:text-(--text-primary)"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) py-1.5 text-xs text-(--text-secondary) hover:border-(--border-strong) hover:text-(--text-primary) transition"
           >
             {themeIcon}
             <span>{themeLabel}</span>
@@ -258,16 +261,21 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
           </div>
         )}
 
-        <div className="flex items-center justify-between rounded-xl bg-(--bg-elevated) px-3 py-2">
-          <div className="min-w-0">
-            <div className="truncate text-xs font-semibold text-(--text-primary)">{account.username}</div>
-            <div className="text-[11px] text-(--text-muted)">{account.roleName}</div>
+        <div className="flex items-center justify-between rounded-xl bg-(--bg-elevated)/75 px-2.5 py-2">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div className="xp-avatar grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-bold uppercase">
+              {account.username.slice(0, 1)}
+            </div>
+            <div className="min-w-0">
+              <div className="truncate text-xs font-semibold text-(--text-primary)">{account.username}</div>
+              <div className="text-[11px] text-(--text-muted)">{account.roleName}</div>
+            </div>
           </div>
           <button
             type="button"
             onClick={onLogout}
             title={t.nav.signOut}
-            className="rounded-lg p-1.5 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-red-400"
+            className="rounded-lg p-1.5 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-red-400 transition"
           >
             <LogOut className="h-4 w-4" />
           </button>
@@ -281,7 +289,7 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
       {/* Desktop Floating Glassmorphic Sidebar */}
       <aside className="hidden w-64 shrink-0 p-3.5 lg:block">
         <div className="xp-sidebar sticky top-3.5 h-[calc(100dvh-1.75rem)] overflow-y-auto">
-          {navBody}
+          {renderNavBody(desktopNavRef)}
         </div>
       </aside>
 
@@ -289,13 +297,13 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
       {mobileOpen && (
         <div className="fixed inset-0 z-40 flex lg:hidden">
           <div className="xp-backdrop fixed inset-0" onClick={() => setMobileOpen(false)} />
-          <aside className="xp-sidebar relative z-50 m-3 w-64 rounded-2xl shadow-xl">{navBody}</aside>
+          <aside className="xp-sidebar relative z-50 m-3 w-64 rounded-2xl shadow-xl">{renderNavBody()}</aside>
         </div>
       )}
 
       {/* Main Content */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-(--border-subtle) bg-(--bg-surface) px-4 py-3 lg:hidden">
+        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-(--border-subtle) bg-(--glass) backdrop-blur-md px-4 py-3 lg:hidden">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
@@ -303,7 +311,10 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
           >
             <Menu className="h-5 w-5" />
           </button>
-          <span className="text-sm font-bold text-(--text-primary)">{brandName}</span>
+          <span className="inline-flex items-center gap-2 font-display text-sm font-bold text-(--text-primary)">
+            <BrandMark size={22} />
+            {brandName}
+          </span>
           <div className="w-8" />
         </header>
 
@@ -317,7 +328,7 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
           </div>
         )}
 
-        <main key={active} className="xp-stagger mx-auto w-full max-w-7xl flex-1 p-5 sm:p-6">
+        <main key={active} className="xp-stagger mx-auto w-full max-w-[1360px] flex-1 px-4 py-6 sm:px-8">
           {children}
         </main>
       </div>

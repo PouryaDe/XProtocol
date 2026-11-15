@@ -15,7 +15,7 @@ import {
 import { apiFetch } from '../lib/api';
 import { formatBytes, formatDuration } from '../lib/format';
 import { useUi } from '../i18n/context';
-import { Button, Card, Input, Select, StatusPill } from '../components/UiPrimitives';
+import { Button, Card, Input, Odometer, Select, SplitHeading, StatusPill } from '../components/UiPrimitives';
 import { Modal } from '../components/Modal';
 import { Drawer } from '../components/Drawer';
 
@@ -222,7 +222,7 @@ export function NodesPage() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-(--text-primary)">{t.nodes.title}</h1>
+        <SplitHeading text={t.nodes.title} className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-(--text-primary)" />
         <Button variant="primary" onClick={openCreate}>
           <Plus className="h-4 w-4" />
           {t.nodes.connectNode}
@@ -231,21 +231,21 @@ export function NodesPage() {
 
       {/* Summary Strip */}
       <Card className="grid divide-y divide-(--border-subtle) sm:grid-cols-2 sm:divide-y-0 sm:divide-x xl:grid-cols-4 rtl:sm:divide-x-reverse">
-        <div className="p-4">
+        <div className="xp-kpi p-4">
           <div className="text-xs text-(--text-secondary)">{lang === 'fa' ? 'کل نودها' : 'Total nodes'}</div>
-          <div className="mt-1 text-2xl font-bold text-(--text-primary)">{summary.total}</div>
+          <div className="mt-1 font-display text-2xl font-bold tracking-tight text-(--text-primary)"><Odometer value={summary.total} /></div>
         </div>
-        <div className="p-4">
+        <div className="xp-kpi p-4">
           <div className="text-xs text-(--text-secondary)">{t.nodes.connected}</div>
-          <div className="mt-1 text-2xl font-bold text-emerald-400">{summary.connected}</div>
+          <div className="mt-1 font-display text-2xl font-bold tracking-tight text-emerald-400"><Odometer value={summary.connected} /></div>
         </div>
-        <div className="p-4">
+        <div className="xp-kpi p-4">
           <div className="text-xs text-(--text-secondary)">{lang === 'fa' ? 'نیازمند توجه' : 'Needs attention'}</div>
-          <div className="mt-1 text-2xl font-bold text-amber-400">{summary.attention}</div>
+          <div className="mt-1 font-display text-2xl font-bold tracking-tight text-amber-400"><Odometer value={summary.attention} /></div>
         </div>
-        <div className="p-4">
+        <div className="xp-kpi p-4">
           <div className="text-xs text-(--text-secondary)">{t.overview.onlineNow}</div>
-          <div className="mt-1 text-2xl font-bold text-(--accent)">{summary.onlineNow}</div>
+          <div className="mt-1 font-display text-2xl font-bold tracking-tight text-(--accent)"><Odometer value={summary.onlineNow} /></div>
         </div>
       </Card>
 
@@ -346,8 +346,10 @@ export function NodesPage() {
             </div>
 
             {n.connectAddresses.length > 0 && (
-              <div className="text-xs text-(--text-muted)">
-                Relays: <span className="font-mono text-(--text-primary)">{n.connectAddresses.join(', ')}</span>
+              <div className="flex items-center gap-2.5 text-xs text-(--text-muted)">
+                <span className="shrink-0">Relays</span>
+                <span className="rl-line min-w-8 flex-1" aria-hidden="true" />
+                <span className="font-mono text-(--text-primary)">{n.connectAddresses.join(', ')}</span>
               </div>
             )}
 

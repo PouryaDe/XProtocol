@@ -15,7 +15,7 @@ import {
 import { apiFetch } from '../lib/api';
 import { formatBytes, formatDaysLeft } from '../lib/format';
 import { useUi } from '../i18n/context';
-import { Button, Card, Input, Select, StatusPill } from '../components/UiPrimitives';
+import { Button, Card, EmptySonar, Input, Select, SplitHeading, StatusPill } from '../components/UiPrimitives';
 import { Modal } from '../components/Modal';
 import { Drawer } from '../components/Drawer';
 import { QrCode } from '../components/QrCode';
@@ -259,7 +259,7 @@ export function ClientsPage({
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-(--text-primary)">{t.clients.title}</h1>
+        <SplitHeading text={t.clients.title} className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-(--text-primary)" />
         <div className="flex items-center gap-2">
           <Button onClick={() => openNew(true)}>
             <Users className="h-4 w-4" />
@@ -446,6 +446,11 @@ export function ClientsPage({
             </tbody>
           </table>
         </div>
+        {filtered.length === 0 && (
+          <div className="border-t border-(--border-subtle) py-6">
+            <EmptySonar text={lang === 'fa' ? 'هیچ کاربری پیدا نشد' : 'No clients match the filter'} />
+          </div>
+        )}
       </Card>
 
       {/* Create / Edit Slide-Over Drawer */}

@@ -3,7 +3,7 @@ import { Activity, AlertTriangle, ArrowDownUp, ArrowRight, Cpu, Plus, Radio, Ser
 import { apiFetch } from '../lib/api';
 import { formatBytes, formatDaysLeft, formatDuration, formatSpeed } from '../lib/format';
 import { useUi } from '../i18n/context';
-import { Button, Card, StatusPill } from '../components/UiPrimitives';
+import { Button, Card, EmptySonar, EqLoader, Odometer, SplitHeading, StatusPill } from '../components/UiPrimitives';
 import { TrafficChart } from '../components/TrafficChart';
 import { DonutChart } from '../components/DonutChart';
 import type { NavKey } from '../components/Layout';
@@ -112,7 +112,7 @@ export function OverviewPage({
   };
 
   if (!data) {
-    return <div className="py-12 text-center text-sm text-(--text-secondary)">{t.common.loading}</div>;
+    return <EqLoader label={t.common.loading} />;
   }
 
   const chartData =
@@ -142,7 +142,7 @@ export function OverviewPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-(--text-primary)">{t.overview.title}</h1>
+          <SplitHeading text={t.overview.title} className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-(--text-primary)" />
           <p className="mt-0.5 text-xs text-(--text-secondary)">
             {lang === 'fa'
               ? `${data.summary.onlineClients} کاربر آنلاین · ${data.summary.runningOutCount} اشتراک رو به اتمام`
@@ -169,13 +169,15 @@ export function OverviewPage({
 
       {/* Unified 4-KPI Strip */}
       <Card className="grid divide-y divide-(--border-subtle) sm:grid-cols-2 sm:divide-y-0 sm:divide-x xl:grid-cols-4 rtl:sm:divide-x-reverse">
-        <div className="p-4">
+        <div className="xp-kpi p-4">
           <div className="flex items-center justify-between text-xs text-(--text-secondary)">
             <span>{t.overview.onlineNow}</span>
             <Activity className="h-4 w-4 text-(--accent)" />
           </div>
           <div className="mt-2 flex items-baseline justify-between gap-2">
-            <div className="text-2xl font-bold text-(--text-primary)">{data.summary.onlineClients}</div>
+            <div className="font-display text-2xl font-bold tracking-tight text-(--text-primary)">
+              <Odometer value={data.summary.onlineClients} />
+            </div>
             <button
               type="button"
               onClick={() => onNavigate('connections')}
@@ -190,36 +192,38 @@ export function OverviewPage({
           </div>
         </div>
 
-        <div className="p-4">
+        <div className="xp-kpi p-4">
           <div className="flex items-center justify-between text-xs text-(--text-secondary)">
             <span>{t.overview.activeClients}</span>
             <Users className="h-4 w-4 text-(--info)" />
           </div>
-          <div className="mt-2 text-2xl font-bold text-(--text-primary)">{data.summary.activeClients}</div>
+          <div className="mt-2 font-display text-2xl font-bold tracking-tight text-(--text-primary)">
+            <Odometer value={data.summary.activeClients} />
+          </div>
           <div className="mt-1 text-xs text-(--text-muted)">
             {lang === 'fa' ? `از ${data.summary.totalClients} کاربر` : `out of ${data.summary.totalClients} clients`}
           </div>
         </div>
 
-        <div className="p-4">
+        <div className="xp-kpi p-4">
           <div className="flex items-center justify-between text-xs text-(--text-secondary)">
             <span>{t.overview.trafficToday}</span>
             <ArrowDownUp className="h-4 w-4 text-emerald-400" />
           </div>
-          <div className="mt-2 text-2xl font-bold text-(--text-primary)">
-            {formatBytes(data.summary.todayDownloadBytes + data.summary.todayUploadBytes, lang)}
+          <div className="mt-2 font-display text-2xl font-bold tracking-tight text-(--text-primary)">
+            <Odometer value={formatBytes(data.summary.todayDownloadBytes + data.summary.todayUploadBytes, lang)} />
           </div>
           <div className="mt-1 text-xs text-(--text-muted)">
             30d: {formatBytes(data.summary.total30dBytes, lang)}
           </div>
         </div>
 
-        <div className="p-4">
+        <div className="xp-kpi p-4">
           <div className="flex items-center justify-between text-xs text-(--text-secondary)">
             <span>{t.overview.throughputNow}</span>
             <Radio className="h-4 w-4 text-violet-400" />
           </div>
-          <div className="mt-2 text-lg font-bold text-(--text-primary)">
+          <div className="mt-2 font-display text-lg font-bold tracking-tight text-(--text-primary)">
             ↓ {formatSpeed(data.summary.speedDownBps)}
           </div>
           <div className="mt-1 text-xs text-(--text-muted)">
@@ -335,7 +339,7 @@ export function OverviewPage({
             </button>
           </div>
           {data.runningOut.length === 0 ? (
-            <p className="py-6 text-center text-xs text-(--text-muted)">{t.overview.noRunningOut}</p>
+            <EmptySonar text={t.overview.noRunningOut} />
           ) : (
             <div className="space-y-2">
               {data.runningOut.map((c) => (

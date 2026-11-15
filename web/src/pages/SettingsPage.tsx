@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Copy, Download, ExternalLink, Key, Plus, Search, Send, ShieldCheck, Trash2, Upload } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { formatDateTime } from '../lib/format';
-import { useUi, type AccentName } from '../i18n/context';
+import { ACCENT_PALETTES, useUi, type AccentName } from '../i18n/context';
 import { Button, Card, Input, Select, StatusPill } from '../components/UiPrimitives';
 import { QrCode } from '../components/QrCode';
 import type { CurrentAccount } from '../components/Layout';
@@ -11,12 +11,12 @@ type SettingsTab = 'general' | 'subscription' | 'panelAccess' | 'api' | 'myAccou
 
 const ACCENTS: AccentName[] = ['lime', 'cyan', 'mint', 'amber', 'coral', 'rose', 'violet', 'sky'];
 const LOOKS = [
-  { id: 'night_shift', name: 'Night shift', desc: 'Dark control room with glowing lamps' },
-  { id: 'aurora', name: 'Aurora', desc: 'Soft colour glow & frosted-glass cards' },
-  { id: 'pop', name: 'Pop', desc: 'Playful cards with bold outlines' },
-  { id: 'ticket', name: 'Ticket', desc: 'Clean paper boarding pass' },
-  { id: 'orbit', name: 'Orbit', desc: 'Deep space with glowing accent ring' },
-  { id: 'mono', name: 'Mono', desc: 'Quiet editorial layout with crisp typography' },
+  { id: 'night_shift', mockClass: 'tc-night', name: 'Night shift', desc: 'Dark control room with glowing lamps' },
+  { id: 'aurora', mockClass: 'tc-aurora', name: 'Aurora', desc: 'Soft colour glow & frosted-glass cards' },
+  { id: 'pop', mockClass: 'tc-pop', name: 'Pop', desc: 'Playful cards with bold outlines' },
+  { id: 'ticket', mockClass: 'tc-ticket', name: 'Ticket', desc: 'Clean paper boarding pass' },
+  { id: 'orbit', mockClass: 'tc-orbit', name: 'Orbit', desc: 'Deep space with glowing accent ring' },
+  { id: 'mono', mockClass: 'tc-mono', name: 'Mono', desc: 'Quiet editorial layout with crisp typography' },
 ] as const;
 
 export function SettingsPage({ account }: { account: CurrentAccount }) {
@@ -240,23 +240,31 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
           <div>
             <div className="mb-2 text-xs font-medium text-(--text-secondary)">Panel accent colour</div>
             <div className="flex flex-wrap gap-2">
-              {ACCENTS.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => {
-                    setGeneral({ ...general, panelColor: c });
-                    setAccent(c);
-                  }}
-                  className={`rounded-xl border px-3 py-1.5 text-xs capitalize ${
-                    general.panelColor === c
-                      ? 'border-(--accent) bg-(--accent-soft) text-(--accent) font-semibold'
-                      : 'border-(--border-subtle) bg-(--bg-elevated) text-(--text-secondary)'
-                  }`}
-                >
-                  {c}
-                </button>
-              ))}
+              {ACCENTS.map((c) => {
+                const swatch = ACCENT_PALETTES[c].dark.accent;
+                const active = general.panelColor === c;
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => {
+                      setGeneral({ ...general, panelColor: c });
+                      setAccent(c);
+                    }}
+                    className={`inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs capitalize transition ${
+                      active
+                        ? 'border-(--accent) bg-(--accent-soft) text-(--accent) font-semibold'
+                        : 'border-(--border-subtle) bg-(--bg-elevated) text-(--text-secondary) hover:border-(--border-default)'
+                    }`}
+                  >
+                    <span
+                      className="h-3 w-3 shrink-0 rounded-full border border-black/20"
+                      style={{ background: swatch, boxShadow: active ? `0 0 10px ${swatch}` : undefined }}
+                    />
+                    {c}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -295,20 +303,25 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
                 </a>
               )}
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {LOOKS.map((l) => (
                 <button
                   key={l.id}
                   type="button"
                   onClick={() => setSubSettings({ ...subSettings, look: l.id })}
-                  className={`rounded-xl border p-3 text-start transition ${
-                    subSettings.look === l.id
-                      ? 'border-(--accent) bg-(--accent-soft)'
-                      : 'border-(--border-subtle) bg-(--bg-elevated)'
-                  }`}
+                  className={`theme-card ${subSettings.look === l.id ? 'on' : ''}`}
                 >
-                  <div className="text-xs font-bold text-(--text-primary)">{l.name}</div>
-                  <div className="mt-0.5 text-[11px] text-(--text-muted)">{l.desc}</div>
+                  <span
+                    className={`tc-mock ${l.mockClass}`}
+                    style={{ '--mock': 'var(--accent)' } as React.CSSProperties}
+                    aria-hidden="true"
+                  >
+                    <b>24</b>
+                    <i />
+                    <i />
+                  </span>
+                  <div className="px-1 text-xs font-bold text-(--text-primary)">{l.name}</div>
+                  <div className="px-1 text-[11px] leading-snug text-(--text-muted)">{l.desc}</div>
                 </button>
               ))}
             </div>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { UiProvider, useUi, type AccentName } from './i18n/context';
 import { apiFetch, setCsrfToken } from './lib/api';
 import { Layout, type CurrentAccount, type NavKey } from './components/Layout';
+import { Ambient, EqLoader } from './components/UiPrimitives';
 import { LoginPage } from './pages/LoginPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { ClientsPage } from './pages/ClientsPage';
@@ -40,22 +41,6 @@ function PanelRoot() {
   };
 
   useEffect(() => {
-    const onMove = (e: PointerEvent) => {
-      const root = document.documentElement;
-      root.style.setProperty('--cx', `${e.clientX}px`);
-      root.style.setProperty('--cy', `${e.clientY}px`);
-      const card = (e.target as HTMLElement | null)?.closest('.xp-card') as HTMLElement | null;
-      if (card) {
-        const rect = card.getBoundingClientRect();
-        card.style.setProperty('--mx', `${e.clientX - rect.left}px`);
-        card.style.setProperty('--my', `${e.clientY - rect.top}px`);
-      }
-    };
-    window.addEventListener('pointermove', onMove, { passive: true });
-    return () => window.removeEventListener('pointermove', onMove);
-  }, []);
-
-  useEffect(() => {
     apiFetch<{ csrfToken: string | null; account: CurrentAccount }>('/auth/me')
       .then((res) => {
         setCsrfToken(res.csrfToken);
@@ -68,20 +53,26 @@ function PanelRoot() {
 
   if (checking) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-(--bg-app) text-sm text-(--text-secondary)">
-        Loading…
-      </div>
+      <>
+        <Ambient />
+        <div className="flex min-h-screen items-center justify-center">
+          <EqLoader />
+        </div>
+      </>
     );
   }
 
   if (!account) {
     return (
-      <LoginPage
-        onSuccess={(acc) => {
-          setAccount(acc);
-          loadGeneralBranding(acc.isOwner);
-        }}
-      />
+      <>
+        <Ambient />
+        <LoginPage
+          onSuccess={(acc) => {
+            setAccount(acc);
+            loadGeneralBranding(acc.isOwner);
+          }}
+        />
+      </>
     );
   }
 
@@ -92,26 +83,29 @@ function PanelRoot() {
   };
 
   return (
-    <Layout active={nav} onNavigate={setNav} account={account} onLogout={handleLogout}>
-      {nav === 'overview' && (
-        <OverviewPage
-          onNavigate={setNav}
-          onOpenNewClient={() => {
-            setNav('clients');
-            setNewClientSignal((n) => n + 1);
-          }}
-        />
-      )}
-      {nav === 'clients' && <ClientsPage openCreateTrigger={newClientSignal} />}
-      {nav === 'groups' && <GroupsPage />}
-      {nav === 'inbounds' && <InboundsPage />}
-      {nav === 'nodes' && <NodesPage />}
-      {nav === 'connections' && <ConnectionsPage />}
-      {nav === 'routing' && <RoutingPage />}
-      {nav === 'certificates' && <CertificatesPage />}
-      {nav === 'accounts' && <AccountsPage />}
-      {nav === 'settings' && <SettingsPage account={account} />}
-    </Layout>
+    <>
+      <Ambient />
+      <Layout active={nav} onNavigate={setNav} account={account} onLogout={handleLogout}>
+        {nav === 'overview' && (
+          <OverviewPage
+            onNavigate={setNav}
+            onOpenNewClient={() => {
+              setNav('clients');
+              setNewClientSignal((n) => n + 1);
+            }}
+          />
+        )}
+        {nav === 'clients' && <ClientsPage openCreateTrigger={newClientSignal} />}
+        {nav === 'groups' && <GroupsPage />}
+        {nav === 'inbounds' && <InboundsPage />}
+        {nav === 'nodes' && <NodesPage />}
+        {nav === 'connections' && <ConnectionsPage />}
+        {nav === 'routing' && <RoutingPage />}
+        {nav === 'certificates' && <CertificatesPage />}
+        {nav === 'accounts' && <AccountsPage />}
+        {nav === 'settings' && <SettingsPage account={account} />}
+      </Layout>
+    </>
   );
 }
 
