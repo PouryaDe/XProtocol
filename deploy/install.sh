@@ -21,13 +21,13 @@ if [[ -z "$SRC_DIR" || ! -d "$SRC_DIR/server" || ! -f "$HERE/xprotocol-tui.sh" ]
   fi
   [[ $EUID -eq 0 ]] || { echo "Run as root: curl -fsSL https://raw.githubusercontent.com/PouryaDe/XProtocol/${REPO_BRANCH}/deploy/install.sh | sudo bash" >&2; exit 1; }
   if ! command -v git >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1; then
-    export DEBIAN_FRONTEND=noninteractive
-    apt-get update -qq && apt-get install -y -qq git ca-certificates curl >/dev/null
+    export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a NEEDRESTART_SUSPEND=1
+    apt-get update -qq >/dev/null 2>&1 && apt-get install -y -qq git ca-certificates curl >/dev/null 2>&1
   fi
   BOOTSTRAP_TMP="$(mktemp -d)"
   trap 'rm -rf "$BOOTSTRAP_TMP"' EXIT
   echo "  Downloading XProtocol (${REPO_BRANCH}) from ${REPO_URL}..."
-  git clone --depth 1 --branch "$REPO_BRANCH" "$REPO_URL" "$BOOTSTRAP_TMP/xprotocol" >/dev/null
+  git clone -q --depth 1 --branch "$REPO_BRANCH" "$REPO_URL" "$BOOTSTRAP_TMP/xprotocol"
   bash "$BOOTSTRAP_TMP/xprotocol/deploy/install.sh" "$@"
   exit $?
 fi
@@ -152,6 +152,10 @@ section "INSTALLING XPROTOCOL OPEN-CORE"
 export DEBIAN_FRONTEND=noninteractive
 export NEEDRESTART_MODE=a
 export NEEDRESTART_SUSPEND=1
+export npm_config_loglevel=error
+export npm_config_update_notifier=false
+export npm_config_fund=false
+export npm_config_audit=false
 INSTALL_LOG="/var/log/xprotocol-install.log"
 : >"$INSTALL_LOG"
 
@@ -201,10 +205,10 @@ info "Copying source and building server + React dashboard..."
 rm -rf "$INSTALL_DIR/server" "$INSTALL_DIR/web" "$INSTALL_DIR/deploy"
 cp -r "$SRC_DIR/package.json" "$SRC_DIR/server" "$SRC_DIR/web" "$SRC_DIR/deploy" "$INSTALL_DIR/"
 cd "$INSTALL_DIR"
-run_q npm install --prefix server --no-audit --no-fund
-run_q npm install --prefix web --no-audit --no-fund
-run_q npm run build --prefix server
-run_q npm run build --prefix web
+run_q npm install --prefix server --loglevel=error --no-audit --no-fund
+run_q npm install --prefix web --loglevel=error --no-audit --no-fund
+run_q npm run build --prefix server --loglevel=error
+run_q npm run build --prefix web --loglevel=error
 ok "Build complete"
 
 TLS_CERT=""
@@ -213,7 +217,7 @@ if [[ "$SSL_MODE" == "domain" && -n "$DOMAIN" ]]; then
   info "Issuing Let's Encrypt certificate for $DOMAIN..."
   EMAIL_FLAG="--register-unsafely-without-email"
   [[ -n "$EMAIL" ]] && EMAIL_FLAG="--email $EMAIL"
-  certbot certonly --standalone -d "$DOMAIN" --non-interactive --agree-tos $EMAIL_FLAG || warn "Certbot failed; continuing on HTTP"
+  certbot certonly --standalone -d "$DOMAIN" --non-interactive --agree-tos $EMAIL_FLAG >>"$INSTALL_LOG" 2>&1 || warn "Certbot failed; continuing on HTTP"
   if [[ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]]; then
     TLS_CERT="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
     TLS_KEY="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
@@ -267,8 +271,8 @@ if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
   ok "Opened UFW ports"
 fi
 
-systemctl daemon-reload
-systemctl enable --now "$SERVICE_NAME"
+run_q systemctl daemon-reload
+run_q systemctl enable --now "$SERVICE_NAME"
 ok "Started ${SERVICE_NAME}"
 
 PUBLIC_IP="$(curl -fsSL --max-time 4 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')"

@@ -99,7 +99,8 @@ cmd_ssl() {
 
 cmd_ocserv() {
   require_root "$@"
-  apt-get update -qq && apt-get install -y -qq ocserv >/dev/null
+  DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a NEEDRESTART_SUSPEND=1 apt-get update -qq >/dev/null 2>&1
+  DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a NEEDRESTART_SUSPEND=1 apt-get install -y -qq ocserv >/dev/null 2>&1
   ok "OpenConnect (ocserv) installed and ready."
 }
 
