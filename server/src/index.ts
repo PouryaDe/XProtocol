@@ -135,6 +135,7 @@ export function createApp(initialConfig: RuntimeConfig) {
       }
       const html = fs.readFileSync(path.join(webDist, 'index.html'), 'utf-8');
       const cfgScript = `<script>window.__XP_BASE_PATH__=${JSON.stringify(runtimeConfig.secretPath || '')};window.__XP_SUB_PATH__=${JSON.stringify(runtimeConfig.subPath || 'sub')};</script>`;
+      res.setHeader('Cache-Control', 'no-store');
       res.type('html').send(html.replace('</head>', `${cfgScript}</head>`));
     });
   } else {

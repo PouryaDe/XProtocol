@@ -8,7 +8,27 @@ import { recordAudit } from './audit.js';
 
 const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.resolve(__dirname, '../../..');
+
+function resolveProjectRoot(): string {
+  if (process.env.XPROTOCOL_INSTALL_DIR && fs.existsSync(process.env.XPROTOCOL_INSTALL_DIR)) {
+    return path.resolve(process.env.XPROTOCOL_INSTALL_DIR);
+  }
+  let dir = __dirname;
+  for (let i = 0; i < 6; i++) {
+    if (
+      fs.existsSync(path.join(dir, 'deploy/xprotocol-cli.sh')) ||
+      (fs.existsSync(path.join(dir, 'server')) && fs.existsSync(path.join(dir, 'web')))
+    ) {
+      return dir;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return path.resolve(__dirname, '../../../..');
+}
+
+const PROJECT_ROOT = resolveProjectRoot();
 const REPO_OWNER = 'PouryaDe';
 const REPO_NAME = 'XProtocol';
 const REPO_BRANCH = process.env.XPROTOCOL_BRANCH || 'main';
@@ -99,14 +119,14 @@ export async function getCurrentCommit(): Promise<string> {
   try {
     const marker = path.join(PROJECT_ROOT, '.xprotocol-commit');
     if (fs.existsSync(path.join(PROJECT_ROOT, '.git'))) {
-      const { stdout } = await execFileAsync('git', ['-C', PROJECT_ROOT, 'rev-parse', '--short', 'HEAD'], {
+      const { stdout } = await execFileAsync('git', ['-C', PROJECT_ROOT, 'rev-parse', '--short=7', 'HEAD'], {
         timeout: 3000,
       });
-      const sha = stdout.trim();
+      const sha = stdout.trim().slice(0, 7);
       if (sha) return sha;
     }
     if (fs.existsSync(marker)) {
-      return fs.readFileSync(marker, 'utf-8').trim().slice(0, 12);
+      return fs.readFileSync(marker, 'utf-8').trim().slice(0, 7);
     }
   } catch {
     // ignore
@@ -182,10 +202,25 @@ function saveMeta(partial: Partial<PersistedUpdateMeta>): PersistedUpdateMeta {
   return next;
 }
 
+function isReleaseStillNewer(entry: ReleaseEntry, installedVersion: string, currentCommit: string): boolean {
+  if (entry.tag.includes('@')) {
+    const sha = entry.tag.split('@').pop()?.slice(0, 7) || '';
+    if (sha && currentCommit && sha === currentCommit.slice(0, 7)) return false;
+    return Boolean(sha);
+  }
+  if (compareSemver(entry.tag, installedVersion) > 0) return true;
+  return false;
+}
+
 export async function getUpdateState(): Promise<UpdateState> {
   const meta = getMeta();
   const installedVersion = getInstalledVersion();
   const currentCommit = await getCurrentCommit();
+  const newer = (meta.newer || []).filter((r) => isReleaseStillNewer(r, installedVersion, currentCommit));
+  const latest =
+    meta.latest && isReleaseStillNewer(meta.latest, installedVersion, currentCommit)
+      ? meta.latest
+      : newer[0] || null;
   return {
     installedVersion,
     currentCommit,
@@ -198,8 +233,8 @@ export async function getUpdateState(): Promise<UpdateState> {
     source: meta.source,
     checkError: meta.checkError,
     lastError: meta.lastError,
-    latest: meta.latest,
-    newer: meta.newer,
+    latest,
+    newer,
     recent: meta.recent,
   };
 }
@@ -375,12 +410,14 @@ export async function startUpdateInstall(targetTag?: string, initiator = 'system
           currentStep = 'nodes';
           try {
             const db = getDb();
-            db.prepare("UPDATE nodes SET xprotocol_version = ? WHERE is_local = 1").run(getInstalledVersion());
+            db.prepare('UPDATE nodes SET xprotocol_version = ? WHERE is_local = 1').run(getInstalledVersion());
           } catch {
             // ignore
           }
         }
 
+        // Clear stale update badge before restarting into the newly built release
+        saveMeta({ latest: null, newer: [], checkedAt: null, lastError: null });
         currentStep = 'restarting';
         // Trigger clean systemd restart after a short delay so UI receives 'restarting' status
         setTimeout(() => {

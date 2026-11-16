@@ -180,14 +180,18 @@ cmd_update() {
 
   local tmp_dir
   tmp_dir="$(mktemp -d)"
-  trap 'rm -rf "$tmp_dir"' RETURN
   info "Downloading source from GitHub..."
-  git clone -q --depth 1 --branch "$repo_branch" "$repo_url" "$tmp_dir/src"
+  if ! git clone -q --depth 1 --branch "$repo_branch" "$repo_url" "$tmp_dir/src"; then
+    rm -rf "$tmp_dir"
+    die "Failed to clone ${repo_url}"
+  fi
 
   info "Copying updated files into ${INSTALL_DIR}..."
+  cd /tmp
   mkdir -p "$INSTALL_DIR"
   rm -rf "$INSTALL_DIR/server" "$INSTALL_DIR/web" "$INSTALL_DIR/deploy" "$INSTALL_DIR/.git"
   cp -r "$tmp_dir/src/package.json" "$tmp_dir/src/server" "$tmp_dir/src/web" "$tmp_dir/src/deploy" "$tmp_dir/src/.git" "$INSTALL_DIR/"
+  rm -rf "$tmp_dir"
   echo "$remote_sha" >"$INSTALL_DIR/.xprotocol-commit"
 
   info "Installing dependencies and building..."

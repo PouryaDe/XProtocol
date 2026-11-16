@@ -19,6 +19,7 @@ const { parseCidr, allocateTunnelIp, isClientActiveQuota, getEligiblePeersForInb
 const { renderInboundServerConfig, renderInboundExtraFiles } = await import('../src/generators/configs.js');
 const { generateClientProfile } = await import('../src/generators/profiles.js');
 const { syncOpenVpnAuthScript } = await import('../src/drivers/pki.js');
+const { getCurrentCommit, getUpdateState } = await import('../src/services/updater.js');
 
 initDatabase();
 
@@ -252,4 +253,40 @@ test('OpenVPN salted scrypt auth verifier accepts valid password and rejects inv
   await execFileAsync(process.execPath, [scriptPath, validCred]);
   await assert.rejects(() => execFileAsync(process.execPath, [scriptPath, badCred]));
   await assert.rejects(() => execFileAsync(process.execPath, [scriptPath, path.join(tempDir, 'missing.txt')]));
+});
+
+test('Updater filters out already-installed commit/semver from cached update state', async () => {
+  const { setSetting } = await import('../src/db/database.js');
+  const curSha = await getCurrentCommit();
+  assert.ok(curSha.length > 0, 'Expected current git commit SHA to resolve');
+
+  setSetting('updates_meta', {
+    checkedAt: new Date().toISOString(),
+    source: 'github',
+    checkError: null,
+    lastError: null,
+    latest: {
+      tag: `main@${curSha}`,
+      name: 'Current commit',
+      prerelease: false,
+      published: new Date().toISOString(),
+      notes: '',
+      url: 'https://github.com/PouryaDe/XProtocol',
+    },
+    newer: [
+      {
+        tag: `main@${curSha}`,
+        name: 'Current commit',
+        prerelease: false,
+        published: new Date().toISOString(),
+        notes: '',
+        url: 'https://github.com/PouryaDe/XProtocol',
+      },
+    ],
+    recent: [],
+  });
+
+  const state = await getUpdateState();
+  assert.equal(state.latest, null);
+  assert.equal(state.newer.length, 0);
 });

@@ -169,6 +169,12 @@ export function UpdatesPage() {
           } else {
             setServerDown(false);
             setArrivedVersion(next.installedVersion || updatingTarget.replace(/^v/i, ''));
+            try {
+              sessionStorage.removeItem('xp_latest_update_tag');
+            } catch {
+              // ignore storage errors
+            }
+            window.dispatchEvent(new CustomEvent('xp-updates-state', { detail: null }));
             window.dispatchEvent(new Event('xp-updates-changed'));
             setTimeout(() => window.location.reload(), 950);
           }
