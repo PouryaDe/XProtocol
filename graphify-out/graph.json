@@ -134,19 +134,6 @@
       "source_location": "L194"
     },
     {
-      "id": "server_src_generators_configs_peerentry",
-      "label": "PeerEntry",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "routingRoutes.ts",
-      "file_type": "code",
-      "norm_label": "peerentry",
-      "source_file": "server/src/generators/configs.ts",
-      "source_location": "L20"
-    },
-    {
       "id": "server_src_generators_configs_routingrule",
       "label": "RoutingRule",
       "_callable": true,
@@ -158,6 +145,32 @@
       "norm_label": "routingrule",
       "source_file": "server/src/generators/configs.ts",
       "source_location": "L179"
+    },
+    {
+      "id": "web_src_i18n_context_uicontextvalue",
+      "label": "UiContextValue",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "en.ts",
+      "file_type": "code",
+      "norm_label": "uicontextvalue",
+      "source_file": "web/src/i18n/context.tsx",
+      "source_location": "L20"
+    },
+    {
+      "id": "web_src_i18n_en_translationdict",
+      "label": "TranslationDict",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "en.ts",
+      "file_type": "code",
+      "norm_label": "translationdict",
+      "source_file": "web/src/i18n/en.ts",
+      "source_location": "L222"
     },
     {
       "id": "web_src_components_drawer_drawerprops",
@@ -288,32 +301,6 @@
       "norm_label": "thememode",
       "source_file": "web/src/i18n/context.tsx",
       "source_location": "L6"
-    },
-    {
-      "id": "web_src_i18n_context_uicontextvalue",
-      "label": "UiContextValue",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "App.tsx",
-      "file_type": "code",
-      "norm_label": "uicontextvalue",
-      "source_file": "web/src/i18n/context.tsx",
-      "source_location": "L20"
-    },
-    {
-      "id": "web_src_i18n_en_translationdict",
-      "label": "TranslationDict",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "App.tsx",
-      "file_type": "code",
-      "norm_label": "translationdict",
-      "source_file": "web/src/i18n/en.ts",
-      "source_location": "L222"
     },
     {
       "id": "web_src_lib_api_apierror",
@@ -495,7 +482,7 @@
       "file_type": "code",
       "norm_label": "groupitem",
       "source_file": "web/src/pages/GroupsPage.tsx",
-      "source_location": "L8"
+      "source_location": "L9"
     },
     {
       "id": "web_src_pages_groupspage_inboundoption",
@@ -508,7 +495,7 @@
       "file_type": "code",
       "norm_label": "inboundoption",
       "source_file": "web/src/pages/GroupsPage.tsx",
-      "source_location": "L18"
+      "source_location": "L21"
     },
     {
       "id": "web_src_pages_inbounddetailpage_inbounddetailitem",
@@ -888,32 +875,6 @@
       "source_location": "L59"
     },
     {
-      "id": "server_src_routes_context_authcontext",
-      "label": "AuthContext",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "authcontext",
-      "source_file": "server/src/routes/context.ts",
-      "source_location": "L11"
-    },
-    {
-      "id": "server_src_security_rbac_accountrecord",
-      "label": "AccountRecord",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "accountrecord",
-      "source_file": "server/src/security/rbac.ts",
-      "source_location": "L42"
-    },
-    {
       "id": "server_src_security_rbac_rolelimits",
       "label": "RoleLimits",
       "_callable": true,
@@ -977,32 +938,6 @@
       "norm_label": "scopegranted",
       "source_file": "server/src/security/rbac.ts",
       "source_location": "L2"
-    },
-    {
-      "id": "server_src_generators_configs_inboundrow",
-      "label": "InboundRow",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 18,
-      "community_name": "clientRoutes.ts",
-      "file_type": "code",
-      "norm_label": "inboundrow",
-      "source_file": "server/src/generators/configs.ts",
-      "source_location": "L1"
-    },
-    {
-      "id": "server_src_generators_profiles_clientprofileparams",
-      "label": "ClientProfileParams",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 18,
-      "community_name": "clientRoutes.ts",
-      "file_type": "code",
-      "norm_label": "clientprofileparams",
-      "source_file": "server/src/generators/profiles.ts",
-      "source_location": "L3"
     },
     {
       "id": "server_src_services_updater_persistedupdatemeta",
@@ -1161,6 +1096,45 @@
       "source_location": "L7"
     },
     {
+      "id": "server_src_generators_configs_inboundrow",
+      "label": "InboundRow",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 21,
+      "community_name": "linuxEngine.ts",
+      "file_type": "code",
+      "norm_label": "inboundrow",
+      "source_file": "server/src/generators/configs.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "server_src_generators_configs_peerentry",
+      "label": "PeerEntry",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 21,
+      "community_name": "linuxEngine.ts",
+      "file_type": "code",
+      "norm_label": "peerentry",
+      "source_file": "server/src/generators/configs.ts",
+      "source_location": "L20"
+    },
+    {
+      "id": "server_src_generators_profiles_clientprofileparams",
+      "label": "ClientProfileParams",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 21,
+      "community_name": "linuxEngine.ts",
+      "file_type": "code",
+      "norm_label": "clientprofileparams",
+      "source_file": "server/src/generators/profiles.ts",
+      "source_location": "L3"
+    },
+    {
       "id": "web_src_components_donutchart_segment",
       "label": "Segment",
       "_callable": true,
@@ -1172,6 +1146,32 @@
       "norm_label": "segment",
       "source_file": "web/src/components/DonutChart.tsx",
       "source_location": "L1"
+    },
+    {
+      "id": "server_src_routes_context_authcontext",
+      "label": "AuthContext",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "context.ts",
+      "file_type": "code",
+      "norm_label": "authcontext",
+      "source_file": "server/src/routes/context.ts",
+      "source_location": "L11"
+    },
+    {
+      "id": "server_src_security_rbac_accountrecord",
+      "label": "AccountRecord",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "context.ts",
+      "file_type": "code",
+      "norm_label": "accountrecord",
+      "source_file": "server/src/security/rbac.ts",
+      "source_location": "L42"
     },
     {
       "id": "web_src_components_modal_modal",
@@ -1642,6 +1642,30 @@
       "source_location": "L4"
     },
     {
+      "id": "web_src_components_trafficchart_nicescale",
+      "label": "niceScale()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 13,
+      "community_name": "App.tsx",
+      "file_type": "code",
+      "norm_label": "nicescale()",
+      "source_file": "web/src/components/TrafficChart.tsx",
+      "source_location": "L11"
+    },
+    {
+      "id": "web_src_components_trafficchart_trafficchart",
+      "label": "TrafficChart()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 13,
+      "community_name": "App.tsx",
+      "file_type": "code",
+      "norm_label": "trafficchart()",
+      "source_file": "web/src/components/TrafficChart.tsx",
+      "source_location": "L19"
+    },
+    {
       "id": "web_src_components_uiprimitives_ambient",
       "label": "Ambient()",
       "_callable": true,
@@ -1870,6 +1894,30 @@
       "source_location": "L5"
     },
     {
+      "id": "web_src_lib_format_formatbytes",
+      "label": "formatBytes()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 13,
+      "community_name": "App.tsx",
+      "file_type": "code",
+      "norm_label": "formatbytes()",
+      "source_file": "web/src/lib/format.ts",
+      "source_location": "L17"
+    },
+    {
+      "id": "web_src_lib_format_formatbytesparts",
+      "label": "formatBytesParts()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 13,
+      "community_name": "App.tsx",
+      "file_type": "code",
+      "norm_label": "formatbytesparts()",
+      "source_file": "web/src/lib/format.ts",
+      "source_location": "L1"
+    },
+    {
       "id": "web_src_lib_format_formatdatetime",
       "label": "formatDateTime()",
       "_callable": true,
@@ -2086,6 +2134,30 @@
       "source_location": "L41"
     },
     {
+      "id": "web_src_pages_groupspage_formatspeedsummary",
+      "label": "formatSpeedSummary()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 13,
+      "community_name": "App.tsx",
+      "file_type": "code",
+      "norm_label": "formatspeedsummary()",
+      "source_file": "web/src/pages/GroupsPage.tsx",
+      "source_location": "L35"
+    },
+    {
+      "id": "web_src_pages_groupspage_formattransportlabel",
+      "label": "formatTransportLabel()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 13,
+      "community_name": "App.tsx",
+      "file_type": "code",
+      "norm_label": "formattransportlabel()",
+      "source_file": "web/src/pages/GroupsPage.tsx",
+      "source_location": "L29"
+    },
+    {
       "id": "web_src_pages_groupspage_groupspage",
       "label": "GroupsPage()",
       "_callable": true,
@@ -2095,7 +2167,7 @@
       "file_type": "code",
       "norm_label": "groupspage()",
       "source_file": "web/src/pages/GroupsPage.tsx",
-      "source_location": "L25"
+      "source_location": "L42"
     },
     {
       "id": "web_src_pages_inbounddetailpage_inbounddetailpage",
@@ -2194,28 +2266,40 @@
       "source_location": "L53"
     },
     {
-      "id": "web_src_components_trafficchart_nicescale",
-      "label": "niceScale()",
+      "id": "server_src_drivers_linuxengine_issueletsencryptcert",
+      "label": "issueLetsEncryptCert()",
       "_callable": true,
       "_origin": "ast",
-      "community": 16,
-      "community_name": "SubscriptionPage.tsx",
+      "community": 14,
+      "community_name": "express",
       "file_type": "code",
-      "norm_label": "nicescale()",
-      "source_file": "web/src/components/TrafficChart.tsx",
-      "source_location": "L11"
+      "norm_label": "issueletsencryptcert()",
+      "source_file": "server/src/drivers/linuxEngine.ts",
+      "source_location": "L263"
     },
     {
-      "id": "web_src_components_trafficchart_trafficchart",
-      "label": "TrafficChart()",
+      "id": "server_src_routes_certroutes_createcertrouter",
+      "label": "createCertRouter()",
       "_callable": true,
       "_origin": "ast",
-      "community": 16,
-      "community_name": "SubscriptionPage.tsx",
+      "community": 14,
+      "community_name": "express",
       "file_type": "code",
-      "norm_label": "trafficchart()",
-      "source_file": "web/src/components/TrafficChart.tsx",
-      "source_location": "L19"
+      "norm_label": "createcertrouter()",
+      "source_file": "server/src/routes/certRoutes.ts",
+      "source_location": "L6"
+    },
+    {
+      "id": "server_src_routes_context_requireowner",
+      "label": "requireOwner()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "express",
+      "file_type": "code",
+      "norm_label": "requireowner()",
+      "source_file": "server/src/routes/context.ts",
+      "source_location": "L164"
     },
     {
       "id": "web_src_components_uiprimitives_brandmark",
@@ -2240,30 +2324,6 @@
       "norm_label": "odometer()",
       "source_file": "web/src/components/UiPrimitives.tsx",
       "source_location": "L128"
-    },
-    {
-      "id": "web_src_lib_format_formatbytes",
-      "label": "formatBytes()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 16,
-      "community_name": "SubscriptionPage.tsx",
-      "file_type": "code",
-      "norm_label": "formatbytes()",
-      "source_file": "web/src/lib/format.ts",
-      "source_location": "L17"
-    },
-    {
-      "id": "web_src_lib_format_formatbytesparts",
-      "label": "formatBytesParts()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 16,
-      "community_name": "SubscriptionPage.tsx",
-      "file_type": "code",
-      "norm_label": "formatbytesparts()",
-      "source_file": "web/src/lib/format.ts",
-      "source_location": "L1"
     },
     {
       "id": "web_src_lib_subtheme_applysubtheme",
@@ -2770,64 +2830,28 @@
       "source_location": "L161"
     },
     {
-      "id": "server_src_routes_authroutes_createauthrouter",
-      "label": "createAuthRouter()",
+      "id": "server_src_db_database_setsetting",
+      "label": "setSetting()",
       "_callable": true,
       "_origin": "ast",
       "community": 17,
       "community_name": "database.ts",
       "file_type": "code",
-      "norm_label": "createauthrouter()",
-      "source_file": "server/src/routes/authRoutes.ts",
-      "source_location": "L14"
+      "norm_label": "setsetting()",
+      "source_file": "server/src/db/database.ts",
+      "source_location": "L154"
     },
     {
-      "id": "server_src_routes_context_extractclientip",
-      "label": "extractClientIp()",
+      "id": "server_src_routes_accountroutes_createaccountrouter",
+      "label": "createAccountRouter()",
       "_callable": true,
       "_origin": "ast",
       "community": 17,
       "community_name": "database.ts",
       "file_type": "code",
-      "norm_label": "extractclientip()",
-      "source_file": "server/src/routes/context.ts",
-      "source_location": "L24"
-    },
-    {
-      "id": "server_src_routes_context_loadaccountbyid",
-      "label": "loadAccountById()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "loadaccountbyid()",
-      "source_file": "server/src/routes/context.ts",
-      "source_location": "L34"
-    },
-    {
-      "id": "server_src_routes_context_parsecookies",
-      "label": "parseCookies()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "parsecookies()",
-      "source_file": "server/src/routes/context.ts",
-      "source_location": "L69"
-    },
-    {
-      "id": "server_src_routes_context_requireauth",
-      "label": "requireAuth()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "requireauth()",
-      "source_file": "server/src/routes/context.ts",
-      "source_location": "L82"
+      "norm_label": "createaccountrouter()",
+      "source_file": "server/src/routes/accountRoutes.ts",
+      "source_location": "L11"
     },
     {
       "id": "server_src_security_auth_generatewireguardkeypair",
@@ -2866,102 +2890,6 @@
       "source_location": "L19"
     },
     {
-      "id": "server_src_security_auth_sha256hex",
-      "label": "sha256Hex()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "sha256hex()",
-      "source_file": "server/src/security/auth.ts",
-      "source_location": "L23"
-    },
-    {
-      "id": "server_src_security_auth_verifypassword",
-      "label": "verifyPassword()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "verifypassword()",
-      "source_file": "server/src/security/auth.ts",
-      "source_location": "L9"
-    },
-    {
-      "id": "server_src_security_totp_buildtotpuri",
-      "label": "buildTotpUri()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "buildtotpuri()",
-      "source_file": "server/src/security/totp.ts",
-      "source_location": "L68"
-    },
-    {
-      "id": "server_src_security_totp_computetotp",
-      "label": "computeTotp()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "computetotp()",
-      "source_file": "server/src/security/totp.ts",
-      "source_location": "L42"
-    },
-    {
-      "id": "server_src_security_totp_decodebase32",
-      "label": "decodeBase32()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "decodebase32()",
-      "source_file": "server/src/security/totp.ts",
-      "source_location": "L24"
-    },
-    {
-      "id": "server_src_security_totp_generaterecoverycodes",
-      "label": "generateRecoveryCodes()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "generaterecoverycodes()",
-      "source_file": "server/src/security/totp.ts",
-      "source_location": "L73"
-    },
-    {
-      "id": "server_src_security_totp_generatetotpsecret",
-      "label": "generateTotpSecret()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "generatetotpsecret()",
-      "source_file": "server/src/security/totp.ts",
-      "source_location": "L5"
-    },
-    {
-      "id": "server_src_security_totp_verifytotp",
-      "label": "verifyTotp()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "verifytotp()",
-      "source_file": "server/src/security/totp.ts",
-      "source_location": "L57"
-    },
-    {
       "id": "server_src_db_database_getsetting",
       "label": "getSetting()",
       "_callable": true,
@@ -2972,6 +2900,18 @@
       "norm_label": "getsetting()",
       "source_file": "server/src/db/database.ts",
       "source_location": "L143"
+    },
+    {
+      "id": "server_src_drivers_runtime_detectdrivermode",
+      "label": "detectDriverMode()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 18,
+      "community_name": "clientRoutes.ts",
+      "file_type": "code",
+      "norm_label": "detectdrivermode()",
+      "source_file": "server/src/drivers/runtime.ts",
+      "source_location": "L21"
     },
     {
       "id": "server_src_drivers_runtime_gethoststats",
@@ -3008,6 +2948,18 @@
       "norm_label": "generateclientprofile()",
       "source_file": "server/src/generators/profiles.ts",
       "source_location": "L21"
+    },
+    {
+      "id": "server_src_index_createapp",
+      "label": "createApp()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 18,
+      "community_name": "clientRoutes.ts",
+      "file_type": "code",
+      "norm_label": "createapp()",
+      "source_file": "server/src/index.ts",
+      "source_location": "L42"
     },
     {
       "id": "server_src_routes_clientroutes_createclientrouter",
@@ -3104,18 +3056,6 @@
       "norm_label": "geteffectivelimits()",
       "source_file": "server/src/security/rbac.ts",
       "source_location": "L88"
-    },
-    {
-      "id": "server_src_db_database_setsetting",
-      "label": "setSetting()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "updater.ts",
-      "file_type": "code",
-      "norm_label": "setsetting()",
-      "source_file": "server/src/db/database.ts",
-      "source_location": "L154"
     },
     {
       "id": "server_src_routes_updateroutes_createupdaterouter",
@@ -3442,78 +3382,6 @@
       "source_location": "L14"
     },
     {
-      "id": "server_src_drivers_linuxengine_issueletsencryptcert",
-      "label": "issueLetsEncryptCert()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "getDb",
-      "file_type": "code",
-      "norm_label": "issueletsencryptcert()",
-      "source_file": "server/src/drivers/linuxEngine.ts",
-      "source_location": "L263"
-    },
-    {
-      "id": "server_src_drivers_runtime_applyinboundruntime",
-      "label": "applyInboundRuntime()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "getDb",
-      "file_type": "code",
-      "norm_label": "applyinboundruntime()",
-      "source_file": "server/src/drivers/runtime.ts",
-      "source_location": "L68"
-    },
-    {
-      "id": "server_src_generators_configs_renderinboundserverconfig",
-      "label": "renderInboundServerConfig()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "getDb",
-      "file_type": "code",
-      "norm_label": "renderinboundserverconfig()",
-      "source_file": "server/src/generators/configs.ts",
-      "source_location": "L27"
-    },
-    {
-      "id": "server_src_index_createapp",
-      "label": "createApp()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "getDb",
-      "file_type": "code",
-      "norm_label": "createapp()",
-      "source_file": "server/src/index.ts",
-      "source_location": "L42"
-    },
-    {
-      "id": "server_src_routes_accountroutes_createaccountrouter",
-      "label": "createAccountRouter()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "getDb",
-      "file_type": "code",
-      "norm_label": "createaccountrouter()",
-      "source_file": "server/src/routes/accountRoutes.ts",
-      "source_location": "L11"
-    },
-    {
-      "id": "server_src_routes_certroutes_createcertrouter",
-      "label": "createCertRouter()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "getDb",
-      "file_type": "code",
-      "norm_label": "createcertrouter()",
-      "source_file": "server/src/routes/certRoutes.ts",
-      "source_location": "L6"
-    },
-    {
       "id": "server_src_routes_connectionroutes_createconnectionrouter",
       "label": "createConnectionRouter()",
       "_callable": true,
@@ -3526,18 +3394,6 @@
       "source_location": "L6"
     },
     {
-      "id": "server_src_routes_context_requireowner",
-      "label": "requireOwner()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "getDb",
-      "file_type": "code",
-      "norm_label": "requireowner()",
-      "source_file": "server/src/routes/context.ts",
-      "source_location": "L164"
-    },
-    {
       "id": "server_src_routes_grouproutes_creategrouprouter",
       "label": "createGroupRouter()",
       "_callable": true,
@@ -3547,31 +3403,31 @@
       "file_type": "code",
       "norm_label": "creategrouprouter()",
       "source_file": "server/src/routes/groupRoutes.ts",
+      "source_location": "L27"
+    },
+    {
+      "id": "server_src_routes_grouproutes_ensuregroupspeedcolumns",
+      "label": "ensureGroupSpeedColumns()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 20,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "ensuregroupspeedcolumns()",
+      "source_file": "server/src/routes/groupRoutes.ts",
       "source_location": "L6"
     },
     {
-      "id": "server_src_routes_inboundroutes_createinboundrouter",
-      "label": "createInboundRouter()",
+      "id": "server_src_routes_grouproutes_parseoptionalmbps",
+      "label": "parseOptionalMbps()",
       "_callable": true,
       "_origin": "ast",
       "community": 20,
       "community_name": "getDb",
       "file_type": "code",
-      "norm_label": "createinboundrouter()",
-      "source_file": "server/src/routes/inboundRoutes.ts",
-      "source_location": "L23"
-    },
-    {
-      "id": "server_src_routes_inboundroutes_getinboundpeers",
-      "label": "getInboundPeers()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "getDb",
-      "file_type": "code",
-      "norm_label": "getinboundpeers()",
-      "source_file": "server/src/routes/inboundRoutes.ts",
-      "source_location": "L9"
+      "norm_label": "parseoptionalmbps()",
+      "source_file": "server/src/routes/groupRoutes.ts",
+      "source_location": "L21"
     },
     {
       "id": "server_src_services_audit_recordaudit",
@@ -3682,16 +3538,16 @@
       "source_location": "L95"
     },
     {
-      "id": "server_src_drivers_runtime_detectdrivermode",
-      "label": "detectDriverMode()",
+      "id": "server_src_drivers_runtime_applyinboundruntime",
+      "label": "applyInboundRuntime()",
       "_callable": true,
       "_origin": "ast",
       "community": 21,
       "community_name": "linuxEngine.ts",
       "file_type": "code",
-      "norm_label": "detectdrivermode()",
+      "norm_label": "applyinboundruntime()",
       "source_file": "server/src/drivers/runtime.ts",
-      "source_location": "L21"
+      "source_location": "L68"
     },
     {
       "id": "server_src_drivers_runtime_testtcplatency",
@@ -3704,6 +3560,42 @@
       "norm_label": "testtcplatency()",
       "source_file": "server/src/drivers/runtime.ts",
       "source_location": "L77"
+    },
+    {
+      "id": "server_src_generators_configs_renderinboundserverconfig",
+      "label": "renderInboundServerConfig()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 21,
+      "community_name": "linuxEngine.ts",
+      "file_type": "code",
+      "norm_label": "renderinboundserverconfig()",
+      "source_file": "server/src/generators/configs.ts",
+      "source_location": "L27"
+    },
+    {
+      "id": "server_src_routes_inboundroutes_createinboundrouter",
+      "label": "createInboundRouter()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 21,
+      "community_name": "linuxEngine.ts",
+      "file_type": "code",
+      "norm_label": "createinboundrouter()",
+      "source_file": "server/src/routes/inboundRoutes.ts",
+      "source_location": "L23"
+    },
+    {
+      "id": "server_src_routes_inboundroutes_getinboundpeers",
+      "label": "getInboundPeers()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 21,
+      "community_name": "linuxEngine.ts",
+      "file_type": "code",
+      "norm_label": "getinboundpeers()",
+      "source_file": "server/src/routes/inboundRoutes.ts",
+      "source_location": "L9"
     },
     {
       "id": "server_src_routes_noderoutes_createnoderouter",
@@ -3764,6 +3656,162 @@
       "norm_label": "donutchart()",
       "source_file": "web/src/components/DonutChart.tsx",
       "source_location": "L7"
+    },
+    {
+      "id": "server_src_routes_authroutes_createauthrouter",
+      "label": "createAuthRouter()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "context.ts",
+      "file_type": "code",
+      "norm_label": "createauthrouter()",
+      "source_file": "server/src/routes/authRoutes.ts",
+      "source_location": "L14"
+    },
+    {
+      "id": "server_src_routes_context_extractclientip",
+      "label": "extractClientIp()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "context.ts",
+      "file_type": "code",
+      "norm_label": "extractclientip()",
+      "source_file": "server/src/routes/context.ts",
+      "source_location": "L24"
+    },
+    {
+      "id": "server_src_routes_context_loadaccountbyid",
+      "label": "loadAccountById()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "context.ts",
+      "file_type": "code",
+      "norm_label": "loadaccountbyid()",
+      "source_file": "server/src/routes/context.ts",
+      "source_location": "L34"
+    },
+    {
+      "id": "server_src_routes_context_parsecookies",
+      "label": "parseCookies()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "context.ts",
+      "file_type": "code",
+      "norm_label": "parsecookies()",
+      "source_file": "server/src/routes/context.ts",
+      "source_location": "L69"
+    },
+    {
+      "id": "server_src_routes_context_requireauth",
+      "label": "requireAuth()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "context.ts",
+      "file_type": "code",
+      "norm_label": "requireauth()",
+      "source_file": "server/src/routes/context.ts",
+      "source_location": "L82"
+    },
+    {
+      "id": "server_src_security_auth_sha256hex",
+      "label": "sha256Hex()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "context.ts",
+      "file_type": "code",
+      "norm_label": "sha256hex()",
+      "source_file": "server/src/security/auth.ts",
+      "source_location": "L23"
+    },
+    {
+      "id": "server_src_security_auth_verifypassword",
+      "label": "verifyPassword()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "context.ts",
+      "file_type": "code",
+      "norm_label": "verifypassword()",
+      "source_file": "server/src/security/auth.ts",
+      "source_location": "L9"
+    },
+    {
+      "id": "server_src_security_totp_buildtotpuri",
+      "label": "buildTotpUri()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "context.ts",
+      "file_type": "code",
+      "norm_label": "buildtotpuri()",
+      "source_file": "server/src/security/totp.ts",
+      "source_location": "L68"
+    },
+    {
+      "id": "server_src_security_totp_computetotp",
+      "label": "computeTotp()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "context.ts",
+      "file_type": "code",
+      "norm_label": "computetotp()",
+      "source_file": "server/src/security/totp.ts",
+      "source_location": "L42"
+    },
+    {
+      "id": "server_src_security_totp_decodebase32",
+      "label": "decodeBase32()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "context.ts",
+      "file_type": "code",
+      "norm_label": "decodebase32()",
+      "source_file": "server/src/security/totp.ts",
+      "source_location": "L24"
+    },
+    {
+      "id": "server_src_security_totp_generaterecoverycodes",
+      "label": "generateRecoveryCodes()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "context.ts",
+      "file_type": "code",
+      "norm_label": "generaterecoverycodes()",
+      "source_file": "server/src/security/totp.ts",
+      "source_location": "L73"
+    },
+    {
+      "id": "server_src_security_totp_generatetotpsecret",
+      "label": "generateTotpSecret()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "context.ts",
+      "file_type": "code",
+      "norm_label": "generatetotpsecret()",
+      "source_file": "server/src/security/totp.ts",
+      "source_location": "L5"
+    },
+    {
+      "id": "server_src_security_totp_verifytotp",
+      "label": "verifyTotp()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "context.ts",
+      "file_type": "code",
+      "norm_label": "verifytotp()",
+      "source_file": "server/src/security/totp.ts",
+      "source_location": "L57"
     },
     {
       "id": "web_src_components_routingmodals",
@@ -3843,17 +3891,6 @@
       "source_location": "L1"
     },
     {
-      "id": "server_src_generators_configs",
-      "label": "configs.ts",
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "routingRoutes.ts",
-      "file_type": "code",
-      "norm_label": "configs.ts",
-      "source_file": "server/src/generators/configs.ts",
-      "source_location": "L1"
-    },
-    {
       "id": "server_src_routes_routingroutes",
       "label": "routingRoutes.ts",
       "_origin": "ast",
@@ -3929,6 +3966,50 @@
       "norm_label": "secret_keys",
       "source_file": "server/src/routes/routingRoutes.ts",
       "source_location": "L16"
+    },
+    {
+      "id": "web_src_i18n_en",
+      "label": "en.ts",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "en.ts",
+      "file_type": "code",
+      "norm_label": "en.ts",
+      "source_file": "web/src/i18n/en.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "web_src_i18n_en_en",
+      "label": "en",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "en.ts",
+      "file_type": "code",
+      "norm_label": "en",
+      "source_file": "web/src/i18n/en.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "web_src_i18n_fa",
+      "label": "fa.ts",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "en.ts",
+      "file_type": "code",
+      "norm_label": "fa.ts",
+      "source_file": "web/src/i18n/fa.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "web_src_i18n_fa_fa",
+      "label": "fa",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "en.ts",
+      "file_type": "code",
+      "norm_label": "fa",
+      "source_file": "web/src/i18n/fa.ts",
+      "source_location": "L3"
     },
     {
       "id": "deploy_install",
@@ -4267,6 +4348,17 @@
       "source_location": "L1"
     },
     {
+      "id": "web_src_components_trafficchart",
+      "label": "TrafficChart.tsx",
+      "_origin": "ast",
+      "community": 13,
+      "community_name": "App.tsx",
+      "file_type": "code",
+      "norm_label": "trafficchart.tsx",
+      "source_file": "web/src/components/TrafficChart.tsx",
+      "source_location": "L1"
+    },
+    {
       "id": "web_src_components_uiprimitives",
       "label": "UiPrimitives.tsx",
       "_origin": "ast",
@@ -4320,50 +4412,6 @@
       "norm_label": "uicontext",
       "source_file": "web/src/i18n/context.tsx",
       "source_location": "L36"
-    },
-    {
-      "id": "web_src_i18n_en",
-      "label": "en.ts",
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "App.tsx",
-      "file_type": "code",
-      "norm_label": "en.ts",
-      "source_file": "web/src/i18n/en.ts",
-      "source_location": "L1"
-    },
-    {
-      "id": "web_src_i18n_en_en",
-      "label": "en",
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "App.tsx",
-      "file_type": "code",
-      "norm_label": "en",
-      "source_file": "web/src/i18n/en.ts",
-      "source_location": "L1"
-    },
-    {
-      "id": "web_src_i18n_fa",
-      "label": "fa.ts",
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "App.tsx",
-      "file_type": "code",
-      "norm_label": "fa.ts",
-      "source_file": "web/src/i18n/fa.ts",
-      "source_location": "L1"
-    },
-    {
-      "id": "web_src_i18n_fa_fa",
-      "label": "fa",
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "App.tsx",
-      "file_type": "code",
-      "norm_label": "fa",
-      "source_file": "web/src/i18n/fa.ts",
-      "source_location": "L3"
     },
     {
       "id": "web_src_lib_api",
@@ -4619,15 +4667,26 @@
       "source_location": "L15"
     },
     {
-      "id": "web_src_components_trafficchart",
-      "label": "TrafficChart.tsx",
+      "id": "server_src_routes_certroutes",
+      "label": "certRoutes.ts",
       "_origin": "ast",
-      "community": 16,
-      "community_name": "SubscriptionPage.tsx",
+      "community": 14,
+      "community_name": "express",
       "file_type": "code",
-      "norm_label": "trafficchart.tsx",
-      "source_file": "web/src/components/TrafficChart.tsx",
+      "norm_label": "certroutes.ts",
+      "source_file": "server/src/routes/certRoutes.ts",
       "source_location": "L1"
+    },
+    {
+      "id": "ref_express",
+      "label": "express",
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "express",
+      "file_type": "concept",
+      "norm_label": "express",
+      "source_file": "server/package.json",
+      "source_location": "L14"
     },
     {
       "id": "web_src_lib_subtheme",
@@ -4751,6 +4810,17 @@
       "source_location": "L1"
     },
     {
+      "id": "server_src_db_database_default_sub_settings",
+      "label": "DEFAULT_SUB_SETTINGS",
+      "_origin": "ast",
+      "community": 17,
+      "community_name": "database.ts",
+      "file_type": "code",
+      "norm_label": "default_sub_settings",
+      "source_file": "server/src/db/database.ts",
+      "source_location": "L84"
+    },
+    {
       "id": "server_src_routes_accountroutes",
       "label": "accountRoutes.ts",
       "_origin": "ast",
@@ -4759,28 +4829,6 @@
       "file_type": "code",
       "norm_label": "accountroutes.ts",
       "source_file": "server/src/routes/accountRoutes.ts",
-      "source_location": "L1"
-    },
-    {
-      "id": "server_src_routes_authroutes",
-      "label": "authRoutes.ts",
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "authroutes.ts",
-      "source_file": "server/src/routes/authRoutes.ts",
-      "source_location": "L1"
-    },
-    {
-      "id": "server_src_routes_context",
-      "label": "context.ts",
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "context.ts",
-      "source_file": "server/src/routes/context.ts",
       "source_location": "L1"
     },
     {
@@ -4837,17 +4885,6 @@
       "norm_label": "reseller_permissions",
       "source_file": "server/src/security/rbac.ts",
       "source_location": "L80"
-    },
-    {
-      "id": "server_src_security_totp",
-      "label": "totp.ts",
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "totp.ts",
-      "source_file": "server/src/security/totp.ts",
-      "source_location": "L1"
     },
     {
       "id": "server_src_db_database_default_general_settings",
@@ -5026,17 +5063,6 @@
       "source_location": "L18"
     },
     {
-      "id": "server_src_db_database_default_sub_settings",
-      "label": "DEFAULT_SUB_SETTINGS",
-      "_origin": "ast",
-      "community": 2,
-      "community_name": "index.ts",
-      "file_type": "code",
-      "norm_label": "default_sub_settings",
-      "source_file": "server/src/db/database.ts",
-      "source_location": "L84"
-    },
-    {
       "id": "server_src_index",
       "label": "index.ts",
       "_origin": "ast",
@@ -5114,17 +5140,6 @@
       "source_location": "L8"
     },
     {
-      "id": "server_src_routes_certroutes",
-      "label": "certRoutes.ts",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "getDb",
-      "file_type": "code",
-      "norm_label": "certroutes.ts",
-      "source_file": "server/src/routes/certRoutes.ts",
-      "source_location": "L1"
-    },
-    {
       "id": "server_src_routes_connectionroutes",
       "label": "connectionRoutes.ts",
       "_origin": "ast",
@@ -5147,17 +5162,6 @@
       "source_location": "L1"
     },
     {
-      "id": "server_src_routes_inboundroutes",
-      "label": "inboundRoutes.ts",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "getDb",
-      "file_type": "code",
-      "norm_label": "inboundroutes.ts",
-      "source_file": "server/src/routes/inboundRoutes.ts",
-      "source_location": "L1"
-    },
-    {
       "id": "server_src_services_audit",
       "label": "audit.ts",
       "_origin": "ast",
@@ -5167,17 +5171,6 @@
       "norm_label": "audit.ts",
       "source_file": "server/src/services/audit.ts",
       "source_location": "L1"
-    },
-    {
-      "id": "ref_express",
-      "label": "express",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "getDb",
-      "file_type": "concept",
-      "norm_label": "express",
-      "source_file": "server/package.json",
-      "source_location": "L14"
     },
     {
       "id": "server_src_drivers_linuxengine",
@@ -5221,6 +5214,28 @@
       "file_type": "code",
       "norm_label": "runtime.ts",
       "source_file": "server/src/drivers/runtime.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "server_src_generators_configs",
+      "label": "configs.ts",
+      "_origin": "ast",
+      "community": 21,
+      "community_name": "linuxEngine.ts",
+      "file_type": "code",
+      "norm_label": "configs.ts",
+      "source_file": "server/src/generators/configs.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "server_src_routes_inboundroutes",
+      "label": "inboundRoutes.ts",
+      "_origin": "ast",
+      "community": 21,
+      "community_name": "linuxEngine.ts",
+      "file_type": "code",
+      "norm_label": "inboundroutes.ts",
+      "source_file": "server/src/routes/inboundRoutes.ts",
       "source_location": "L1"
     },
     {
@@ -6332,6 +6347,39 @@
       "source_location": "L19"
     },
     {
+      "id": "server_src_routes_authroutes",
+      "label": "authRoutes.ts",
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "context.ts",
+      "file_type": "code",
+      "norm_label": "authroutes.ts",
+      "source_file": "server/src/routes/authRoutes.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "server_src_routes_context",
+      "label": "context.ts",
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "context.ts",
+      "file_type": "code",
+      "norm_label": "context.ts",
+      "source_file": "server/src/routes/context.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "server_src_security_totp",
+      "label": "totp.ts",
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "context.ts",
+      "file_type": "code",
+      "norm_label": "totp.ts",
+      "source_file": "server/src/security/totp.ts",
+      "source_location": "L1"
+    },
+    {
       "id": "package",
       "label": "package.json",
       "_origin": "ast",
@@ -6803,6 +6851,18 @@
       "type": "external"
     },
     {
+      "id": "ref_node_os",
+      "label": "ref_node_os",
+      "_origin": "semantic",
+      "community": 2,
+      "community_name": "index.ts",
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "ref_node_os",
+      "source_file": "",
+      "type": "external"
+    },
+    {
       "id": "ref_node_path",
       "label": "ref_node_path",
       "_origin": "semantic",
@@ -6859,18 +6919,6 @@
       "external": true,
       "file_type": "concept",
       "norm_label": "ref_node_net",
-      "source_file": "",
-      "type": "external"
-    },
-    {
-      "id": "ref_node_os",
-      "label": "ref_node_os",
-      "_origin": "semantic",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "ref_node_os",
       "source_file": "",
       "type": "external"
     },
@@ -8378,14 +8426,14 @@
     },
     {
       "source": "server_src_routes_grouproutes_creategrouprouter",
-      "target": "server_src_db_database_getdb",
+      "target": "server_src_routes_grouproutes_parseoptionalmbps",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/routes/groupRoutes.ts",
-      "source_location": "L16",
+      "source_location": "L108",
       "weight": 1.0
     },
     {
@@ -8397,7 +8445,43 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/routes/groupRoutes.ts",
-      "source_location": "L90",
+      "source_location": "L123",
+      "weight": 1.0
+    },
+    {
+      "source": "server_src_routes_grouproutes_creategrouprouter",
+      "target": "server_src_routes_grouproutes_ensuregroupspeedcolumns",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "server/src/routes/groupRoutes.ts",
+      "source_location": "L31",
+      "weight": 1.0
+    },
+    {
+      "source": "server_src_routes_grouproutes_creategrouprouter",
+      "target": "server_src_db_database_getdb",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "server/src/routes/groupRoutes.ts",
+      "source_location": "L38",
+      "weight": 1.0
+    },
+    {
+      "source": "server_src_routes_grouproutes_ensuregroupspeedcolumns",
+      "target": "server_src_db_database_getdb",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "server/src/routes/groupRoutes.ts",
+      "source_location": "L7",
       "weight": 1.0
     },
     {
@@ -11582,62 +11666,14 @@
     },
     {
       "source": "web_src_pages_groupspage_groupspage",
-      "target": "web_src_components_uiprimitives_statuspill",
+      "target": "web_src_components_uiprimitives_eqloader",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "web/src/pages/GroupsPage.tsx",
-      "source_location": "L106",
-      "weight": 1.0
-    },
-    {
-      "source": "web_src_pages_groupspage_groupspage",
-      "target": "web_src_components_modal_modal",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "web/src/pages/GroupsPage.tsx",
-      "source_location": "L138",
-      "weight": 1.0
-    },
-    {
-      "source": "web_src_pages_groupspage_groupspage",
-      "target": "web_src_components_uiprimitives_input",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "web/src/pages/GroupsPage.tsx",
-      "source_location": "L140",
-      "weight": 1.0
-    },
-    {
-      "source": "web_src_pages_groupspage_groupspage",
-      "target": "web_src_i18n_context_useui",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "web/src/pages/GroupsPage.tsx",
-      "source_location": "L26",
-      "weight": 1.0
-    },
-    {
-      "source": "web_src_pages_groupspage_groupspage",
-      "target": "web_src_lib_api_apifetch",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "web/src/pages/GroupsPage.tsx",
-      "source_location": "L39",
+      "source_location": "L162",
       "weight": 1.0
     },
     {
@@ -11649,7 +11685,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "web/src/pages/GroupsPage.tsx",
-      "source_location": "L84",
+      "source_location": "L166",
       "weight": 1.0
     },
     {
@@ -11661,7 +11697,91 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "web/src/pages/GroupsPage.tsx",
-      "source_location": "L88",
+      "source_location": "L174",
+      "weight": 1.0
+    },
+    {
+      "source": "web_src_pages_groupspage_groupspage",
+      "target": "web_src_components_uiprimitives_emptysonar",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "web/src/pages/GroupsPage.tsx",
+      "source_location": "L200",
+      "weight": 1.0
+    },
+    {
+      "source": "web_src_pages_groupspage_groupspage",
+      "target": "web_src_pages_groupspage_formatspeedsummary",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "web/src/pages/GroupsPage.tsx",
+      "source_location": "L216",
+      "weight": 1.0
+    },
+    {
+      "source": "web_src_pages_groupspage_groupspage",
+      "target": "web_src_pages_groupspage_formattransportlabel",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "web/src/pages/GroupsPage.tsx",
+      "source_location": "L259",
+      "weight": 1.0
+    },
+    {
+      "source": "web_src_pages_groupspage_groupspage",
+      "target": "web_src_lib_router_navigate",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "web/src/pages/GroupsPage.tsx",
+      "source_location": "L278",
+      "weight": 1.0
+    },
+    {
+      "source": "web_src_pages_groupspage_groupspage",
+      "target": "web_src_components_modal_modal",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "web/src/pages/GroupsPage.tsx",
+      "source_location": "L318",
+      "weight": 1.0
+    },
+    {
+      "source": "web_src_pages_groupspage_groupspage",
+      "target": "web_src_i18n_context_useui",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "web/src/pages/GroupsPage.tsx",
+      "source_location": "L43",
+      "weight": 1.0
+    },
+    {
+      "source": "web_src_pages_groupspage_groupspage",
+      "target": "web_src_lib_api_apifetch",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "web/src/pages/GroupsPage.tsx",
+      "source_location": "L66",
       "weight": 1.0
     },
     {
@@ -18134,7 +18254,7 @@
     },
     {
       "source": "web_src_pages_groupspage",
-      "target": "web_src_i18n_context_useui",
+      "target": "web_src_lib_router_navigate",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -18146,7 +18266,7 @@
     },
     {
       "source": "web_src_pages_groupspage",
-      "target": "web_src_components_uiprimitives_button",
+      "target": "web_src_i18n_context_useui",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -18158,14 +18278,38 @@
     },
     {
       "source": "web_src_pages_groupspage",
-      "target": "web_src_components_uiprimitives_input",
+      "target": "web_src_components_uiprimitives_button",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "web/src/pages/GroupsPage.tsx",
-      "source_location": "L5",
+      "source_location": "L6",
+      "weight": 1.0
+    },
+    {
+      "source": "web_src_pages_groupspage",
+      "target": "web_src_components_uiprimitives_emptysonar",
+      "relation": "imports",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "web/src/pages/GroupsPage.tsx",
+      "source_location": "L6",
+      "weight": 1.0
+    },
+    {
+      "source": "web_src_pages_groupspage",
+      "target": "web_src_components_uiprimitives_eqloader",
+      "relation": "imports",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "web/src/pages/GroupsPage.tsx",
+      "source_location": "L6",
       "weight": 1.0
     },
     {
@@ -18177,19 +18321,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "web/src/pages/GroupsPage.tsx",
-      "source_location": "L5",
-      "weight": 1.0
-    },
-    {
-      "source": "web_src_pages_groupspage",
-      "target": "web_src_components_uiprimitives_statuspill",
-      "relation": "imports",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "import",
-      "source_file": "web/src/pages/GroupsPage.tsx",
-      "source_location": "L5",
+      "source_location": "L6",
       "weight": 1.0
     },
     {
@@ -18201,7 +18333,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "web/src/pages/GroupsPage.tsx",
-      "source_location": "L6",
+      "source_location": "L7",
       "weight": 1.0
     },
     {
@@ -23006,7 +23138,7 @@
     },
     {
       "source": "web_src_pages_groupspage",
-      "target": "web_src_i18n_context",
+      "target": "web_src_lib_router",
       "relation": "imports_from",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -23018,7 +23150,7 @@
     },
     {
       "source": "web_src_pages_groupspage",
-      "target": "web_src_components_uiprimitives",
+      "target": "web_src_i18n_context",
       "relation": "imports_from",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -23030,7 +23162,7 @@
     },
     {
       "source": "web_src_pages_groupspage",
-      "target": "web_src_components_modal",
+      "target": "web_src_components_uiprimitives",
       "relation": "imports_from",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -23038,6 +23170,18 @@
       "context": "import",
       "source_file": "web/src/pages/GroupsPage.tsx",
       "source_location": "L6",
+      "weight": 1.0
+    },
+    {
+      "source": "web_src_pages_groupspage",
+      "target": "web_src_components_modal",
+      "relation": "imports_from",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "web/src/pages/GroupsPage.tsx",
+      "source_location": "L7",
       "weight": 1.0
     },
     {
@@ -25054,7 +25198,29 @@
     },
     {
       "source": "server_src_routes_grouproutes",
+      "target": "server_src_routes_grouproutes_parseoptionalmbps",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "server/src/routes/groupRoutes.ts",
+      "source_location": "L21",
+      "weight": 1.0
+    },
+    {
+      "source": "server_src_routes_grouproutes",
       "target": "server_src_routes_grouproutes_creategrouprouter",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "server/src/routes/groupRoutes.ts",
+      "source_location": "L27",
+      "weight": 1.0
+    },
+    {
+      "source": "server_src_routes_grouproutes",
+      "target": "server_src_routes_grouproutes_ensuregroupspeedcolumns",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -27887,7 +28053,29 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "web/src/pages/GroupsPage.tsx",
-      "source_location": "L18",
+      "source_location": "L21",
+      "weight": 1.0
+    },
+    {
+      "source": "web_src_pages_groupspage",
+      "target": "web_src_pages_groupspage_formattransportlabel",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "web/src/pages/GroupsPage.tsx",
+      "source_location": "L29",
+      "weight": 1.0
+    },
+    {
+      "source": "web_src_pages_groupspage",
+      "target": "web_src_pages_groupspage_formatspeedsummary",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "web/src/pages/GroupsPage.tsx",
+      "source_location": "L35",
       "weight": 1.0
     },
     {
@@ -27898,7 +28086,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "web/src/pages/GroupsPage.tsx",
-      "source_location": "L25",
+      "source_location": "L42",
       "weight": 1.0
     },
     {
@@ -27909,7 +28097,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "web/src/pages/GroupsPage.tsx",
-      "source_location": "L8",
+      "source_location": "L9",
       "weight": 1.0
     },
     {
@@ -29223,5 +29411,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "24fba78db02f7200be2e52f8ab3be6b3a75a6705"
+  "built_at_commit": "376713a55b952fea6e8c425e394deaec1f14201a"
 }

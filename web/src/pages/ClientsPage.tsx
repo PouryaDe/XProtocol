@@ -23,6 +23,7 @@ import {
   Input,
   Lamps,
   PageHead,
+  Segmented,
   Select,
   Tabs,
 } from '../components/UiPrimitives';
@@ -87,6 +88,10 @@ export function ClientsPage({
   const [bulkMode, setBulkMode] = useState(false);
   const [qrClient, setQrClient] = useState<ClientItem | null>(null);
   const [extendClient, setExtendClient] = useState<ClientItem | null>(null);
+  const [bulkExtendOpen, setBulkExtendOpen] = useState(false);
+  const [bulkGroupsOpen, setBulkGroupsOpen] = useState(false);
+  const [bulkGroupOp, setBulkGroupOp] = useState<'add' | 'replace' | 'remove'>('add');
+  const [bulkGroupIds, setBulkGroupIds] = useState<number[]>([]);
   const [extDays, setExtDays] = useState('30');
   const [extGb, setExtGb] = useState('');
   const [copiedId, setCopiedId] = useState<number | null>(null);
@@ -354,17 +359,37 @@ export function ClientsPage({
 
   const submitExtend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!extendClient) return;
+    const targetIds = extendClient ? [extendClient.id] : bulkExtendOpen ? selectedIds : [];
+    if (targetIds.length === 0) return;
     await apiFetch('/clients/bulk', {
       method: 'POST',
       body: JSON.stringify({
-        ids: [extendClient.id],
+        ids: targetIds,
         action: 'extend',
         addDays: extDays ? Number(extDays) : undefined,
         addTrafficGb: extGb ? Number(extGb) : undefined,
       }),
     });
+    if (bulkExtendOpen) setSelectedIds([]);
     setExtendClient(null);
+    setBulkExtendOpen(false);
+    load();
+  };
+
+  const submitBulkGroups = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedIds.length === 0) return;
+    await apiFetch('/clients/bulk', {
+      method: 'POST',
+      body: JSON.stringify({
+        ids: selectedIds,
+        action: 'group',
+        groupOp: bulkGroupOp,
+        groupIds: bulkGroupIds,
+      }),
+    });
+    setBulkGroupsOpen(false);
+    setSelectedIds([]);
     load();
   };
 
@@ -450,10 +475,30 @@ export function ClientsPage({
           <strong className="num">
             {selectedIds.length} {lang === 'fa' ? 'انتخاب‌شده' : 'selected'}
           </strong>
-          <Button size="sm" onClick={() => bulkAction('extend')}>+30d</Button>
-          <Button size="sm" onClick={() => bulkAction('enable')}>{lang === 'fa' ? 'فعال' : 'Enable'}</Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              setExtDays('30');
+              setExtGb('');
+              setBulkExtendOpen(true);
+            }}
+          >
+            {lang === 'fa' ? 'تمدید...' : 'Extend...'}
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              setBulkGroupOp('add');
+              setBulkGroupIds([]);
+              setBulkGroupsOpen(true);
+            }}
+          >
+            {lang === 'fa' ? 'گروه‌ها' : 'Groups'}
+          </Button>
+          <Button size="sm" onClick={() => bulkAction('enable')}>{lang === 'fa' ? 'فعال‌سازی' : 'Enable'}</Button>
           <Button size="sm" onClick={() => bulkAction('disable')}>{lang === 'fa' ? 'غیرفعال' : 'Disable'}</Button>
           <Button size="sm" onClick={() => bulkAction('reset_traffic')}>{t.clients.resetTraffic}</Button>
+          <Button size="sm" onClick={() => bulkAction('disconnect')}>{lang === 'fa' ? 'قطع اتصال' : 'Disconnect'}</Button>
           <Button size="sm" variant="danger" onClick={() => bulkAction('delete')}>{t.common.delete}</Button>
         </div>
       )}
@@ -978,11 +1023,32 @@ export function ClientsPage({
 
       {/* Extend Modal */}
       <Modal
-        open={Boolean(extendClient)}
-        onClose={() => setExtendClient(null)}
-        title={extendClient ? `${lang === 'fa' ? 'تمدید' : 'Extend'} ${extendClient.name}` : ''}
+        open={Boolean(extendClient) || bulkExtendOpen}
+        onClose={() => {
+          setExtendClient(null);
+          setBulkExtendOpen(false);
+        }}
+        title={
+          extendClient
+            ? `${lang === 'fa' ? 'تمدید' : 'Extend'} ${extendClient.name}`
+            : lang === 'fa'
+              ? `تمدید ${selectedIds.length} کاربر`
+              : `Extend ${selectedIds.length} selected`
+        }
       >
         <form onSubmit={submitExtend} className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            {[7, 30, 90, 365].map((d) => (
+              <Button
+                key={d}
+                size="sm"
+                variant={extDays === String(d) ? 'primary' : 'secondary'}
+                onClick={() => setExtDays(String(d))}
+              >
+                +{d}{lang === 'fa' ? ' روز' : 'd'}
+              </Button>
+            ))}
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <Input
               label={t.clients.extendDays}
@@ -1001,11 +1067,76 @@ export function ClientsPage({
             />
           </div>
           <div className="flex justify-end gap-2">
-            <Button type="button" onClick={() => setExtendClient(null)}>
+            <Button
+              type="button"
+              onClick={() => {
+                setExtendClient(null);
+                setBulkExtendOpen(false);
+              }}
+            >
               {t.common.cancel}
             </Button>
             <Button type="submit" variant="primary">
               {lang === 'fa' ? 'تمدید' : 'Extend'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Bulk Groups Modal */}
+      <Modal
+        open={bulkGroupsOpen}
+        onClose={() => setBulkGroupsOpen(false)}
+        title={lang === 'fa' ? `مدیریت گروه‌ها (${selectedIds.length} کاربر)` : `Groups for ${selectedIds.length} selected`}
+      >
+        <form onSubmit={submitBulkGroups} className="space-y-4">
+          <div className="field">
+            <span className="label">{lang === 'fa' ? 'نوع تغییر' : 'Action'}</span>
+            <Segmented
+              value={bulkGroupOp}
+              onChange={setBulkGroupOp}
+              options={[
+                { value: 'add', label: lang === 'fa' ? 'افزودن به گروه‌ها' : 'Add to groups' },
+                { value: 'replace', label: lang === 'fa' ? 'جایگزینی گروه‌ها' : 'Set groups' },
+                { value: 'remove', label: lang === 'fa' ? 'حذف از گروه‌ها' : 'Remove from groups' },
+              ]}
+            />
+          </div>
+
+          {groups.length === 0 ? (
+            <p className="hint">{lang === 'fa' ? 'هنوز هیچ گروهی ساخته نشده است.' : 'No groups created yet.'}</p>
+          ) : (
+            <div className="space-y-2 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-3">
+              {groups.map((g) => {
+                const checked = bulkGroupIds.includes(g.id);
+                return (
+                  <label key={g.id} className="check" style={{ display: 'flex', fontSize: 'var(--t-sm)' }}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) =>
+                        setBulkGroupIds((prev) =>
+                          e.target.checked ? [...prev, g.id] : prev.filter((id) => id !== g.id),
+                        )
+                      }
+                    />
+                    <span>{g.name}</span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setBulkGroupsOpen(false)}>
+              {t.common.cancel}
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={groups.length === 0 || (bulkGroupOp !== 'replace' && bulkGroupIds.length === 0)}
+            >
+              {t.common.save}
             </Button>
           </div>
         </form>

@@ -452,13 +452,14 @@ export function createClientRouter(): Router {
 
   router.post('/bulk', (req: AuthedRequest, res) => {
     const acc = req.auth!.account;
-    const { ids, action, addDays, addTrafficGb, groupId, groupOp } = req.body as {
+    const { ids, action, addDays, addTrafficGb, groupId, groupIds, groupOp } = req.body as {
       ids?: number[];
       action?: 'enable' | 'disable' | 'reset_traffic' | 'disconnect' | 'delete' | 'extend' | 'group';
       addDays?: number;
       addTrafficGb?: number;
       groupId?: number;
-      groupOp?: 'add' | 'remove';
+      groupIds?: number[];
+      groupOp?: 'add' | 'remove' | 'replace';
     };
     if (!ids || ids.length === 0 || !action) {
       res.status(400).json({ error: 'ids and action are required' });
@@ -466,6 +467,12 @@ export function createClientRouter(): Router {
     }
 
     const db = getDb();
+    const targetGroupIds = Array.isArray(groupIds)
+      ? groupIds.map(Number).filter((x) => Number.isFinite(x) && x > 0)
+      : groupId
+        ? [Number(groupId)]
+        : [];
+
     for (const id of ids) {
       const existing = db.prepare('SELECT * FROM clients WHERE id = ?').get(id) as Record<string, unknown> | undefined;
       if (!existing) continue;
@@ -489,11 +496,20 @@ export function createClientRouter(): Router {
             id,
           );
         }
-      } else if (action === 'group' && groupId) {
-        if (groupOp === 'remove') {
-          db.prepare('DELETE FROM client_groups WHERE client_id = ? AND group_id = ?').run(id, groupId);
+      } else if (action === 'group') {
+        if (groupOp === 'replace') {
+          db.prepare('DELETE FROM client_groups WHERE client_id = ?').run(id);
+          for (const gid of targetGroupIds) {
+            db.prepare('INSERT OR IGNORE INTO client_groups (client_id, group_id) VALUES (?, ?)').run(id, gid);
+          }
+        } else if (groupOp === 'remove') {
+          for (const gid of targetGroupIds) {
+            db.prepare('DELETE FROM client_groups WHERE client_id = ? AND group_id = ?').run(id, gid);
+          }
         } else {
-          db.prepare('INSERT OR IGNORE INTO client_groups (client_id, group_id) VALUES (?, ?)').run(id, groupId);
+          for (const gid of targetGroupIds) {
+            db.prepare('INSERT OR IGNORE INTO client_groups (client_id, group_id) VALUES (?, ?)').run(id, gid);
+          }
         }
       }
     }
