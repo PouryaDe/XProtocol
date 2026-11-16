@@ -1,18 +1,86 @@
 import { getDb } from '../db/database.js';
 import { collectLinuxLiveTunnels } from '../drivers/linuxEngine.js';
 import type { InboundRow } from '../generators/configs.js';
+import { isClientActiveQuota } from './peerResolver.js';
+import { kickClientConnections, scheduleSyncRunningInbounds } from './syncService.js';
 
 let collectorTimer: NodeJS.Timeout | null = null;
 const lastTunnelBytes = new Map<string, { in: number; out: number }>();
 
+function computeNextResetIso(period: string, fromMs = Date.now()): string | null {
+  const d = new Date(fromMs);
+  if (period === 'daily') {
+    d.setUTCDate(d.getUTCDate() + 1);
+    d.setUTCHours(0, 0, 0, 0);
+    return d.toISOString();
+  }
+  if (period === 'weekly') {
+    d.setUTCDate(d.getUTCDate() + 7);
+    d.setUTCHours(0, 0, 0, 0);
+    return d.toISOString();
+  }
+  if (period === 'monthly') {
+    d.setUTCMonth(d.getUTCMonth() + 1);
+    d.setUTCHours(0, 0, 0, 0);
+    return d.toISOString();
+  }
+  return null;
+}
+
+export async function runPeriodicResets(): Promise<boolean> {
+  const db = getDb();
+  const nowMs = Date.now();
+  const rows = db
+    .prepare(
+      `SELECT id, reset_period, next_reset_at, traffic_limit_bytes, traffic_used_bytes
+       FROM clients
+       WHERE reset_period IN ('daily', 'weekly', 'monthly')`,
+    )
+    .all() as Array<{
+    id: number;
+    reset_period: string;
+    next_reset_at: string | null;
+    traffic_limit_bytes: number | null;
+    traffic_used_bytes: number;
+  }>;
+
+  let anyReactivated = false;
+  for (const r of rows) {
+    if (!r.next_reset_at) {
+      const nextIso = computeNextResetIso(r.reset_period, nowMs);
+      if (nextIso) db.prepare('UPDATE clients SET next_reset_at = ? WHERE id = ?').run(nextIso, r.id);
+      continue;
+    }
+    if (Date.parse(r.next_reset_at) <= nowMs) {
+      const wasUsedUp = r.traffic_limit_bytes !== null && r.traffic_used_bytes >= r.traffic_limit_bytes;
+      const nextIso = computeNextResetIso(r.reset_period, nowMs);
+      db.prepare(
+        'UPDATE clients SET traffic_used_bytes = 0, upload_bytes = 0, download_bytes = 0, next_reset_at = ? WHERE id = ?',
+      ).run(nextIso, r.id);
+      if (wasUsedUp) anyReactivated = true;
+    }
+  }
+  if (anyReactivated) {
+    scheduleSyncRunningInbounds();
+  }
+  return anyReactivated;
+}
+
 export async function runCollectorTick(): Promise<void> {
+  await runPeriodicResets().catch(() => false);
   if (process.platform !== 'linux') return;
 
   const db = getDb();
   const inbounds = db.prepare('SELECT * FROM inbounds WHERE running = 1').all() as unknown as InboundRow[];
   if (inbounds.length === 0) return;
 
-  const clients = db.prepare('SELECT id, name, owner_id, wg_public_key, traffic_limit_bytes, traffic_used_bytes, expires_at, first_connect_days, first_connected_at, enabled FROM clients').all() as Array<{
+  const clients = db
+    .prepare(
+      `SELECT id, name, owner_id, wg_public_key, traffic_limit_bytes, traffic_used_bytes,
+              expires_at, first_connect_days, first_connected_at, enabled, device_limit
+       FROM clients`,
+    )
+    .all() as Array<{
     id: number;
     name: string;
     owner_id: number;
@@ -23,6 +91,7 @@ export async function runCollectorTick(): Promise<void> {
     first_connect_days: number | null;
     first_connected_at: string | null;
     enabled: number;
+    device_limit: number | null;
   }>;
 
   const clientByName = new Map(clients.map((c) => [c.name, c]));
@@ -32,8 +101,9 @@ export async function runCollectorTick(): Promise<void> {
   const nodeMult = new Map(nodes.map((n) => [n.id, n.multiplier]));
 
   const live = await collectLinuxLiveTunnels(inbounds, clientNameByPub);
-  const nowIso = new Date().toISOString();
-  const hourBucket = new Date();
+  const nowMs = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
+  const hourBucket = new Date(nowMs);
   hourBucket.setMinutes(0, 0, 0);
   const hourKey = hourBucket.toISOString();
   const dayKey = nowIso.slice(0, 10);
@@ -41,12 +111,13 @@ export async function runCollectorTick(): Promise<void> {
   let tickDl = 0;
   let tickUl = 0;
 
-  // Replace live table snapshot
   db.prepare('DELETE FROM connections_live').run();
   const insertLive = db.prepare(
     `INSERT INTO connections_live (id, client_id, inbound_id, node_id, remote_ip, tunnel_ip, device, connected_at, bytes_in, bytes_out, speed_in_bps, speed_out_bps)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
+
+  const clientsToKick = new Set<number>();
 
   for (const s of live) {
     const client = clientByName.get(s.clientName);
@@ -56,21 +127,24 @@ export async function runCollectorTick(): Promise<void> {
     const mult = nodeMult.get(nodeId) ?? 1.0;
 
     const prev = lastTunnelBytes.get(s.id) || { in: s.bytesIn, out: s.bytesOut };
-    const deltaIn = Math.max(0, s.bytesIn - prev.in);
-    const deltaOut = Math.max(0, s.bytesOut - prev.out);
+    // Counter reset (tunnel restart): treat full current reading as new traffic delta
+    const deltaIn = s.bytesIn >= prev.in ? s.bytesIn - prev.in : s.bytesIn;
+    const deltaOut = s.bytesOut >= prev.out ? s.bytesOut - prev.out : s.bytesOut;
     lastTunnelBytes.set(s.id, { in: s.bytesIn, out: s.bytesOut });
 
     const weightedDelta = Math.round((deltaIn + deltaOut) * mult);
     tickDl += deltaOut;
     tickUl += deltaIn;
 
-    // Activate first_connect_days clock on first connection
     if (client.first_connect_days && !client.first_connected_at) {
-      const exp = new Date(Date.now() + client.first_connect_days * 86400_000).toISOString();
+      const exp = new Date(nowMs + client.first_connect_days * 86400_000).toISOString();
       db.prepare('UPDATE clients SET first_connected_at = ?, expires_at = ? WHERE id = ?').run(nowIso, exp, client.id);
+      client.first_connected_at = nowIso;
+      client.expires_at = exp;
     }
 
     if (weightedDelta > 0) {
+      client.traffic_used_bytes += weightedDelta;
       db.prepare(
         'UPDATE clients SET traffic_used_bytes = traffic_used_bytes + ?, download_bytes = download_bytes + ?, upload_bytes = upload_bytes + ?, last_online_at = ? WHERE id = ?',
       ).run(weightedDelta, deltaOut, deltaIn, nowIso, client.id);
@@ -83,6 +157,11 @@ export async function runCollectorTick(): Promise<void> {
         deltaIn + deltaOut,
         nodeId,
       );
+    }
+
+    if (!isClientActiveQuota(client, nowMs)) {
+      clientsToKick.add(client.id);
+      continue;
     }
 
     insertLive.run(
@@ -99,6 +178,13 @@ export async function runCollectorTick(): Promise<void> {
       Math.round(deltaIn / 5),
       Math.round(deltaOut / 5),
     );
+  }
+
+  if (clientsToKick.size > 0) {
+    for (const cid of clientsToKick) {
+      await kickClientConnections(cid, 'quota_or_expired').catch(() => 0);
+    }
+    scheduleSyncRunningInbounds();
   }
 
   if (tickDl > 0 || tickUl > 0) {

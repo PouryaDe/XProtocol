@@ -8,6 +8,7 @@ import {
 import { computeClientState } from './context.js';
 import { resolveClientInbounds } from './clientRoutes.js';
 import { generateClientProfile } from '../generators/profiles.js';
+import { ensureClientCertificate, ensureOpenVpnPki } from '../drivers/pki.js';
 
 const DEFAULT_APPS: Record<string, { android: { name: string; url: string }[]; ios: { name: string; url: string }[]; desktop: { name: string; url: string }[] }> = {
   wireguard: {
@@ -45,7 +46,7 @@ const DEFAULT_APPS: Record<string, { android: { name: string; url: string }[]; i
 export function createSubRouter(): Router {
   const router = Router();
 
-  router.get('/:token/data', (req, res) => {
+  router.get('/:token/data', async (req, res) => {
     const db = getDb();
     const client = db.prepare('SELECT * FROM clients WHERE sub_token = ?').get(req.params.token) as
       | Record<string, unknown>
@@ -75,6 +76,11 @@ export function createSubRouter(): Router {
     const subSettings = getSetting('subscription_page', DEFAULT_SUB_SETTINGS);
     const assignedInbounds = resolveClientInbounds(clientId);
 
+    if (assignedInbounds.some((ib) => ib.protocol === 'openvpn')) {
+      await ensureOpenVpnPki().catch(() => undefined);
+      await ensureClientCertificate(String(client.name)).catch(() => null);
+    }
+
     const profiles = assignedInbounds.map((ib) => {
       const connectAddrs = JSON.parse(ib.connect_addresses_json || '[]') as string[];
       const host = connectAddrs[0] || (ib.node_address !== '127.0.0.1' ? ib.node_address : general.publicAddress);
@@ -103,7 +109,10 @@ export function createSubRouter(): Router {
     const protocolTabs = subSettings.protocols
       .filter((p) => p.shown)
       .map((p) => {
-        const matchingProfiles = profiles.filter((pr) => pr.protocol === p.id);
+        const matchingProfiles = profiles.filter((pr) => {
+          const norm = pr.protocol === 'ocserv' ? 'openconnect' : pr.protocol;
+          return norm === p.id;
+        });
         return {
           ...p,
           apps: p.useRecommendedApps ? DEFAULT_APPS[p.id] || DEFAULT_APPS.wireguard : p.customApps,
@@ -146,7 +155,7 @@ export function createSubRouter(): Router {
     });
   });
 
-  router.get('/:token/profile/:inboundId', (req, res) => {
+  router.get('/:token/profile/:inboundId', async (req, res) => {
     const db = getDb();
     const client = db.prepare('SELECT * FROM clients WHERE sub_token = ?').get(req.params.token) as
       | Record<string, unknown>
@@ -161,6 +170,10 @@ export function createSubRouter(): Router {
     if (!inbound) {
       res.status(404).send('Inbound not available for this client');
       return;
+    }
+    if (inbound.protocol === 'openvpn') {
+      await ensureOpenVpnPki().catch(() => undefined);
+      await ensureClientCertificate(String(client.name)).catch(() => null);
     }
     const general = getSetting('general', DEFAULT_GENERAL_SETTINGS);
     const connectAddrs = JSON.parse(inbound.connect_addresses_json || '[]') as string[];

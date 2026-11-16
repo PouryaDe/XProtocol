@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getDb } from '../db/database.js';
 import { recordAudit } from '../services/audit.js';
+import { scheduleSyncRunningInbounds } from '../services/syncService.js';
 import type { AuthedRequest } from './context.js';
 
 function ensureGroupSpeedColumns(): void {
@@ -121,6 +122,7 @@ export function createGroupRouter(): Router {
         }
       }
       recordAudit({ accountId: acc.id, username: acc.username, action: 'group.create', target: name.trim(), ip: req.clientIp });
+      scheduleSyncRunningInbounds();
       res.status(201).json({ id: gid });
     } catch (err) {
       res.status(400).json({ error: `Could not create group: ${String(err)}` });
@@ -174,6 +176,7 @@ export function createGroupRouter(): Router {
       }
     }
     recordAudit({ accountId: acc.id, username: acc.username, action: 'group.update', target: String(existing.name), ip: req.clientIp });
+    scheduleSyncRunningInbounds();
     res.json({ ok: true });
   });
 
@@ -194,6 +197,7 @@ export function createGroupRouter(): Router {
       else if (action === 'disable') db.prepare('UPDATE groups SET enabled = 0 WHERE id = ?').run(id);
       else if (action === 'delete') db.prepare('DELETE FROM groups WHERE id = ?').run(id);
     }
+    scheduleSyncRunningInbounds();
     res.json({ ok: true });
   });
 
@@ -205,6 +209,7 @@ export function createGroupRouter(): Router {
     }
     const id = Number(req.params.id);
     getDb().prepare('DELETE FROM groups WHERE id = ?').run(id);
+    scheduleSyncRunningInbounds();
     res.json({ ok: true });
   });
 

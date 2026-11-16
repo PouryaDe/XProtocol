@@ -4,7 +4,7 @@ import path from 'node:path';
 import { Router } from 'express';
 import { getDb } from '../db/database.js';
 import { testTcpLatency } from '../drivers/runtime.js';
-import { updateXrayGeoAssets } from '../drivers/linuxEngine.js';
+import { applyXrayRouting, updateXrayGeoAssets } from '../drivers/linuxEngine.js';
 import {
   renderXrayRoutingConfig,
   type InboundRouteOverride,
@@ -726,7 +726,7 @@ export function createRoutingRouter(): Router {
     });
   });
 
-  router.put('/policies/:nodeId', (req, res) => {
+  router.put('/policies/:nodeId', async (req, res) => {
     ensureInboundRoutesColumn();
     const nodeId = Number(req.params.nodeId);
     const body = req.body as {
@@ -740,11 +740,40 @@ export function createRoutingRouter(): Router {
     };
     const db = getDb();
     const now = new Date().toISOString();
+    const outbounds = db.prepare('SELECT id, name, type, config_json FROM outbounds ORDER BY id ASC').all() as Array<{
+      id: number;
+      name: string;
+      type: string;
+      config_json: string;
+    }>;
+    const nodeInbounds = db
+      .prepare('SELECT id, name FROM inbounds WHERE node_id = ? ORDER BY id ASC')
+      .all(nodeId) as Array<{ id: number; name: string }>;
+    const inboundNamesById: Record<number, string> = {};
+    for (const ib of nodeInbounds) inboundNamesById[ib.id] = ib.name;
+    const defaultOb = outbounds.find((o) => o.id === (body.defaultOutboundId ?? null));
+    const renderedConfig = renderXrayRoutingConfig({
+      outbounds,
+      defaultAction: body.defaultAction || 'direct',
+      defaultOutboundName: defaultOb?.name,
+      rules: body.rules || [],
+      inboundRoutes: body.inboundRoutes || [],
+      inboundNamesById,
+    });
+
+    const node = db.prepare('SELECT is_local FROM nodes WHERE id = ?').get(nodeId) as { is_local: number } | undefined;
+    let statusMessage = '';
+    if (!node || node.is_local) {
+      const applied = await applyXrayRouting(Boolean(body.enabled), renderedConfig);
+      statusMessage = applied.statusMessage;
+    } else {
+      statusMessage = 'Queued for remote node';
+    }
     const status = body.enabled ? 'active' : 'inactive';
 
     db.prepare(
       `INSERT INTO routing_policies (node_id, enabled, inbound_scope, inbound_ids_json, inbound_routes_json, default_action, default_outbound_id, rules_json, status, status_message, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(node_id) DO UPDATE SET
          enabled = excluded.enabled,
          inbound_scope = excluded.inbound_scope,
@@ -754,6 +783,7 @@ export function createRoutingRouter(): Router {
          default_outbound_id = excluded.default_outbound_id,
          rules_json = excluded.rules_json,
          status = excluded.status,
+         status_message = excluded.status_message,
          updated_at = excluded.updated_at`,
     ).run(
       nodeId,
@@ -765,9 +795,10 @@ export function createRoutingRouter(): Router {
       body.defaultOutboundId ?? null,
       JSON.stringify(body.rules || []),
       status,
+      statusMessage,
       now,
     );
-    res.json({ ok: true, status });
+    res.json({ ok: true, status, statusMessage });
   });
 
   return router;

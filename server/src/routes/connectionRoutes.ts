@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getDb } from '../db/database.js';
 import { recordAudit } from '../services/audit.js';
+import { kickConnectionById } from '../services/syncService.js';
 import type { AuthedRequest } from './context.js';
 
 export function createConnectionRouter(): Router {
@@ -104,7 +105,7 @@ export function createConnectionRouter(): Router {
     });
   });
 
-  router.post('/:id/disconnect', (req: AuthedRequest, res) => {
+  router.post('/:id/disconnect', async (req: AuthedRequest, res) => {
     const acc = req.auth!.account;
     if (acc.permissions.connections.disconnect === 'none') {
       res.status(403).json({ error: 'No permission to disconnect clients' });
@@ -112,54 +113,24 @@ export function createConnectionRouter(): Router {
     }
     const id = String(req.params.id);
     const db = getDb();
-    const row = db
-      .prepare(
-        `SELECT l.*, c.name as client_name, c.owner_id, i.name as inbound_name, i.protocol, n.name as node_name
-         FROM connections_live l
-         JOIN clients c ON c.id = l.client_id
-         JOIN inbounds i ON i.id = l.inbound_id
-         JOIN nodes n ON n.id = l.node_id
-         WHERE l.id = ?`,
-      )
-      .get(id) as Record<string, unknown> | undefined;
-    if (!row) {
+    const check = db
+      .prepare('SELECT c.owner_id, c.name as client_name FROM connections_live l JOIN clients c ON c.id = l.client_id WHERE l.id = ?')
+      .get(id) as { owner_id: number; client_name: string } | undefined;
+    if (!check) {
       res.status(404).json({ error: 'Connection not found' });
       return;
     }
-    if (!acc.isOwner && acc.permissions.connections.disconnect === 'own' && Number(row.owner_id) !== acc.id) {
+    if (!acc.isOwner && acc.permissions.connections.disconnect === 'own' && Number(check.owner_id) !== acc.id) {
       res.status(403).json({ error: 'No permission' });
       return;
     }
 
-    const now = new Date().toISOString();
-    const durationSec = Math.max(1, Math.round((Date.now() - new Date(String(row.connected_at)).getTime()) / 1000));
-    db.prepare(
-      `INSERT INTO connections_history (id, client_id, client_name, inbound_id, inbound_name, protocol, node_id, node_name, remote_ip, tunnel_ip, device, connected_at, disconnected_at, duration_sec, bytes_total, reason)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(
-      `hist-${Date.now()}`,
-      Number(row.client_id),
-      String(row.client_name),
-      Number(row.inbound_id),
-      String(row.inbound_name),
-      String(row.protocol),
-      Number(row.node_id),
-      String(row.node_name),
-      String(row.remote_ip),
-      String(row.tunnel_ip),
-      String(row.device),
-      String(row.connected_at),
-      now,
-      durationSec,
-      Number(row.bytes_in) + Number(row.bytes_out),
-      'admin_kick',
-    );
-    db.prepare('DELETE FROM connections_live WHERE id = ?').run(id);
+    await kickConnectionById(id, 'admin_kick');
     recordAudit({
       accountId: acc.id,
       username: acc.username,
       action: 'connection.kick',
-      target: String(row.client_name),
+      target: check.client_name,
       ip: req.clientIp,
     });
     res.json({ ok: true });

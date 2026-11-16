@@ -114,10 +114,10 @@
     "semantic_hash": ""
   },
   "server/src/routes/inboundRoutes.ts": {
-    "mtime": 1794706976.018816,
-    "seen": 1794708422.970849,
-    "ast_hash": "47f7e03b3139d8bc5082a927f2be11b6",
-    "semantic_hash": "47f7e03b3139d8bc5082a927f2be11b6"
+    "mtime": 1794812918.2913284,
+    "seen": 1794814143.2977812,
+    "ast_hash": "b17b61d5ec8d79c57182c4a5b01d786c",
+    "semantic_hash": ""
   },
   "server/src/routes/nodeRoutes.ts": {
     "mtime": 1794710521.7842195,
@@ -198,9 +198,9 @@
     "semantic_hash": ""
   },
   "web/src/App.tsx": {
-    "mtime": 1794780104.7042565,
-    "seen": 1794780237.1323671,
-    "ast_hash": "622d8fd8aec5a998c4b280cd57751a22",
+    "mtime": 1794812783.6538908,
+    "seen": 1794814143.297795,
+    "ast_hash": "5ea3a444579b506521697c4d71d8ba24",
     "semantic_hash": ""
   },
   "web/src/components/DonutChart.tsx": {
@@ -246,9 +246,9 @@
     "semantic_hash": ""
   },
   "web/src/i18n/context.tsx": {
-    "mtime": 1794711761.6894097,
-    "seen": 1794758040.0076232,
-    "ast_hash": "c58d9440a3819c0f6dbda87c4e389565",
+    "mtime": 1794811491.0026965,
+    "seen": 1794811727.9130113,
+    "ast_hash": "0dc990645b5b2e2bd6849101203db858",
     "semantic_hash": ""
   },
   "web/src/i18n/en.ts": {
@@ -312,9 +312,9 @@
     "semantic_hash": ""
   },
   "web/src/pages/InboundsPage.tsx": {
-    "mtime": 1794798839.9308383,
-    "seen": 1794799068.9875498,
-    "ast_hash": "683e3c1b65e5934164388acb8bed9d19",
+    "mtime": 1794813864.1561272,
+    "seen": 1794814143.297818,
+    "ast_hash": "d767eca5437265cda29749862e9d70e7",
     "semantic_hash": ""
   },
   "web/src/pages/LoginPage.tsx": {
@@ -414,9 +414,9 @@
     "semantic_hash": ""
   },
   "web/src/pages/InboundDetailPage.tsx": {
-    "mtime": 1794761716.9034383,
-    "seen": 1794762419.8976846,
-    "ast_hash": "1989137bb9b38530bc5273e4c646d727",
+    "mtime": 1794814027.8844502,
+    "seen": 1794814143.297817,
+    "ast_hash": "f4fb3a82a4ccf4629b7ee3c30f6a5d1b",
     "semantic_hash": ""
   },
   "server/src/routes/updateRoutes.ts": {
@@ -453,6 +453,18 @@
     "mtime": 1794805011.8438563,
     "seen": 1794805605.39206,
     "ast_hash": "79ad548d0405ead3ccb806655bad1917",
+    "semantic_hash": ""
+  },
+  "web/src/components/InboundSubforms.tsx": {
+    "mtime": 1794813811.7000391,
+    "seen": 1794814143.2977982,
+    "ast_hash": "4383c35cac615d24cc79d2e9a984ee0f",
+    "semantic_hash": ""
+  },
+  "web/src/lib/inboundTypes.ts": {
+    "mtime": 1794813299.3983395,
+    "seen": 1794814143.2978082,
+    "ast_hash": "9f0061b069382ec826c4b9da77f62e3c",
     "semantic_hash": ""
   }
 }

@@ -213,3 +213,103 @@ test('Full panel API workflow: auth, 2FA, clients, subscription, RBAC, routing',
     server.close();
   }
 });
+
+test('VPN backend engine: peer eligibility, NAT/AmneziaWG config, OpenVPN static key, speed limits, periodic reset', async () => {
+  const { getDb } = await import('../src/db/database.js');
+  const { getEligiblePeersForInbound } = await import('../src/services/peerResolver.js');
+  const { renderInboundServerConfig, renderInboundExtraFiles } = await import('../src/generators/configs.js');
+  const { generateClientProfile } = await import('../src/generators/profiles.js');
+  const { ensureOpenVpnPki } = await import('../src/drivers/pki.js');
+  const { runPeriodicResets } = await import('../src/services/collector.js');
+
+  const db = getDb();
+  const wgRow = db.prepare("SELECT * FROM inbounds WHERE protocol = 'wireguard' LIMIT 1").get() as Record<string, unknown>;
+  assert.ok(wgRow);
+
+  // Mark one client as used_up and verify exclusion from eligible peers
+  const vip5 = db.prepare("SELECT id FROM clients WHERE name = 'vip-05'").get() as { id: number };
+  const vip6 = db.prepare("SELECT id FROM clients WHERE name = 'vip-06'").get() as { id: number };
+  db.prepare('INSERT OR IGNORE INTO client_inbounds (client_id, inbound_id) VALUES (?, ?)').run(vip5.id, wgRow.id);
+  db.prepare('INSERT OR IGNORE INTO client_inbounds (client_id, inbound_id) VALUES (?, ?)').run(vip6.id, wgRow.id);
+  db.prepare('UPDATE clients SET traffic_limit_bytes = 1000, traffic_used_bytes = 1500 WHERE id = ?').run(vip5.id);
+  db.prepare('UPDATE clients SET download_mbps = 25, upload_mbps = 10 WHERE id = ?').run(vip6.id);
+
+  const peers = getEligiblePeersForInbound(Number(wgRow.id), String(wgRow.subnet));
+  assert.equal(peers.some((p) => p.clientId === vip5.id), false, 'Used-up client must be excluded from server peers');
+  const vip6Peer = peers.find((p) => p.clientId === vip6.id);
+  assert.ok(vip6Peer);
+  assert.equal(vip6Peer.downloadMbps, 25);
+  assert.equal(vip6Peer.uploadMbps, 10);
+
+  // Verify periodic reset clears used_up client once next_reset_at elapses
+  db.prepare("UPDATE clients SET reset_period = 'daily', next_reset_at = '2020-01-01T00:00:00.000Z' WHERE id = ?").run(
+    vip5.id,
+  );
+  const reactivated = await runPeriodicResets();
+  assert.equal(reactivated, true);
+  const afterReset = db.prepare('SELECT traffic_used_bytes FROM clients WHERE id = ?').get(vip5.id) as {
+    traffic_used_bytes: number;
+  };
+  assert.equal(afterReset.traffic_used_bytes, 0);
+
+  // Verify WireGuard + AmneziaWG nested settings + NAT PostUp rendering
+  const awgRendered = renderInboundServerConfig(
+    {
+      id: 99,
+      node_id: 1,
+      protocol: 'wireguard',
+      name: 'awg-test',
+      transport: 'udp',
+      port: 51830,
+      subnet: '10.88.0.0/23',
+      auth_mode: 'device_keys',
+      description: '',
+      public_address_override: '',
+      enabled: 1,
+      running: 1,
+      cert_id: null,
+      server_public_key: 'PUBKEY',
+      server_private_key: 'PRIVKEY',
+      settings_json: JSON.stringify({
+        obfuscation: 'amnezia',
+        nat: true,
+        amnezia: { Jc: 7, Jmin: 55, Jmax: 110, S1: 22, S2: 33, H1: 101, H2: 102, H3: 103, H4: 104 },
+      }),
+    },
+    peers,
+  );
+  assert.match(awgRendered.path, /\/etc\/amnezia\/amneziawg\/awg-test\.conf/);
+  assert.match(awgRendered.content, /Address = 10\.88\.0\.1\/23/);
+  assert.match(awgRendered.content, /PostUp = .*MASQUERADE/);
+  assert.match(awgRendered.content, /Jc = 7/);
+
+  // Verify OpenVPN PKI static ta.key + management socket + L2TP extra files
+  await ensureOpenVpnPki();
+  const ovpnRow = db.prepare("SELECT * FROM inbounds WHERE protocol = 'openvpn' LIMIT 1").get() as Record<string, unknown>;
+  assert.ok(ovpnRow);
+  const ovpnCfg = renderInboundServerConfig(ovpnRow as never, peers);
+  assert.match(ovpnCfg.content, /management \/var\/run\/xprotocol-/);
+  const ovpnProf = generateClientProfile({
+    clientName: 'vip-06',
+    vpnPassword: 'pass',
+    wgPrivateKey: 'k',
+    fixedIp: '',
+    clientIndex: vip6.id,
+    inbound: ovpnRow as never,
+    endpointHost: '1.2.3.4',
+    nodeName: 'This server',
+  });
+  assert.match(ovpnProf.content, /<tls-crypt>/);
+
+  const l2tpExtra = renderInboundExtraFiles(
+    {
+      ...(wgRow as never),
+      protocol: 'l2tp',
+      name: 'l2tp500',
+      settings_json: JSON.stringify({ psk: 'secret123', pppMtu: 1400 }),
+    },
+    peers,
+  );
+  assert.ok(l2tpExtra.some((f) => f.path.includes('/etc/ppp/options.xl2tpd.l2tp500')));
+  assert.ok(l2tpExtra.some((f) => f.content.includes('secret = "secret123"')));
+});

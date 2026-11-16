@@ -1,4 +1,8 @@
-import type { InboundRow } from './configs.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { getDataDir } from '../config.js';
+import { extractAmneziaParams, isAmneziaInbound, type InboundRow } from './configs.js';
+import { resolveClientTunnelIp } from '../services/peerResolver.js';
 
 export interface ClientProfileParams {
   clientName: string;
@@ -11,11 +15,28 @@ export interface ClientProfileParams {
   nodeName: string;
 }
 
-function computeClientIp(subnet: string, clientIndex: number, fixedIp: string): string {
-  if (fixedIp) return fixedIp;
-  const parts = subnet.split('/')[0].split('.');
-  const hostOctet = 2 + (clientIndex % 240);
-  return `${parts[0]}.${parts[1]}.${parts[2]}.${hostOctet}`;
+function readOptionalFile(filePath: string): string {
+  try {
+    if (fs.existsSync(filePath)) return fs.readFileSync(filePath, 'utf-8').trim();
+  } catch {
+    // ignore
+  }
+  return '';
+}
+
+function formatTemplateFilename(
+  template: unknown,
+  vars: { inbound: string; client: string; node: string; kind: string },
+  ext: string,
+): string {
+  const raw = typeof template === 'string' && template.trim() ? template.trim() : '{client}-{inbound}';
+  const resolved = raw
+    .replace(/\{inbound\}/g, vars.inbound)
+    .replace(/\{client\}/g, vars.client)
+    .replace(/\{node\}/g, vars.node)
+    .replace(/\{kind\}/g, vars.kind)
+    .replace(/[^a-zA-Z0-9._-]+/g, '-');
+  return `${resolved}.${ext}`;
 }
 
 export function generateClientProfile(p: ClientProfileParams): {
@@ -32,9 +53,14 @@ export function generateClientProfile(p: ClientProfileParams): {
   } catch {
     settings = {};
   }
-  const dns = String(settings.dns || '1.1.1.1, 8.8.8.8');
-  const mtu = Number(settings.mtu || (p.inbound.protocol === 'amneziawg' ? 1380 : 1420));
-  const clientIp = computeClientIp(p.inbound.subnet, p.clientIndex, p.fixedIp);
+
+  const dnsRaw = Array.isArray(settings.dns)
+    ? settings.dns.map((x) => String(x).trim()).filter(Boolean).join(', ')
+    : String(settings.dns || '1.1.1.1, 8.8.8.8');
+  const amneziaOn = isAmneziaInbound(p.inbound.protocol, settings);
+  const mtu = Number(settings.mtu || (amneziaOn ? 1380 : 1420));
+  const keepalive = Number(settings.keepalive ?? 25);
+  const clientIp = p.fixedIp || resolveClientTunnelIp(p.inbound.id, p.inbound.subnet, p.clientIndex);
 
   if (p.inbound.protocol === 'wireguard' || p.inbound.protocol === 'amneziawg') {
     const lines = [
@@ -42,20 +68,21 @@ export function generateClientProfile(p: ClientProfileParams): {
       `[Interface]`,
       `PrivateKey = ${p.wgPrivateKey}`,
       `Address = ${clientIp}/32`,
-      `DNS = ${dns}`,
+      `DNS = ${dnsRaw}`,
       `MTU = ${mtu}`,
     ];
-    if (p.inbound.protocol === 'amneziawg') {
+    if (amneziaOn) {
+      const awg = extractAmneziaParams(settings);
       lines.push(
-        `Jc = ${Number(settings.jc ?? 4)}`,
-        `Jmin = ${Number(settings.jmin ?? 40)}`,
-        `Jmax = ${Number(settings.jmax ?? 70)}`,
-        `S1 = ${Number(settings.s1 ?? 0)}`,
-        `S2 = ${Number(settings.s2 ?? 0)}`,
-        `H1 = ${Number(settings.h1 ?? 1)}`,
-        `H2 = ${Number(settings.h2 ?? 2)}`,
-        `H3 = ${Number(settings.h3 ?? 3)}`,
-        `H4 = ${Number(settings.h4 ?? 4)}`,
+        `Jc = ${awg.Jc}`,
+        `Jmin = ${awg.Jmin}`,
+        `Jmax = ${awg.Jmax}`,
+        `S1 = ${awg.S1}`,
+        `S2 = ${awg.S2}`,
+        `H1 = ${awg.H1}`,
+        `H2 = ${awg.H2}`,
+        `H3 = ${awg.H3}`,
+        `H4 = ${awg.H4}`,
       );
     }
     lines.push(
@@ -64,24 +91,40 @@ export function generateClientProfile(p: ClientProfileParams): {
       `PublicKey = ${p.inbound.server_public_key || 'SERVER_PUBLIC_KEY'}`,
       `AllowedIPs = 0.0.0.0/0, ::/0`,
       `Endpoint = ${host}:${p.inbound.port}`,
-      `PersistentKeepalive = 25`,
+      `PersistentKeepalive = ${keepalive}`,
     );
     const content = lines.join('\n') + '\n';
+    const filename = formatTemplateFilename(
+      settings.filenameTemplate,
+      {
+        inbound: p.inbound.name,
+        client: p.clientName,
+        node: p.nodeName,
+        kind: amneziaOn ? 'awg' : 'wg',
+      },
+      'conf',
+    );
     return {
-      filename: `${p.clientName}-${p.inbound.name}.conf`,
+      filename,
       mimeType: 'text/plain; charset=utf-8',
       content,
       connectInfo: {
         endpoint: `${host}:${p.inbound.port}`,
         address: `${clientIp}/32`,
-        dns,
+        dns: dnsRaw,
       },
     };
   }
 
   if (p.inbound.protocol === 'openvpn') {
     const proto = p.inbound.transport.startsWith('tcp') ? 'tcp-client' : 'udp';
-    const cipher = String(settings.cipher || 'AES-256-GCM');
+    const dataCiphers = Array.isArray(settings.dataCiphers)
+      ? (settings.dataCiphers as unknown[]).map((x) => String(x)).join(':')
+      : String(settings.cipher || 'AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305');
+    const authDigest = String(settings.authDigest || 'SHA256');
+    const tlsMode = String(settings.tlsMode || 'tls-crypt');
+    const authMode = String(settings.authMode || p.inbound.auth_mode || 'cert');
+
     const lines = [
       `# ${p.nodeName} — ${p.inbound.name} (${p.clientName})`,
       `client`,
@@ -93,19 +136,38 @@ export function generateClientProfile(p: ClientProfileParams): {
       `persist-key`,
       `persist-tun`,
       `remote-cert-tls server`,
-      `cipher ${cipher}`,
+      `data-ciphers ${dataCiphers}`,
+      `auth ${authDigest}`,
       `verb 3`,
     ];
-    if (p.inbound.auth_mode === 'certificate_password' || p.inbound.auth_mode === 'password') {
-      lines.push(`auth-user-pass`);
+
+    if (authMode === 'cert+pass' || authMode === 'pass' || authMode === 'certificate_password' || authMode === 'password') {
+      lines.push(`# Username: ${p.clientName}`, `# Password: ${p.vpnPassword}`, `auth-user-pass`);
     }
-    lines.push(
-      `<ca>`,
-      `-----BEGIN CERTIFICATE-----`,
-      `# Server CA managed by XProtocol Open-Core`,
-      `-----END CERTIFICATE-----`,
-      `</ca>`,
-    );
+
+    const pkiDir = path.join(getDataDir(), 'pki');
+    const safeName = p.clientName.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const caPem = readOptionalFile(path.join(pkiDir, 'ca.crt'));
+    const clientCert = readOptionalFile(path.join(pkiDir, 'clients', `${safeName}.crt`));
+    const clientKey = readOptionalFile(path.join(pkiDir, 'clients', `${safeName}.key`));
+    const taKey = readOptionalFile(path.join(pkiDir, 'ta.key'));
+
+    lines.push(`<ca>`);
+    lines.push(caPem || `-----BEGIN CERTIFICATE-----\n# CA not yet initialized on this server\n-----END CERTIFICATE-----`);
+    lines.push(`</ca>`);
+
+    if (authMode !== 'pass' && authMode !== 'password' && clientCert && clientKey) {
+      lines.push(`<cert>`, clientCert, `</cert>`, `<key>`, clientKey, `</key>`);
+    }
+    if (tlsMode === 'tls-crypt' && taKey) {
+      lines.push(`<tls-crypt>`, taKey, `</tls-crypt>`);
+    } else if (tlsMode === 'tls-auth' && taKey) {
+      lines.push(`key-direction 1`, `<tls-auth>`, taKey, `</tls-auth>`);
+    }
+    if (settings.clientCustom) {
+      lines.push(String(settings.clientCustom).trim());
+    }
+
     return {
       filename: `${p.clientName}-${p.inbound.name}.ovpn`,
       mimeType: 'application/x-openvpn-profile',
@@ -118,14 +180,29 @@ export function generateClientProfile(p: ClientProfileParams): {
     };
   }
 
-  if (p.inbound.protocol === 'openconnect') {
+  if (p.inbound.protocol === 'openconnect' || p.inbound.protocol === 'ocserv') {
+    const secret = settings.camouflage && settings.camouflageSecret ? `/?${settings.camouflageSecret}` : '';
     return {
       filename: `${p.clientName}-${p.inbound.name}-openconnect.txt`,
       mimeType: 'text/plain; charset=utf-8',
-      content: `Server: ${host}:${p.inbound.port}\nUsername: ${p.clientName}\nPassword: ${p.vpnPassword}\n`,
-      uri: `https://${host}:${p.inbound.port}`,
+      content: `Server: ${host}:${p.inbound.port}${secret}\nUsername: ${p.clientName}\nPassword: ${p.vpnPassword}\n`,
+      uri: `https://${host}:${p.inbound.port}${secret}`,
       connectInfo: {
-        server: `${host}:${p.inbound.port}`,
+        server: `${host}:${p.inbound.port}${secret}`,
+        username: p.clientName,
+        password: p.vpnPassword,
+      },
+    };
+  }
+
+  if (p.inbound.protocol === 'l2tp') {
+    return {
+      filename: `${p.clientName}-${p.inbound.name}-l2tp.txt`,
+      mimeType: 'text/plain; charset=utf-8',
+      content: `Protocol: L2TP/IPsec\nServer: ${host}\nPSK: ${String(settings.psk || '')}\nUsername: ${p.clientName}\nPassword: ${p.vpnPassword}\n`,
+      connectInfo: {
+        server: host,
+        psk: String(settings.psk || ''),
         username: p.clientName,
         password: p.vpnPassword,
       },
@@ -135,7 +212,7 @@ export function generateClientProfile(p: ClientProfileParams): {
   return {
     filename: `${p.clientName}-${p.inbound.name}.txt`,
     mimeType: 'text/plain; charset=utf-8',
-    content: `Protocol: ${p.inbound.protocol.toUpperCase()}\nServer: ${host}\nPort: ${p.inbound.port}\nUsername: ${p.clientName}\nPassword: ${p.vpnPassword}\n`,
+    content: `Protocol: ${p.inbound.protocol.toUpperCase()}\nServer: ${host}\nPort: ${p.inbound.port}\nRemote ID: ${String(settings.serverId || host)}\nUsername: ${p.clientName}\nPassword: ${p.vpnPassword}\n`,
     connectInfo: {
       server: host,
       port: p.inbound.port,

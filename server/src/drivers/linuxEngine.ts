@@ -1,10 +1,22 @@
 import fs from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
 import os from 'node:os';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { InboundRow, PeerEntry } from '../generators/configs.js';
-import { renderInboundServerConfig } from '../generators/configs.js';
+import { getDataDir } from '../config.js';
+import {
+  isAmneziaInbound,
+  renderInboundExtraFiles,
+  renderInboundServerConfig,
+  type InboundRow,
+  type PeerEntry,
+} from '../generators/configs.js';
+import {
+  ensureInboundTlsCertFiles,
+  ensureOpenVpnPki,
+  syncOpenVpnAuthScript,
+} from './pki.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -33,7 +45,7 @@ const PROTOCOL_BINARIES: Record<ProtocolName, { bin: string; apt: string[] }> = 
   amneziawg: { bin: 'awg', apt: ['wireguard-tools'] },
   openconnect: { bin: 'ocserv', apt: ['ocserv'] },
   ikev2: { bin: 'swanctl', apt: ['strongswan', 'strongswan-swanctl', 'libcharon-extra-plugins'] },
-  l2tp: { bin: 'xl2tpd', apt: ['xl2tpd', 'strongswan'] },
+  l2tp: { bin: 'xl2tpd', apt: ['xl2tpd', 'strongswan', 'strongswan-swanctl'] },
 };
 
 async function runCmd(cmd: string, args: string[], timeout = 15000): Promise<{ ok: boolean; stdout: string; stderr: string }> {
@@ -44,6 +56,28 @@ async function runCmd(cmd: string, args: string[], timeout = 15000): Promise<{ o
     const e = err as { stdout?: string; stderr?: string; message?: string };
     return { ok: false, stdout: e.stdout || '', stderr: e.stderr || e.message || String(err) };
   }
+}
+
+async function runShell(script: string, timeout = 15000): Promise<{ ok: boolean; stdout: string; stderr: string }> {
+  return runCmd('bash', ['-lc', script], timeout);
+}
+
+function parseInboundSettings(inbound: InboundRow): Record<string, unknown> {
+  try {
+    return JSON.parse(inbound.settings_json || '{}') as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+export function resolveInboundInterfaceName(inbound: InboundRow): string {
+  if (inbound.protocol === 'wireguard' || inbound.protocol === 'amneziawg') {
+    return inbound.name;
+  }
+  if (inbound.protocol === 'openvpn') {
+    return `tun-${inbound.name}`;
+  }
+  return '';
 }
 
 export async function detectInstalledProtocols(): Promise<ProtocolStatus[]> {
@@ -78,7 +112,6 @@ export async function installProtocolPackage(protocol: ProtocolName): Promise<{ 
   if (!meta) return { ok: false, log: 'Unknown protocol' };
   const update = await runCmd('apt-get', ['update', '-qq'], 120000);
   const inst = await runCmd('apt-get', ['install', '-y', '-qq', ...meta.apt], 180000);
-  // Enable IP forwarding for VPN routing
   await runCmd('sysctl', ['-w', 'net.ipv4.ip_forward=1'], 5000);
   return {
     ok: inst.ok,
@@ -87,25 +120,198 @@ export async function installProtocolPackage(protocol: ProtocolName): Promise<{ 
 }
 
 export async function openFirewallPort(port: number, transport: string): Promise<void> {
-  if (process.platform !== 'linux') return;
+  if (process.platform !== 'linux' || !port) return;
   const proto = transport.startsWith('tcp') ? 'tcp' : 'udp';
   await runCmd('ufw', ['allow', `${port}/${proto}`], 5000);
 }
 
+async function hashUnixSha512(password: string): Promise<string> {
+  const res = await runCmd('openssl', ['passwd', '-6', password], 4000);
+  if (res.ok && res.stdout.trim()) return res.stdout.trim();
+  return password;
+}
+
 export async function syncOpenConnectPasswd(inbound: InboundRow, clients: { name: string; vpnPassword: string }[]): Promise<void> {
-  if (process.platform !== 'linux') return;
-  const dir = '/etc/ocserv';
+  const dir = process.platform === 'linux' ? '/etc/ocserv' : path.join(getDataDir(), 'ocserv');
   fs.mkdirSync(dir, { recursive: true });
   const passwdPath = path.join(dir, `${inbound.name}.passwd`);
-  for (const c of clients) {
-    await runCmd('ocpasswd', ['-c', passwdPath, c.name], 5000).catch(() => undefined);
+  if (process.platform !== 'linux') {
+    const lines = clients.map((c) => `${c.name}:*:plain`);
+    fs.writeFileSync(passwdPath, lines.join('\n') + '\n');
+    return;
   }
+  const lines: string[] = [];
+  for (const c of clients) {
+    const hash = await hashUnixSha512(c.vpnPassword || '');
+    lines.push(`${c.name}:*:${hash}`);
+  }
+  fs.writeFileSync(passwdPath, lines.join('\n') + '\n', { mode: 0o600 });
 }
 
 export async function syncL2tpSecrets(clients: { name: string; vpnPassword: string }[]): Promise<void> {
   if (process.platform !== 'linux') return;
+  fs.mkdirSync('/etc/ppp', { recursive: true });
   const lines = ['# Managed by XProtocol Open-Core', ...clients.map((c) => `"${c.name}" * "${c.vpnPassword}" *`)];
   fs.writeFileSync('/etc/ppp/chap-secrets', lines.join('\n') + '\n', { mode: 0o600 });
+}
+
+function ensureSystemdTemplateUnits(): void {
+  if (process.platform !== 'linux') return;
+  const ocUnit = '/etc/systemd/system/xprotocol-ocserv@.service';
+  if (!fs.existsSync(ocUnit)) {
+    fs.writeFileSync(
+      ocUnit,
+      `[Unit]
+Description=XProtocol OpenConnect Server (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/ocserv --foreground --pid-file /run/ocserv-%i.pid --config /etc/ocserv/%i.conf
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+`,
+    );
+  }
+  const l2tpUnit = '/etc/systemd/system/xprotocol-xl2tpd@.service';
+  if (!fs.existsSync(l2tpUnit)) {
+    fs.writeFileSync(
+      l2tpUnit,
+      `[Unit]
+Description=XProtocol L2TP Daemon (%i)
+After=network-online.target strongswan-starter.service
+
+[Service]
+Type=simple
+ExecStartPre=/bin/mkdir -p /var/run/xl2tpd
+ExecStart=/usr/sbin/xl2tpd -D -c /etc/xl2tpd/%i.conf
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+`,
+    );
+  }
+}
+
+export async function applyInterfaceSpeedLimits(iface: string, peers: PeerEntry[]): Promise<void> {
+  if (process.platform !== 'linux' || !iface) return;
+  const check = await runCmd('ip', ['link', 'show', iface], 3000);
+  if (!check.ok) return;
+
+  // Reset root qdisc cleanly before reapplying classes
+  await runCmd('tc', ['qdisc', 'del', 'dev', iface, 'root'], 3000);
+  const limitedDownload = peers.filter((p) => p.downloadMbps && p.downloadMbps > 0);
+  if (limitedDownload.length > 0) {
+    await runCmd('tc', ['qdisc', 'add', 'dev', iface, 'root', 'handle', '1:', 'htb', 'default', '999'], 3000);
+    await runCmd('tc', ['class', 'add', 'dev', iface, 'parent', '1:', 'classid', '1:999', 'htb', 'rate', '10gbit'], 3000);
+    let idx = 10;
+    for (const p of limitedDownload) {
+      const rate = `${Math.max(0.1, Number(p.downloadMbps)).toFixed(2)}mbit`;
+      const cls = `1:${idx}`;
+      await runCmd('tc', ['class', 'add', 'dev', iface, 'parent', '1:', 'classid', cls, 'htb', 'rate', rate, 'ceil', rate], 3000);
+      await runCmd(
+        'tc',
+        [
+          'filter',
+          'add',
+          'dev',
+          iface,
+          'protocol',
+          'ip',
+          'parent',
+          '1:',
+          'prio',
+          '1',
+          'u32',
+          'match',
+          'ip',
+          'dst',
+          `${p.tunnelIp}/32`,
+          'flowid',
+          cls,
+        ],
+        3000,
+      );
+      idx += 1;
+    }
+  }
+
+  // Optional upload shaping via IFB when kernel module is available
+  const ifbDev = `ifb-${iface}`.slice(0, 15);
+  await runCmd('tc', ['qdisc', 'del', 'dev', iface, 'ingress'], 3000);
+  await runCmd('ip', ['link', 'del', ifbDev], 3000);
+  const limitedUpload = peers.filter((p) => p.uploadMbps && p.uploadMbps > 0);
+  if (limitedUpload.length > 0) {
+    const mod = await runCmd('modprobe', ['ifb'], 3000);
+    if (mod.ok) {
+      await runCmd('ip', ['link', 'add', ifbDev, 'type', 'ifb'], 3000);
+      await runCmd('ip', ['link', 'set', ifbDev, 'up'], 3000);
+      await runCmd('tc', ['qdisc', 'add', 'dev', iface, 'handle', 'ffff:', 'ingress'], 3000);
+      await runCmd(
+        'tc',
+        [
+          'filter',
+          'add',
+          'dev',
+          iface,
+          'parent',
+          'ffff:',
+          'protocol',
+          'ip',
+          'u32',
+          'match',
+          'u32',
+          '0',
+          '0',
+          'action',
+          'mirred',
+          'egress',
+          'redirect',
+          'dev',
+          ifbDev,
+        ],
+        3000,
+      );
+      await runCmd('tc', ['qdisc', 'add', 'dev', ifbDev, 'root', 'handle', '2:', 'htb', 'default', '999'], 3000);
+      await runCmd('tc', ['class', 'add', 'dev', ifbDev, 'parent', '2:', 'classid', '2:999', 'htb', 'rate', '10gbit'], 3000);
+      let idx = 10;
+      for (const p of limitedUpload) {
+        const rate = `${Math.max(0.1, Number(p.uploadMbps)).toFixed(2)}mbit`;
+        const cls = `2:${idx}`;
+        await runCmd('tc', ['class', 'add', 'dev', ifbDev, 'parent', '2:', 'classid', cls, 'htb', 'rate', rate, 'ceil', rate], 3000);
+        await runCmd(
+          'tc',
+          [
+            'filter',
+            'add',
+            'dev',
+            ifbDev,
+            'protocol',
+            'ip',
+            'parent',
+            '2:',
+            'prio',
+            '1',
+            'u32',
+            'match',
+            'ip',
+            'src',
+            `${p.tunnelIp}/32`,
+            'flowid',
+            cls,
+          ],
+          3000,
+        );
+        idx += 1;
+      }
+    }
+  }
 }
 
 export async function applyLinuxInbound(
@@ -113,29 +319,72 @@ export async function applyLinuxInbound(
   peers: PeerEntry[],
   action: 'start' | 'stop' | 'restart',
 ): Promise<{ ok: boolean; logs: string[] }> {
+  const settings = parseInboundSettings(inbound);
   const rendered = renderInboundServerConfig(inbound, peers);
+  const extraFiles = renderInboundExtraFiles(inbound, peers);
   const logs: string[] = [];
 
+  if (inbound.protocol === 'openvpn') {
+    await ensureOpenVpnPki();
+    syncOpenVpnAuthScript(inbound.name, peers);
+  } else if (inbound.protocol === 'openconnect' || inbound.protocol === 'ocserv') {
+    await ensureInboundTlsCertFiles(inbound.cert_id, inbound.public_address_override || undefined);
+    await syncOpenConnectPasswd(
+      inbound,
+      peers.map((p) => ({ name: p.name, vpnPassword: p.vpnPassword || '' })),
+    );
+  } else if (inbound.protocol === 'ikev2') {
+    const certs = await ensureInboundTlsCertFiles(inbound.cert_id, String(settings.serverId || '') || undefined);
+    if (process.platform === 'linux') {
+      const tag = inbound.cert_id ? String(inbound.cert_id) : 'default';
+      fs.mkdirSync('/etc/swanctl/x509', { recursive: true });
+      fs.mkdirSync('/etc/swanctl/private', { recursive: true });
+      if (fs.existsSync(certs.certPath)) fs.copyFileSync(certs.certPath, `/etc/swanctl/x509/xprotocol-${tag}.pem`);
+      if (fs.existsSync(certs.keyPath)) fs.copyFileSync(certs.keyPath, `/etc/swanctl/private/xprotocol-${tag}.pem`);
+    }
+  } else if (inbound.protocol === 'l2tp') {
+    await syncL2tpSecrets(peers.map((p) => ({ name: p.name, vpnPassword: p.vpnPassword || '' })));
+  }
+
   if (process.platform !== 'linux') {
-    logs.push(`[${new Date().toISOString()}] Rendered ${rendered.path} (${peers.length} peers); deploy on Ubuntu 22.04+ for live execution.`);
+    logs.push(
+      `[${new Date().toISOString()}] Rendered ${rendered.path} (${peers.length} eligible peers); deploy on Ubuntu 22.04+ for live execution.`,
+    );
     return { ok: true, logs };
   }
+
+  ensureSystemdTemplateUnits();
 
   if (action !== 'stop') {
     fs.mkdirSync(path.dirname(rendered.path), { recursive: true });
     fs.writeFileSync(rendered.path, rendered.content, { mode: 0o600 });
+    for (const f of extraFiles) {
+      fs.mkdirSync(path.dirname(f.path), { recursive: true });
+      fs.writeFileSync(f.path, f.content, { mode: f.mode ?? 0o600 });
+    }
     await openFirewallPort(inbound.port, inbound.transport);
+    if (inbound.protocol === 'openconnect' || inbound.protocol === 'ocserv') {
+      if (settings.dtls !== false) await openFirewallPort(inbound.port, 'udp');
+    } else if (inbound.protocol === 'ikev2' || inbound.protocol === 'l2tp') {
+      await openFirewallPort(500, 'udp');
+      await openFirewallPort(4500, 'udp');
+      if (inbound.protocol === 'l2tp') await openFirewallPort(1701, 'udp');
+    }
   }
 
   if (inbound.protocol === 'wireguard' || inbound.protocol === 'amneziawg') {
-    const tool = inbound.protocol === 'amneziawg' ? 'awg-quick' : 'wg-quick';
+    const amneziaOn = isAmneziaInbound(inbound.protocol, settings);
+    const tool = amneziaOn ? 'awg-quick' : 'wg-quick';
     if (action === 'stop' || action === 'restart') {
-      const r = await runCmd(tool, ['down', inbound.name]);
+      const r = await runCmd(tool, ['down', rendered.path]);
       logs.push(`${tool} down ${inbound.name}: ${r.ok ? 'ok' : r.stderr}`);
     }
     if (action === 'start' || action === 'restart') {
-      const r = await runCmd(tool, ['up', inbound.name]);
+      const r = await runCmd(tool, ['up', rendered.path]);
       logs.push(`${tool} up ${inbound.name}: ${r.ok ? 'ok' : r.stderr}`);
+      if (r.ok) {
+        await applyInterfaceSpeedLimits(inbound.name, peers);
+      }
       return { ok: r.ok, logs };
     }
     return { ok: true, logs };
@@ -145,12 +394,17 @@ export async function applyLinuxInbound(
     const unit = `openvpn-server@${inbound.name}`;
     const r = await runCmd('systemctl', [action, unit]);
     logs.push(`systemctl ${action} ${unit}: ${r.ok ? 'ok' : r.stderr}`);
+    if (r.ok && action !== 'stop') {
+      await applyInterfaceSpeedLimits(`tun-${inbound.name}`, peers);
+    }
     return { ok: r.ok, logs };
   }
 
-  if (inbound.protocol === 'openconnect') {
-    const r = await runCmd('systemctl', [action, 'ocserv']);
-    logs.push(`systemctl ${action} ocserv: ${r.ok ? 'ok' : r.stderr}`);
+  if (inbound.protocol === 'openconnect' || inbound.protocol === 'ocserv') {
+    await runCmd('systemctl', ['daemon-reload'], 5000);
+    const unit = `xprotocol-ocserv@${inbound.name}`;
+    const r = await runCmd('systemctl', [action, unit]);
+    logs.push(`systemctl ${action} ${unit}: ${r.ok ? 'ok' : r.stderr}`);
     return { ok: r.ok, logs };
   }
 
@@ -159,17 +413,132 @@ export async function applyLinuxInbound(
       const r = await runCmd('swanctl', ['--load-all']);
       logs.push(`swanctl --load-all: ${r.ok ? 'ok' : r.stderr}`);
       return { ok: r.ok, logs };
+    } else {
+      await runCmd('swanctl', ['--terminate', '--ike', inbound.name]);
     }
     return { ok: true, logs };
   }
 
   if (inbound.protocol === 'l2tp') {
-    const r = await runCmd('systemctl', [action, 'xl2tpd']);
-    logs.push(`systemctl ${action} xl2tpd: ${r.ok ? 'ok' : r.stderr}`);
+    await runCmd('systemctl', ['daemon-reload'], 5000);
+    const unit = `xprotocol-xl2tpd@${inbound.name}`;
+    const r = await runCmd('systemctl', [action, unit]);
+    logs.push(`systemctl ${action} ${unit}: ${r.ok ? 'ok' : r.stderr}`);
+    if (action !== 'stop') {
+      const sw = await runCmd('swanctl', ['--load-all']);
+      logs.push(`swanctl --load-all: ${sw.ok ? 'ok' : sw.stderr}`);
+    }
     return { ok: r.ok, logs };
   }
 
   return { ok: true, logs };
+}
+
+export async function syncLinuxInboundPeers(inbound: InboundRow, peers: PeerEntry[]): Promise<void> {
+  if (!inbound.running) return;
+  const settings = parseInboundSettings(inbound);
+  const rendered = renderInboundServerConfig(inbound, peers);
+
+  if (inbound.protocol === 'openvpn') {
+    syncOpenVpnAuthScript(inbound.name, peers);
+    return;
+  }
+
+  if (inbound.protocol === 'openconnect' || inbound.protocol === 'ocserv') {
+    await syncOpenConnectPasswd(
+      inbound,
+      peers.map((p) => ({ name: p.name, vpnPassword: p.vpnPassword || '' })),
+    );
+    return;
+  }
+
+  if (inbound.protocol === 'l2tp') {
+    await syncL2tpSecrets(peers.map((p) => ({ name: p.name, vpnPassword: p.vpnPassword || '' })));
+    return;
+  }
+
+  if (process.platform !== 'linux') return;
+
+  fs.mkdirSync(path.dirname(rendered.path), { recursive: true });
+  fs.writeFileSync(rendered.path, rendered.content, { mode: 0o600 });
+
+  if (inbound.protocol === 'wireguard' || inbound.protocol === 'amneziawg') {
+    const amneziaOn = isAmneziaInbound(inbound.protocol, settings);
+    const wgBin = amneziaOn ? 'awg' : 'wg';
+    const quickBin = amneziaOn ? 'awg-quick' : 'wg-quick';
+    const upCheck = await runCmd('ip', ['link', 'show', inbound.name], 3000);
+    if (upCheck.ok) {
+      await runShell(`${wgBin} syncconf ${inbound.name} <(${quickBin} strip ${rendered.path})`, 8000);
+      await applyInterfaceSpeedLimits(inbound.name, peers);
+    } else {
+      await applyLinuxInbound(inbound, peers, 'start');
+    }
+  } else if (inbound.protocol === 'ikev2') {
+    await runCmd('swanctl', ['--load-creds'], 5000);
+  }
+}
+
+async function sendOpenVpnManagementCmd(inboundName: string, command: string): Promise<boolean> {
+  const sockPath = `/var/run/xprotocol-${inboundName}.sock`;
+  if (!fs.existsSync(sockPath)) return false;
+  return new Promise((resolve) => {
+    const sock = net.createConnection(sockPath);
+    sock.setTimeout(2500);
+    sock.on('connect', () => {
+      sock.write(`${command}\nquit\n`);
+      setTimeout(() => {
+        sock.destroy();
+        resolve(true);
+      }, 150);
+    });
+    sock.on('error', () => {
+      sock.destroy();
+      resolve(false);
+    });
+    sock.on('timeout', () => {
+      sock.destroy();
+      resolve(false);
+    });
+  });
+}
+
+export async function disconnectLinuxPeer(
+  inbound: InboundRow,
+  opts: { clientName: string; wgPublicKey?: string; connectionId?: string },
+): Promise<boolean> {
+  if (process.platform !== 'linux') return true;
+  const settings = parseInboundSettings(inbound);
+
+  if (inbound.protocol === 'wireguard' || inbound.protocol === 'amneziawg') {
+    if (!opts.wgPublicKey) return false;
+    const wgBin = isAmneziaInbound(inbound.protocol, settings) ? 'awg' : 'wg';
+    const r = await runCmd(wgBin, ['set', inbound.name, 'peer', opts.wgPublicKey, 'remove'], 4000);
+    return r.ok;
+  }
+
+  if (inbound.protocol === 'openvpn') {
+    return sendOpenVpnManagementCmd(inbound.name, `kill ${opts.clientName}`);
+  }
+
+  if (inbound.protocol === 'openconnect' || inbound.protocol === 'ocserv') {
+    const r = await runCmd('occtl', ['-s', `/var/run/occtl-${inbound.name}.sock`, 'disconnect', 'user', opts.clientName], 4000);
+    return r.ok;
+  }
+
+  if (inbound.protocol === 'ikev2') {
+    const r = await runCmd('swanctl', ['--terminate', '--ike', inbound.name, '--remote-id', opts.clientName], 4000);
+    return r.ok;
+  }
+
+  if (inbound.protocol === 'l2tp' && opts.connectionId?.startsWith('l2tp-ppp-')) {
+    const dev = opts.connectionId.split('-').slice(3).join('-');
+    if (dev) {
+      await runCmd('ip', ['link', 'set', dev, 'down'], 3000);
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export async function collectLinuxLiveTunnels(
@@ -181,8 +550,10 @@ export async function collectLinuxLiveTunnels(
 
   for (const ib of inbounds) {
     if (!ib.running) continue;
+    const settings = parseInboundSettings(ib);
+
     if (ib.protocol === 'wireguard' || ib.protocol === 'amneziawg') {
-      const tool = ib.protocol === 'amneziawg' ? 'awg' : 'wg';
+      const tool = isAmneziaInbound(ib.protocol, settings) ? 'awg' : 'wg';
       const dump = await runCmd(tool, ['show', ib.name, 'dump'], 4000);
       if (!dump.ok) continue;
       const lines = dump.stdout.trim().split('\n').slice(1);
@@ -191,7 +562,6 @@ export async function collectLinuxLiveTunnels(
         if (cols.length < 7) continue;
         const [pubKey, , endpoint, allowedIps, latestHandshakeStr, rxStr, txStr] = cols;
         const latestHandshake = Number(latestHandshakeStr || 0);
-        // Consider active if handshake within last 3 minutes
         if (latestHandshake > 0 && Date.now() / 1000 - latestHandshake <= 180) {
           const clientName = clientsByWgPub.get(pubKey);
           if (!clientName) continue;
@@ -201,7 +571,7 @@ export async function collectLinuxLiveTunnels(
             inboundId: ib.id,
             remoteIp: endpoint.split(':')[0] || '0.0.0.0',
             tunnelIp: allowedIps.split('/')[0] || '',
-            device: 'WireGuard',
+            device: isAmneziaInbound(ib.protocol, settings) ? 'AmneziaWG' : 'WireGuard',
             bytesIn: Number(rxStr || 0),
             bytesOut: Number(txStr || 0),
           });
@@ -231,10 +601,123 @@ export async function collectLinuxLiveTunnels(
           bytesOut,
         });
       }
+    } else if (ib.protocol === 'openconnect' || ib.protocol === 'ocserv') {
+      const ocRes = await runCmd('occtl', ['-s', `/var/run/occtl-${ib.name}.sock`, '-j', 'show', 'users'], 4000);
+      if (!ocRes.ok || !ocRes.stdout.trim()) continue;
+      try {
+        const users = JSON.parse(ocRes.stdout) as Array<Record<string, unknown>>;
+        for (const u of users) {
+          const clientName = String(u.Username || u.username || '');
+          if (!clientName) continue;
+          const tunnelIp = String(u.IPv4 || u['Remote IP'] || '');
+          samples.push({
+            id: `oc-${ib.id}-${String(u.ID || clientName)}`,
+            clientName,
+            inboundId: ib.id,
+            remoteIp: String(u['Remote IP'] || '0.0.0.0'),
+            tunnelIp,
+            device: String(u['User-Agent'] || 'OpenConnect'),
+            bytesIn: Number(u.RX || 0),
+            bytesOut: Number(u.TX || 0),
+          });
+        }
+      } catch {
+        // ignore invalid json
+      }
+    } else if (ib.protocol === 'ikev2') {
+      const saRes = await runCmd('swanctl', ['--list-sas', '--ike', ib.name], 4000);
+      if (!saRes.ok || !saRes.stdout.trim()) continue;
+      let curRemoteIp = '0.0.0.0';
+      let curClientName = '';
+      let curTunnelIp = '';
+      let curBytesIn = 0;
+      let curBytesOut = 0;
+      for (const line of saRes.stdout.split('\n')) {
+        const remoteMatch = line.match(/remote\s+'([^']+)'\s+@\s+([\d.]+)/);
+        if (remoteMatch) {
+          curClientName = remoteMatch[1];
+          curRemoteIp = remoteMatch[2];
+        }
+        const vipMatch = line.match(/local virtual IP:\s+([\d.]+)/i);
+        if (vipMatch) curTunnelIp = vipMatch[1];
+        const inMatch = line.match(/in\s+[\da-f]+,\s+(\d+)\s+bytes/i);
+        if (inMatch) curBytesIn = Number(inMatch[1] || 0);
+        const outMatch = line.match(/out\s+[\da-f]+,\s+(\d+)\s+bytes/i);
+        if (outMatch) {
+          curBytesOut = Number(outMatch[1] || 0);
+          if (curClientName) {
+            samples.push({
+              id: `ikev2-${ib.id}-${curClientName}`,
+              clientName: curClientName,
+              inboundId: ib.id,
+              remoteIp: curRemoteIp,
+              tunnelIp: curTunnelIp,
+              device: 'IKEv2',
+              bytesIn: curBytesIn,
+              bytesOut: curBytesOut,
+            });
+            curClientName = '';
+          }
+        }
+      }
     }
   }
 
   return samples;
+}
+
+export async function applyXrayRouting(enabled: boolean, configJson: string): Promise<{ ok: boolean; statusMessage: string }> {
+  const dir = process.platform === 'linux' ? '/usr/local/lib/xprotocol/xray' : path.join(os.tmpdir(), 'xprotocol-xray');
+  fs.mkdirSync(dir, { recursive: true });
+  const cfgPath = path.join(dir, 'config.json');
+  fs.writeFileSync(cfgPath, configJson, { mode: 0o600 });
+
+  if (process.platform !== 'linux') {
+    return {
+      ok: true,
+      statusMessage: enabled
+        ? `Saved Xray routing config (${cfgPath}); live execution runs on Ubuntu Linux`
+        : 'Policy disabled',
+    };
+  }
+
+  const whichXray = await runCmd('which', ['xray'], 3000);
+  if (!whichXray.ok) {
+    return {
+      ok: false,
+      statusMessage: enabled ? 'xray binary not installed on host' : 'Disabled (xray not installed)',
+    };
+  }
+
+  const xrayBin = whichXray.stdout.trim();
+  const unitPath = '/etc/systemd/system/xprotocol-xray.service';
+  if (!fs.existsSync(unitPath)) {
+    fs.writeFileSync(
+      unitPath,
+      `[Unit]
+Description=XProtocol Xray Routing Engine
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=${xrayBin} run -c ${cfgPath}
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+`,
+    );
+    await runCmd('systemctl', ['daemon-reload'], 5000);
+  }
+
+  if (enabled) {
+    const r = await runCmd('systemctl', ['restart', 'xprotocol-xray'], 8000);
+    return { ok: r.ok, statusMessage: r.ok ? 'Xray routing running' : r.stderr };
+  } else {
+    await runCmd('systemctl', ['stop', 'xprotocol-xray'], 5000);
+    return { ok: true, statusMessage: 'Stopped' };
+  }
 }
 
 export async function updateXrayGeoAssets(): Promise<{ ok: boolean; message: string }> {

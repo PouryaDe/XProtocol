@@ -1,3 +1,7 @@
+import path from 'node:path';
+import { getDataDir } from '../config.js';
+import { parseCidr } from '../services/peerResolver.js';
+
 export interface InboundRow {
   id: number;
   node_id: number | null;
@@ -21,7 +25,63 @@ export interface PeerEntry {
   clientId: number;
   name: string;
   wgPublicKey: string;
+  vpnPassword?: string;
   tunnelIp: string;
+  downloadMbps?: number | null;
+  uploadMbps?: number | null;
+}
+
+export interface RenderedConfigFile {
+  path: string;
+  content: string;
+  mode?: number;
+}
+
+export function isAmneziaInbound(protocol: string, settings: Record<string, unknown>): boolean {
+  return protocol === 'amneziawg' || (protocol === 'wireguard' && settings.obfuscation === 'amnezia');
+}
+
+export function extractAmneziaParams(settings: Record<string, unknown>): {
+  Jc: number;
+  Jmin: number;
+  Jmax: number;
+  S1: number;
+  S2: number;
+  H1: number;
+  H2: number;
+  H3: number;
+  H4: number;
+} {
+  const nested = (settings.amnezia && typeof settings.amnezia === 'object' ? settings.amnezia : {}) as Record<
+    string,
+    unknown
+  >;
+  return {
+    Jc: Number(nested.Jc ?? settings.jc ?? 4),
+    Jmin: Number(nested.Jmin ?? settings.jmin ?? 40),
+    Jmax: Number(nested.Jmax ?? settings.jmax ?? 70),
+    S1: Number(nested.S1 ?? settings.s1 ?? 0),
+    S2: Number(nested.S2 ?? settings.s2 ?? 0),
+    H1: Number(nested.H1 ?? settings.h1 ?? 1),
+    H2: Number(nested.H2 ?? settings.h2 ?? 2),
+    H3: Number(nested.H3 ?? settings.h3 ?? 3),
+    H4: Number(nested.H4 ?? settings.h4 ?? 4),
+  };
+}
+
+function parseListSetting(raw: unknown, fallback: string[]): string[] {
+  if (Array.isArray(raw)) {
+    const items = raw.map((x) => String(x).trim()).filter(Boolean);
+    return items.length > 0 ? items : fallback;
+  }
+  if (typeof raw === 'string') {
+    const items = raw
+      .split(/[\n,]+/)
+      .map((x) => x.trim())
+      .filter(Boolean);
+    return items.length > 0 ? items : fallback;
+  }
+  return fallback;
 }
 
 export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[]): { path: string; content: string } {
@@ -32,32 +92,42 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
     settings = {};
   }
 
-  const dns = String(settings.dns || '1.1.1.1, 8.8.8.8');
-  const mtu = Number(settings.mtu || (inbound.protocol === 'amneziawg' ? 1380 : 1420));
+  const dataDir = getDataDir();
+  const cidr = parseCidr(inbound.subnet);
+  const dnsList = parseListSetting(settings.dns, ['1.1.1.1', '8.8.8.8']);
+  const amneziaOn = isAmneziaInbound(inbound.protocol, settings);
+  const mtu = Number(settings.mtu || (amneziaOn ? 1380 : 1420));
 
   switch (inbound.protocol) {
     case 'wireguard':
     case 'amneziawg': {
-      const baseNet = inbound.subnet.split('/')[0].split('.').slice(0, 3).join('.');
+      const natOn = settings.nat !== false;
       const lines = [
         `# Managed by XProtocol Open-Core (${inbound.name})`,
         `[Interface]`,
-        `Address = ${baseNet}.1/24`,
+        `Address = ${cidr.gatewayIp}/${cidr.prefix}`,
         `ListenPort = ${inbound.port}`,
         `PrivateKey = ${inbound.server_private_key || '<server-private-key>'}`,
         `MTU = ${mtu}`,
       ];
-      if (inbound.protocol === 'amneziawg') {
+      if (natOn) {
         lines.push(
-          `Jc = ${Number(settings.jc ?? 4)}`,
-          `Jmin = ${Number(settings.jmin ?? 40)}`,
-          `Jmax = ${Number(settings.jmax ?? 70)}`,
-          `S1 = ${Number(settings.s1 ?? 0)}`,
-          `S2 = ${Number(settings.s2 ?? 0)}`,
-          `H1 = ${Number(settings.h1 ?? 1)}`,
-          `H2 = ${Number(settings.h2 ?? 2)}`,
-          `H3 = ${Number(settings.h3 ?? 3)}`,
-          `H4 = ${Number(settings.h4 ?? 4)}`,
+          `PostUp = IFACE=$(ip route show default | awk '{print $5; exit}'); iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT; [ -n "$IFACE" ] && iptables -t nat -C POSTROUTING -s ${cidr.networkIp}/${cidr.prefix} -o "$IFACE" -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s ${cidr.networkIp}/${cidr.prefix} -o "$IFACE" -j MASQUERADE`,
+          `PostDown = IFACE=$(ip route show default | awk '{print $5; exit}'); iptables -D FORWARD -i %i -j ACCEPT 2>/dev/null || true; iptables -D FORWARD -o %i -j ACCEPT 2>/dev/null || true; [ -n "$IFACE" ] && iptables -t nat -D POSTROUTING -s ${cidr.networkIp}/${cidr.prefix} -o "$IFACE" -j MASQUERADE 2>/dev/null || true`,
+        );
+      }
+      if (amneziaOn) {
+        const awg = extractAmneziaParams(settings);
+        lines.push(
+          `Jc = ${awg.Jc}`,
+          `Jmin = ${awg.Jmin}`,
+          `Jmax = ${awg.Jmax}`,
+          `S1 = ${awg.S1}`,
+          `S2 = ${awg.S2}`,
+          `H1 = ${awg.H1}`,
+          `H2 = ${awg.H2}`,
+          `H3 = ${awg.H3}`,
+          `H4 = ${awg.H4}`,
         );
       }
       for (const p of peers) {
@@ -69,111 +139,323 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
           `AllowedIPs = ${p.tunnelIp}/32`,
         );
       }
+      const confDir = amneziaOn ? '/etc/amnezia/amneziawg' : '/etc/wireguard';
       return {
-        path: `/etc/wireguard/${inbound.name}.conf`,
+        path: `${confDir}/${inbound.name}.conf`,
         content: lines.join('\n') + '\n',
       };
     }
 
     case 'openvpn': {
-      const [netIp] = inbound.subnet.split('/');
-      const cipher = String(settings.cipher || 'AES-256-GCM');
+      const pkiDir = path.join(dataDir, 'pki');
+      const authScript = path.join(dataDir, 'bin', `ovpn-auth-${inbound.name}.mjs`);
       const proto = inbound.transport.startsWith('tcp') ? 'tcp-server' : 'udp';
+      const dataCiphers = parseListSetting(settings.dataCiphers, [
+        String(settings.cipher || 'AES-256-GCM'),
+        'AES-128-GCM',
+        'CHACHA20-POLY1305',
+      ]);
+      const fallbackCipher = String(settings.fallbackCipher || 'AES-256-CBC');
+      const authDigest = String(settings.authDigest || 'SHA256');
+      const tlsMin = String(settings.tlsMinVersion || '1.2');
+      const tlsMode = String(settings.tlsMode || 'tls-crypt');
+      const authMode = String(settings.authMode || inbound.auth_mode || 'cert');
+      const keepInterval = Number(settings.keepaliveInterval ?? 10);
+      const keepTimeout = Number(settings.keepaliveTimeout ?? 60);
+      const tunMtu = Number(settings.tunMtu ?? 1500);
+      const mssFix = Number(settings.mssFix ?? 1450);
+      const maxClients = Number(settings.maxClients ?? 100);
+      const renegSec = Number(settings.renegSec ?? 3600);
+      const verb = Number(settings.verb ?? 3);
+
+      const lines = [
+        `# Managed by XProtocol Open-Core (${inbound.name})`,
+        `port ${inbound.port}`,
+        `proto ${proto}`,
+        `dev tun-${inbound.name}`,
+        `topology subnet`,
+        `server ${cidr.networkIp} ${cidr.netmask}`,
+        `ca ${pkiDir}/ca.crt`,
+        `cert ${pkiDir}/server.crt`,
+        `key ${pkiDir}/server.key`,
+        `dh none`,
+        `data-ciphers ${dataCiphers.join(':')}`,
+        `data-ciphers-fallback ${fallbackCipher}`,
+        `auth ${authDigest}`,
+        `tls-version-min ${tlsMin}`,
+      ];
+
+      if (tlsMode === 'tls-crypt') {
+        lines.push(`tls-crypt ${pkiDir}/ta.key`);
+      } else if (tlsMode === 'tls-auth') {
+        lines.push(`tls-auth ${pkiDir}/ta.key 0`);
+      }
+
+      if (settings.redirectGateway !== false) {
+        lines.push(`push "redirect-gateway def1 bypass-dhcp"`);
+      }
+      for (const d of dnsList) {
+        lines.push(`push "dhcp-option DNS ${d}"`);
+      }
+      if (settings.blockOutsideDns !== false) {
+        lines.push(`push "block-outside-dns"`);
+      }
+      if (settings.clientToClient) {
+        lines.push(`client-to-client`);
+      }
+      for (const route of parseListSetting(settings.pushRoutes, [])) {
+        lines.push(`push "route ${route}"`);
+      }
+
+      lines.push(
+        `keepalive ${keepInterval} ${keepTimeout}`,
+        `tun-mtu ${tunMtu}`,
+        ...(proto === 'udp' && mssFix > 0 ? [`mssfix ${mssFix}`] : []),
+        `max-clients ${maxClients}`,
+        `reneg-sec ${renegSec}`,
+        `persist-key`,
+        `persist-tun`,
+        `management /var/run/xprotocol-${inbound.name}.sock unix`,
+        `status /var/run/xprotocol-${inbound.name}.status 5`,
+        `status-version 2`,
+        `verb ${verb}`,
+      );
+
+      if (proto === 'udp' && settings.exitNotify !== false) {
+        lines.push(`explicit-exit-notify 1`);
+      }
+      if (proto === 'tcp-server' && settings.portShare) {
+        lines.push(`port-share ${String(settings.portShare).trim()}`);
+      }
+
+      if (authMode === 'pass' || authMode === 'password') {
+        lines.push(
+          `verify-client-cert none`,
+          `username-as-common-name`,
+          `script-security 2`,
+          `auth-user-pass-verify ${authScript} via-file`,
+        );
+      } else if (authMode === 'cert+pass' || authMode === 'certificate_password') {
+        lines.push(
+          `script-security 2`,
+          `auth-user-pass-verify ${authScript} via-file`,
+        );
+      }
+
+      if (settings.serverCustom) {
+        lines.push(`# Custom server directives`, String(settings.serverCustom).trim());
+      }
+
       return {
         path: `/etc/openvpn/server/${inbound.name}.conf`,
-        content: [
-          `# Managed by XProtocol Open-Core (${inbound.name})`,
-          `port ${inbound.port}`,
-          `proto ${proto}`,
-          `dev tun-${inbound.name}`,
-          `topology subnet`,
-          `server ${netIp} 255.255.255.0`,
-          `ca /var/lib/xprotocol/pki/ca.crt`,
-          `cert /var/lib/xprotocol/pki/server.crt`,
-          `key /var/lib/xprotocol/pki/server.key`,
-          `dh none`,
-          `cipher ${cipher}`,
-          `data-ciphers ${cipher}:CHACHA20-POLY1305`,
-          `push "redirect-gateway def1 bypass-dhcp"`,
-          `push "dhcp-option DNS ${dns.split(',')[0].trim()}"`,
-          `keepalive 10 60`,
-          `persist-key`,
-          `persist-tun`,
-          `status /var/run/xprotocol-${inbound.name}.status 5`,
-          `verb 3`,
-          inbound.auth_mode === 'certificate_password' ? `verify-client-cert require` : `# certificate auth`,
-        ].join('\n') + '\n',
+        content: lines.join('\n') + '\n',
       };
     }
 
-    case 'openconnect': {
+    case 'openconnect':
+    case 'ocserv': {
+      const certsDir = path.join(dataDir, 'certs');
+      const certTag = inbound.cert_id ? String(inbound.cert_id) : 'default';
+      const lines = [
+        `# Managed by XProtocol Open-Core (${inbound.name})`,
+        `auth = "plain[passwd=/etc/ocserv/${inbound.name}.passwd]"`,
+        `tcp-port = ${inbound.port}`,
+        ...(settings.dtls !== false ? [`udp-port = ${inbound.port}`] : []),
+        `run-as-user = ocserv`,
+        `run-as-group = daemon`,
+        `socket-file = /var/run/ocserv-${inbound.name}.socket`,
+        `occtl-socket-file = /var/run/occtl-${inbound.name}.sock`,
+        `server-cert = ${certsDir}/cert-${certTag}.pem`,
+        `server-key = ${certsDir}/key-${certTag}.pem`,
+        `ipv4-network = ${cidr.networkIp}`,
+        `ipv4-netmask = ${cidr.netmask}`,
+        `dns = ${dnsList[0] || '1.1.1.1'}`,
+        ...(dnsList[1] ? [`dns = ${dnsList[1]}`] : []),
+        `try-mtu-discovery = true`,
+        `cisco-client-compat = ${settings.ciscoCompat !== false ? 'true' : 'false'}`,
+        `dtls-legacy = true`,
+        `idle-timeout = ${Number(settings.idleTimeout ?? 1200)}`,
+        `dpd = ${Number(settings.dpd ?? 90)}`,
+        `mobile-dpd = ${Number(settings.mobileDpd ?? 1800)}`,
+        `cookie-timeout = ${Number(settings.cookieTimeout ?? 300)}`,
+        `tls-priorities = "${String(settings.tlsPriorities || 'NORMAL:%SERVER_PRECEDENCE:%COMPAT:-VERS-SSL3.0')}"`,
+        `max-same-clients = 10`,
+      ];
+      if (settings.redirectGateway !== false) {
+        lines.push(`route = default`);
+      }
+      if (settings.proxyProtocol) {
+        lines.push(`listen-proxy-proto = true`);
+      }
+      if (settings.camouflage && settings.camouflageSecret) {
+        lines.push(
+          `camouflage = true`,
+          `camouflage_secret = "${String(settings.camouflageSecret)}"`,
+          `camouflage_realm = "${String(settings.camouflageRealm || 'Login')}"`,
+        );
+      }
+      if (settings.ocCustom) {
+        lines.push(String(settings.ocCustom).trim());
+      }
       return {
         path: `/etc/ocserv/${inbound.name}.conf`,
-        content: [
-          `# Managed by XProtocol Open-Core (${inbound.name})`,
-          `auth = "plain[passwd=/etc/ocserv/${inbound.name}.passwd]"`,
-          `tcp-port = ${inbound.port}`,
-          `udp-port = ${inbound.port}`,
-          `run-as-user = ocserv`,
-          `server-cert = /var/lib/xprotocol/certs/cert-${inbound.cert_id || 'default'}.pem`,
-          `server-key = /var/lib/xprotocol/certs/key-${inbound.cert_id || 'default'}.pem`,
-          `ipv4-network = ${inbound.subnet}`,
-          `dns = ${dns.split(',')[0].trim()}`,
-          `try-mtu-discovery = true`,
-          `dtls-legacy = true`,
-          `max-same-clients = 10`,
-        ].join('\n') + '\n',
+        content: lines.join('\n') + '\n',
       };
     }
 
     case 'ikev2': {
+      const certTag = inbound.cert_id ? String(inbound.cert_id) : 'default';
+      const serverId = String(settings.serverId || '').trim();
+      const ikeProps = String(settings.ikeProposals || 'aes256-sha256-modp2048,aes128-sha256-modp2048');
+      const espProps = String(settings.espProposals || 'aes256-sha256,aes128-sha256');
+      const lines = [
+        `# Managed by XProtocol Open-Core (${inbound.name})`,
+        `connections {`,
+        `  ${inbound.name} {`,
+        `    version = 2`,
+        `    pools = pool-${inbound.name}`,
+        `    proposals = ${ikeProps}`,
+        `    rekey_time = ${Number(settings.rekeySeconds ?? 10800)}s`,
+        `    dpd_delay = ${Number(settings.dpdSeconds ?? 30)}s`,
+        `    mobike = ${settings.mobike !== false ? 'yes' : 'no'}`,
+        `    fragmentation = ${settings.fragmentation !== false ? 'yes' : 'no'}`,
+        `    local {`,
+        `      auth = pubkey`,
+        `      certs = xprotocol-${certTag}.pem`,
+        ...(serverId ? [`      id = ${serverId}`] : []),
+        `    }`,
+        `    remote {`,
+        `      auth = eap-mschapv2`,
+        `      eap_id = %any`,
+        `    }`,
+        `    children {`,
+        `      net {`,
+        `        local_ts = 0.0.0.0/0`,
+        `        esp_proposals = ${espProps}`,
+        `        rekey_time = ${Number(settings.childRekeySeconds ?? 3600)}s`,
+        `      }`,
+        `    }`,
+        `  }`,
+        `}`,
+        `pools {`,
+        `  pool-${inbound.name} {`,
+        `    addrs = ${inbound.subnet}`,
+        `    dns = ${dnsList.join(', ')}`,
+        `  }`,
+        `}`,
+        `secrets {`,
+      ];
+      for (const p of peers) {
+        lines.push(
+          `  eap-${inbound.name}-${p.clientId} {`,
+          `    id = "${p.name}"`,
+          `    secret = "${p.vpnPassword || ''}"`,
+          `  }`,
+        );
+      }
+      lines.push(`}`);
       return {
         path: `/etc/swanctl/conf.d/${inbound.name}.conf`,
-        content: [
-          `# Managed by XProtocol Open-Core (${inbound.name})`,
-          `connections {`,
-          `  ${inbound.name} {`,
-          `    version = 2`,
-          `    pools = pool-${inbound.name}`,
-          `    local {`,
-          `      auth = pubkey`,
-          `      certs = cert-${inbound.cert_id || 'default'}.pem`,
-          `    }`,
-          `    remote {`,
-          `      auth = eap-mschapv2`,
-          `      eap_id = %any`,
-          `    }`,
-          `    children {`,
-          `      net { local_ts = 0.0.0.0/0 }`,
-          `    }`,
-          `  }`,
-          `}`,
-          `pools {`,
-          `  pool-${inbound.name} {`,
-          `    addrs = ${inbound.subnet}`,
-          `    dns = ${dns}`,
-          `  }`,
-          `}`,
-        ].join('\n') + '\n',
+        content: lines.join('\n') + '\n',
       };
     }
 
     default: {
+      const lines = [
+        `# Managed by XProtocol Open-Core (${inbound.name})`,
+        `[global]`,
+        `port = ${inbound.port || 1701}`,
+        `auth file = /etc/ppp/chap-secrets`,
+        `[lns default]`,
+        `ip range = ${cidr.gatewayIp.replace(/\.\d+$/, '.10')}-${cidr.gatewayIp.replace(/\.\d+$/, '.250')}`,
+        `local ip = ${cidr.gatewayIp}`,
+        `require chap = yes`,
+        `refuse pap = yes`,
+        `require authentication = yes`,
+        `name = xprotocol-l2tp`,
+        `pppoptfile = /etc/ppp/options.xl2tpd.${inbound.name}`,
+        `length bit = yes`,
+      ];
       return {
         path: `/etc/xl2tpd/${inbound.name}.conf`,
-        content: [
-          `# Managed by XProtocol Open-Core (${inbound.name})`,
-          `[global]`,
-          `port = ${inbound.port}`,
-          `[lns default]`,
-          `ip range = ${inbound.subnet}`,
-          `require chap = yes`,
-          `refuse pap = yes`,
-          `pppoptfile = /etc/ppp/options.xl2tpd.${inbound.name}`,
-        ].join('\n') + '\n',
+        content: lines.join('\n') + '\n',
       };
     }
   }
+}
+
+export function renderInboundExtraFiles(inbound: InboundRow, peers: PeerEntry[]): RenderedConfigFile[] {
+  let settings: Record<string, unknown> = {};
+  try {
+    settings = JSON.parse(inbound.settings_json || '{}');
+  } catch {
+    settings = {};
+  }
+  const dnsList = parseListSetting(settings.dns, ['1.1.1.1', '8.8.8.8']);
+  const files: RenderedConfigFile[] = [];
+
+  if (inbound.protocol === 'l2tp') {
+    const mtu = Number(settings.pppMtu ?? 1400);
+    const mru = Number(settings.pppMru ?? 1400);
+    const lcpInt = Number(settings.lcpEchoInterval ?? 30);
+    const lcpFail = Number(settings.lcpEchoFailure ?? 4);
+    const idleSec = Number(settings.idleSeconds ?? 0);
+    const pppLines = [
+      `ipcp-accept-local`,
+      `ipcp-accept-remote`,
+      `noccp`,
+      `auth`,
+      `require-mschap-v2`,
+      `mtu ${mtu}`,
+      `mru ${mru}`,
+      `lcp-echo-interval ${lcpInt}`,
+      `lcp-echo-failure ${lcpFail}`,
+      ...(idleSec > 0 ? [`idle ${idleSec}`] : []),
+      ...dnsList.map((d) => `ms-dns ${d}`),
+      `nodefaultroute`,
+      `proxyarp`,
+      `connect-delay 5000`,
+    ];
+    files.push({
+      path: `/etc/ppp/options.xl2tpd.${inbound.name}`,
+      content: pppLines.join('\n') + '\n',
+      mode: 0o644,
+    });
+
+    const psk = String(settings.psk || 'xprotocol-l2tp-psk');
+    const ikeProps = String(settings.ikeProposals || 'aes256-sha256-modp2048,aes128-sha1-modp1024');
+    const espProps = String(settings.espProposals || 'aes256-sha256,aes128-sha1');
+    files.push({
+      path: `/etc/swanctl/conf.d/l2tp-${inbound.name}.conf`,
+      content: [
+        `# L2TP/IPsec PSK transport (${inbound.name})`,
+        `connections {`,
+        `  l2tp-${inbound.name} {`,
+        `    version = 1`,
+        `    proposals = ${ikeProps}`,
+        `    encap = ${settings.forceEncap !== false ? 'yes' : 'no'}`,
+        `    local { auth = psk }`,
+        `    remote { auth = psk }`,
+        `    children {`,
+        `      l2tp {`,
+        `        mode = transport`,
+        `        local_ts = dynamic[udp/1701]`,
+        `        remote_ts = dynamic[udp]`,
+        `        esp_proposals = ${espProps}`,
+        `      }`,
+        `    }`,
+        `  }`,
+        `}`,
+        `secrets {`,
+        `  ike-l2tp-${inbound.name} { secret = "${psk}" }`,
+        `}`,
+      ].join('\n') + '\n',
+      mode: 0o600,
+    });
+  }
+
+  void peers;
+  return files;
 }
 
 export interface RoutingRule {
@@ -218,7 +500,6 @@ export function renderXrayRoutingConfig(params: {
   xrayOutbounds.push({ tag: 'block', protocol: 'blackhole' });
 
   const xrayRules: Record<string, unknown>[] = [
-    // Always keep DNS and private networks direct
     { type: 'field', port: '53', outboundTag: 'direct' },
     { type: 'field', ip: ['geoip:private'], outboundTag: 'direct' },
   ];

@@ -4,20 +4,11 @@ import { generateWireGuardKeypair } from '../security/auth.js';
 import { applyInboundRuntime } from '../drivers/runtime.js';
 import { renderInboundServerConfig, type InboundRow, type PeerEntry } from '../generators/configs.js';
 import { recordAudit } from '../services/audit.js';
+import { getEligiblePeersForInbound } from '../services/peerResolver.js';
 import type { AuthedRequest } from './context.js';
 
 function getInboundPeers(inboundId: number, subnet: string): PeerEntry[] {
-  const db = getDb();
-  const baseNet = subnet.split('/')[0].split('.').slice(0, 3).join('.');
-  const clients = db
-    .prepare('SELECT id, name, wg_public_key, fixed_ip FROM clients WHERE enabled = 1')
-    .all() as Array<{ id: number; name: string; wg_public_key: string; fixed_ip: string }>;
-  return clients.map((c) => ({
-    clientId: c.id,
-    name: c.name,
-    wgPublicKey: c.wg_public_key,
-    tunnelIp: c.fixed_ip || `${baseNet}.${2 + (c.id % 240)}`,
-  }));
+  return getEligiblePeersForInbound(inboundId, subnet);
 }
 
 function defaultSlugPrefix(protocol: string, transport: string): string {

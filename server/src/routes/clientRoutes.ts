@@ -6,6 +6,9 @@ import { computeClientState, ensureAccountOperational, type AuthedRequest } from
 import { getEffectiveLimits } from '../security/rbac.js';
 import { generateClientProfile } from '../generators/profiles.js';
 import type { InboundRow } from '../generators/configs.js';
+import { ensureClientCertificate, ensureOpenVpnPki } from '../drivers/pki.js';
+import { ensureClientSpeedColumns } from '../services/peerResolver.js';
+import { kickClientConnections, scheduleSyncRunningInbounds } from '../services/syncService.js';
 
 const GB = 1024 * 1024 * 1024;
 
@@ -64,6 +67,7 @@ export function createClientRouter(): Router {
   const router = Router();
 
   router.get('/', (req: AuthedRequest, res) => {
+    ensureClientSpeedColumns();
     const acc = req.auth!.account;
     if (acc.permissions.clients.view === 'none') {
       res.status(403).json({ error: 'No permission to view clients' });
@@ -146,6 +150,8 @@ export function createClientRouter(): Router {
         firstConnectDays: r.first_connect_days === null ? null : Number(r.first_connect_days),
         firstConnectedAt: r.first_connected_at ? String(r.first_connected_at) : null,
         deviceLimit: r.device_limit === null ? null : Number(r.device_limit),
+        downloadMbps: r.download_mbps === null || r.download_mbps === undefined ? null : Number(r.download_mbps),
+        uploadMbps: r.upload_mbps === null || r.upload_mbps === undefined ? null : Number(r.upload_mbps),
         onlineCount,
         resetPeriod: String(r.reset_period),
         fixedIp: String(r.fixed_ip || ''),
@@ -193,9 +199,12 @@ export function createClientRouter(): Router {
       contact?: string;
       groupIds?: number[];
       inboundIds?: number[];
+      downloadMbps?: number | null;
+      uploadMbps?: number | null;
       enabled?: boolean;
     };
 
+    ensureClientSpeedColumns();
     const db = getDb();
     const limits = getEffectiveLimits(acc);
     const count = Math.min(50, Math.max(1, Number(body.count || 1)));
@@ -252,9 +261,12 @@ export function createClientRouter(): Router {
     const createdIds: number[] = [];
     const now = new Date().toISOString();
     const insert = db.prepare(
-      `INSERT INTO clients (name, owner_id, traffic_limit_bytes, expires_at, first_connect_days, device_limit, reset_period, fixed_ip, enabled, note, contact, sub_token, wg_private_key, wg_public_key, vpn_password, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO clients (name, owner_id, traffic_limit_bytes, expires_at, first_connect_days, device_limit, reset_period, fixed_ip, enabled, note, contact, sub_token, wg_private_key, wg_public_key, vpn_password, download_mbps, upload_mbps, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
+
+    const dlMbps = body.downloadMbps && Number(body.downloadMbps) > 0 ? Number(body.downloadMbps) : null;
+    const ulMbps = body.uploadMbps && Number(body.uploadMbps) > 0 ? Number(body.uploadMbps) : null;
 
     const groupIds = (body.groupIds || []).filter((id) =>
       acc.isOwner || acc.allowedGroupIds.length === 0 ? true : acc.allowedGroupIds.includes(id),
@@ -286,6 +298,8 @@ export function createClientRouter(): Router {
           keys.privateKey,
           keys.publicKey,
           vpnPass,
+          dlMbps,
+          ulMbps,
           now,
         );
         const cid = Number(info.lastInsertRowid);
@@ -310,10 +324,12 @@ export function createClientRouter(): Router {
       ip: req.clientIp,
     });
 
+    scheduleSyncRunningInbounds();
     res.status(201).json({ ids: createdIds });
   });
 
-  router.patch('/:id', (req: AuthedRequest, res) => {
+  router.patch('/:id', async (req: AuthedRequest, res) => {
+    ensureClientSpeedColumns();
     const id = Number(req.params.id);
     const acc = req.auth!.account;
     const db = getDb();
@@ -341,6 +357,8 @@ export function createClientRouter(): Router {
       enabled?: boolean;
       groupIds?: number[];
       inboundIds?: number[];
+      downloadMbps?: number | null;
+      uploadMbps?: number | null;
     };
 
     let trafficLimitBytes =
@@ -362,6 +380,23 @@ export function createClientRouter(): Router {
       expiresAt = new Date(baseMs + body.addDays * 86400_000).toISOString();
     }
 
+    const nextDlMbps =
+      body.downloadMbps !== undefined
+        ? body.downloadMbps && Number(body.downloadMbps) > 0
+          ? Number(body.downloadMbps)
+          : null
+        : existing.download_mbps === null || existing.download_mbps === undefined
+          ? null
+          : Number(existing.download_mbps);
+    const nextUlMbps =
+      body.uploadMbps !== undefined
+        ? body.uploadMbps && Number(body.uploadMbps) > 0
+          ? Number(body.uploadMbps)
+          : null
+        : existing.upload_mbps === null || existing.upload_mbps === undefined
+          ? null
+          : Number(existing.upload_mbps);
+
     db.prepare(
       `UPDATE clients SET
          traffic_limit_bytes = ?,
@@ -372,7 +407,9 @@ export function createClientRouter(): Router {
          vpn_password = ?,
          note = ?,
          contact = ?,
-         enabled = ?
+         enabled = ?,
+         download_mbps = ?,
+         upload_mbps = ?
        WHERE id = ?`,
     ).run(
       trafficLimitBytes,
@@ -384,6 +421,8 @@ export function createClientRouter(): Router {
       body.note !== undefined ? body.note : String(existing.note || ''),
       body.contact !== undefined ? body.contact : String(existing.contact || ''),
       body.enabled !== undefined ? (body.enabled ? 1 : 0) : Number(existing.enabled),
+      nextDlMbps,
+      nextUlMbps,
       id,
     );
 
@@ -407,6 +446,10 @@ export function createClientRouter(): Router {
       target: String(existing.name),
       ip: req.clientIp,
     });
+    if (body.enabled === false) {
+      await kickClientConnections(id, 'client_disabled').catch(() => 0);
+    }
+    scheduleSyncRunningInbounds();
     res.json({ ok: true });
   });
 
@@ -427,6 +470,7 @@ export function createClientRouter(): Router {
     }
     db.prepare('UPDATE clients SET traffic_used_bytes = 0, upload_bytes = 0, download_bytes = 0 WHERE id = ?').run(id);
     recordAudit({ accountId: acc.id, username: acc.username, action: 'client.update', target: existing.name, details: 'reset traffic', ip: req.clientIp });
+    scheduleSyncRunningInbounds();
     res.json({ ok: true });
   });
 
@@ -450,7 +494,7 @@ export function createClientRouter(): Router {
     res.json({ subToken: token });
   });
 
-  router.post('/bulk', (req: AuthedRequest, res) => {
+  router.post('/bulk', async (req: AuthedRequest, res) => {
     const acc = req.auth!.account;
     const { ids, action, addDays, addTrafficGb, groupId, groupIds, groupOp } = req.body as {
       ids?: number[];
@@ -479,11 +523,16 @@ export function createClientRouter(): Router {
       if (!acc.isOwner && Number(existing.owner_id) !== acc.id && acc.permissions.clients.edit !== 'all') continue;
 
       if (action === 'enable') db.prepare('UPDATE clients SET enabled = 1 WHERE id = ?').run(id);
-      else if (action === 'disable') db.prepare('UPDATE clients SET enabled = 0 WHERE id = ?').run(id);
-      else if (action === 'reset_traffic')
+      else if (action === 'disable') {
+        db.prepare('UPDATE clients SET enabled = 0 WHERE id = ?').run(id);
+        await kickClientConnections(id, 'client_disabled').catch(() => 0);
+      } else if (action === 'reset_traffic')
         db.prepare('UPDATE clients SET traffic_used_bytes = 0, upload_bytes = 0, download_bytes = 0 WHERE id = ?').run(id);
-      else if (action === 'disconnect') db.prepare('DELETE FROM connections_live WHERE client_id = ?').run(id);
-      else if (action === 'delete') db.prepare('DELETE FROM clients WHERE id = ?').run(id);
+      else if (action === 'disconnect') await kickClientConnections(id, 'admin_kick').catch(() => 0);
+      else if (action === 'delete') {
+        await kickClientConnections(id, 'client_deleted').catch(() => 0);
+        db.prepare('DELETE FROM clients WHERE id = ?').run(id);
+      }
       else if (action === 'extend') {
         if (addDays && addDays > 0) {
           const cur = existing.expires_at ? new Date(String(existing.expires_at)).getTime() : Date.now();
@@ -521,10 +570,13 @@ export function createClientRouter(): Router {
       target: `${ids.length} clients`,
       ip: req.clientIp,
     });
+    if (action !== 'disconnect') {
+      scheduleSyncRunningInbounds();
+    }
     res.json({ ok: true });
   });
 
-  router.delete('/:id', (req: AuthedRequest, res) => {
+  router.delete('/:id', async (req: AuthedRequest, res) => {
     const id = Number(req.params.id);
     const acc = req.auth!.account;
     const db = getDb();
@@ -539,12 +591,14 @@ export function createClientRouter(): Router {
       res.status(403).json({ error: 'No permission to delete this client' });
       return;
     }
+    await kickClientConnections(id, 'client_deleted').catch(() => 0);
     db.prepare('DELETE FROM clients WHERE id = ?').run(id);
+    scheduleSyncRunningInbounds();
     recordAudit({ accountId: acc.id, username: acc.username, action: 'client.delete', target: existing.name, ip: req.clientIp });
     res.json({ ok: true });
   });
 
-  router.get('/:id/profile', (req: AuthedRequest, res) => {
+  router.get('/:id/profile', async (req: AuthedRequest, res) => {
     const id = Number(req.params.id);
     const db = getDb();
     const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id) as Record<string, unknown> | undefined;
@@ -559,6 +613,10 @@ export function createClientRouter(): Router {
     }
     const reqInboundId = req.query.inboundId ? Number(req.query.inboundId) : inbounds[0].id;
     const inbound = inbounds.find((i) => i.id === reqInboundId) || inbounds[0];
+    if (inbound.protocol === 'openvpn') {
+      await ensureOpenVpnPki().catch(() => undefined);
+      await ensureClientCertificate(String(client.name)).catch(() => null);
+    }
     const general = getSetting('general', DEFAULT_GENERAL_SETTINGS);
     const connectAddrs = JSON.parse(inbound.connect_addresses_json || '[]') as string[];
     const endpointHost = connectAddrs[0] || (inbound.node_address !== '127.0.0.1' ? inbound.node_address : general.publicAddress);
