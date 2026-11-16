@@ -3,6 +3,7 @@
 /* Shared utilities used inside .sub routes */
 .sub .small { font-size: var(--t-xs); }
 .sub .num { font-variant-numeric: tabular-nums; }
+.sub .chart { margin-inline: 0; }
 .sub .stack-sm { display: grid; gap: 8px; }
 .sub .row-gap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .sub .brand-sm {
