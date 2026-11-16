@@ -1151,7 +1151,7 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
 
               <div className="panel editor">
                 {selectedNodeIds.length > 0 && kind !== 'ikev2' && kind !== 'l2tp' && (
-                  <details className="inb-advanced-basics mx-[22px] mt-[18px]">
+                  <details className="inb-advanced-basics mx-5.5 mt-4.5">
                     <summary>{L(lang, 'Node-specific settings', 'تنظیمات اختصاصی نود')}</summary>
                     <div className="flex flex-col gap-3">
                       <p className="text-xs text-(--text-muted)">

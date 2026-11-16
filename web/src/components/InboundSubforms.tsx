@@ -989,7 +989,7 @@ export function WireGuardSection({
   };
 
   return (
-    <details className="inb-advanced-basics mx-[22px] my-[18px]">
+    <details className="inb-advanced-basics mx-5.5 my-4.5">
       <summary>{L(lang, 'Advanced', 'تنظیمات پیشرفته')}</summary>
       <div className="ed-section">
         <div>
