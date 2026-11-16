@@ -1,22 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ArrowDownToLine,
-  Clock,
-  FolderKanban,
-  KeyRound,
-  LayoutDashboard,
+  CalendarDays,
+  CircleArrowUp,
+  Gauge,
+  Layers,
   LogOut,
   Menu,
-  Monitor,
   Moon,
   Network,
-  Radio,
   Send,
   Server,
   Settings,
   ShieldCheck,
   Sun,
+  SunMoon,
+  UserCog,
   Users,
+  Waypoints,
   X,
 } from 'lucide-react';
 import { useUi, type ThemeMode } from '../i18n/context';
@@ -119,11 +119,11 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
 
   const themeIcon =
     theme === 'system' ? (
-      <Monitor className="h-4 w-4" />
+      <SunMoon aria-hidden="true" />
     ) : resolvedTheme === 'dark' ? (
-      <Moon className="h-4 w-4" />
+      <Moon aria-hidden="true" />
     ) : (
-      <Sun className="h-4 w-4" />
+      <Sun aria-hidden="true" />
     );
 
   const supportHref = supportTelegram
@@ -133,40 +133,40 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
     : '';
 
   const items: { key: NavKey; path: string; label: string; icon: React.ReactNode; visible: boolean }[] = [
-    { key: 'overview', path: '/', label: t.nav.overview, icon: <LayoutDashboard size={18} strokeWidth={1.7} />, visible: true },
+    { key: 'overview', path: '/', label: t.nav.overview, icon: <Gauge aria-hidden="true" />, visible: true },
     {
       key: 'clients',
       path: '/clients',
       label: t.nav.clients,
-      icon: <Users size={18} strokeWidth={1.7} />,
+      icon: <Users aria-hidden="true" />,
       visible: account.isOwner || account.permissions.clients.view !== 'none',
     },
     {
       key: 'inbounds',
       path: '/inbounds',
       label: t.nav.inbounds,
-      icon: <Radio size={18} strokeWidth={1.7} />,
+      icon: <Server aria-hidden="true" />,
       visible: account.isOwner || account.permissions.inbounds.view !== 'none',
     },
     {
       key: 'nodes',
       path: '/nodes',
       label: t.nav.nodes,
-      icon: <Server size={18} strokeWidth={1.7} />,
+      icon: <Network aria-hidden="true" />,
       visible: account.isOwner || account.permissions.nodes.view !== 'none',
     },
-    { key: 'certificates', path: '/certificates', label: t.nav.certificates, icon: <ShieldCheck size={18} strokeWidth={1.7} />, visible: account.isOwner },
-    { key: 'routing', path: '/routing', label: t.nav.routing, icon: <Network size={18} strokeWidth={1.7} />, visible: account.isOwner },
+    { key: 'certificates', path: '/certificates', label: t.nav.certificates, icon: <ShieldCheck aria-hidden="true" />, visible: account.isOwner },
+    { key: 'routing', path: '/routing', label: t.nav.routing, icon: <Waypoints aria-hidden="true" />, visible: account.isOwner },
     {
       key: 'groups',
       path: '/groups',
       label: t.nav.groups,
-      icon: <FolderKanban size={18} strokeWidth={1.7} />,
+      icon: <Layers aria-hidden="true" />,
       visible: account.isOwner || account.permissions.groups.view !== 'none',
     },
-    { key: 'accounts', path: '/accounts', label: t.nav.accounts, icon: <KeyRound size={18} strokeWidth={1.7} />, visible: account.isOwner },
-    { key: 'settings', path: '/settings', label: t.nav.settings, icon: <Settings size={18} strokeWidth={1.7} />, visible: true },
-    { key: 'updates', path: '/updates', label: t.nav.updates, icon: <ArrowDownToLine size={18} strokeWidth={1.7} />, visible: account.isOwner },
+    { key: 'accounts', path: '/accounts', label: t.nav.accounts, icon: <UserCog aria-hidden="true" />, visible: account.isOwner },
+    { key: 'settings', path: '/settings', label: t.nav.settings, icon: <Settings aria-hidden="true" />, visible: true },
+    { key: 'updates', path: '/updates', label: t.nav.updates, icon: <CircleArrowUp aria-hidden="true" />, visible: account.isOwner },
   ];
 
   const pool = account.trafficPoolBytes;
@@ -305,7 +305,7 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
           )}
           <div className={`side-expiry${expiryClass}`}>
             <span className="side-expiry-label">
-              <Clock aria-hidden="true" />
+              <CalendarDays aria-hidden="true" />
               <span>{lang === 'fa' ? 'اعتبار حساب' : 'Account validity'}</span>
             </span>
             <time>

@@ -572,10 +572,13 @@ h1 .w > span {
   transform: translateY(0) scale(0.97);
 }
 .xp-btn svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
   transition: transform var(--med) var(--spring);
 }
-.xp-btn:hover:not(:disabled) svg {
-  transform: scale(1.1);
+.xp-btn:hover:not(:disabled) svg:not(.spin) {
+  transform: scale(1.12);
 }
 
 .xp-btn-primary {

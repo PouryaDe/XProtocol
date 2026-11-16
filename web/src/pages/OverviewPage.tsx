@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Activity,
   ArrowDown,
   ArrowRight,
   ArrowUp,
-  BarChart3,
+  ChartColumn,
+  ChartNoAxesCombined,
   CheckCircle2,
-  Clock,
   Plus,
   RefreshCw,
-  TrendingUp,
   Users,
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
@@ -373,11 +373,11 @@ export function OverviewPage({
             </span>
             <div className="ov-chart-mode" role="group" aria-label={lang === 'fa' ? 'نوع نمایش نمودار' : 'Chart display'}>
               <button type="button" aria-pressed={chartMode === 'bars'} onClick={() => setChartMode('bars')}>
-                <BarChart3 aria-hidden="true" />
+                <ChartColumn aria-hidden="true" />
                 {lang === 'fa' ? 'ستونی' : 'Bars'}
               </button>
               <button type="button" aria-pressed={chartMode === 'trend'} onClick={() => setChartMode('trend')}>
-                <TrendingUp aria-hidden="true" />
+                <ChartNoAxesCombined aria-hidden="true" />
                 {lang === 'fa' ? 'روند' : 'Trend'}
               </button>
             </div>
@@ -392,7 +392,7 @@ export function OverviewPage({
           />
 
           <div className="ov-chart-insight">
-            <Clock aria-hidden="true" />
+            <Activity aria-hidden="true" />
             <span>
               {peakPoint && periodTotal > 0
                 ? lang === 'fa'

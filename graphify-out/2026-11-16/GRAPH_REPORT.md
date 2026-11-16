@@ -1,7 +1,7 @@
 # Graph Report - Ovira  (2026-11-16)
 
 ## Corpus Check
-- 72 files · ~61,558 words
+- 72 files · ~61,542 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 5 file(s) not represented in the graph (top: (none) 2, .service 1, .css 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `34007509`
+- Built from commit: `52926301`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -163,7 +163,7 @@ Cohesion: 0.55
 Nodes (11): cmd_backup(), cmd_logs(), cmd_ocserv(), cmd_password(), cmd_ssl(), cmd_status(), cmd_uninstall(), cmd_update() (+3 more)
 
 ## Knowledge Gaps
-- **170 isolated node(s):** `ReleaseEntry`, `UpdateSettings`, `UpdateState`, `Sample`, `OverviewResponse` (+165 more)
+- **170 isolated node(s):** `SettingsTab`, `SubBuilderTab`, `ACCENTS`, `SUB_SWATCHES`, `LOOKS` (+165 more)
   These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 181 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **1 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -172,7 +172,7 @@ _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `express` connect `getDb` to `runtime.ts`, `Server Dependencies & Manifest`, `clientRoutes.ts`, `database.ts`, `updater.ts`, `linuxEngine.ts`, `index.ts`?**
   _High betweenness centrality (0.036) - this node is a cross-community bridge._
-- **What connects `ReleaseEntry`, `UpdateSettings`, `UpdateState` to the rest of the system?**
+- **What connects `SettingsTab`, `SubBuilderTab`, `ACCENTS` to the rest of the system?**
   _170 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `web/package.json` be split into smaller, more focused modules?**
   _Cohesion score 0.05398110661268556 - nodes in this community are weakly interconnected._

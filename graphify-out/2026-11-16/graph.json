@@ -10512,18 +10512,6 @@
     },
     {
       "source": "web_src_pages_settingspage_settingspage",
-      "target": "web_src_lib_router_topanelurl",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "web/src/pages/SettingsPage.tsx",
-      "source_location": "L1002",
-      "weight": 1.0
-    },
-    {
-      "source": "web_src_pages_settingspage_settingspage",
       "target": "web_src_lib_api_apifetch",
       "relation": "calls",
       "_origin": "ast",
@@ -10543,7 +10531,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "web/src/pages/SettingsPage.tsx",
-      "source_location": "L1335",
+      "source_location": "L1331",
       "weight": 1.0
     },
     {
@@ -10591,7 +10579,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "web/src/pages/SettingsPage.tsx",
-      "source_location": "L259",
+      "source_location": "L258",
       "weight": 1.0
     },
     {
@@ -10603,7 +10591,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "web/src/pages/SettingsPage.tsx",
-      "source_location": "L302",
+      "source_location": "L300",
       "weight": 1.0
     },
     {
@@ -10627,7 +10615,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "web/src/pages/SettingsPage.tsx",
-      "source_location": "L422",
+      "source_location": "L418",
       "weight": 1.0
     },
     {
@@ -10639,7 +10627,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "web/src/pages/SettingsPage.tsx",
-      "source_location": "L899",
+      "source_location": "L895",
       "weight": 1.0
     },
     {
@@ -10651,7 +10639,19 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "web/src/pages/SettingsPage.tsx",
-      "source_location": "L967",
+      "source_location": "L963",
+      "weight": 1.0
+    },
+    {
+      "source": "web_src_pages_settingspage_settingspage",
+      "target": "web_src_lib_router_topanelurl",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "web/src/pages/SettingsPage.tsx",
+      "source_location": "L998",
       "weight": 1.0
     },
     {
@@ -23851,5 +23851,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "3400750963e437f1080618086dbd145c03aa6610"
+  "built_at_commit": "529263014ea7eae3e4e8da84853686193cd3e796"
 }

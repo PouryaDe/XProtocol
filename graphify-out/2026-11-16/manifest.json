@@ -342,9 +342,9 @@
     "semantic_hash": ""
   },
   "web/src/pages/SettingsPage.tsx": {
-    "mtime": 1794781519.937462,
-    "seen": 1794781608.1654038,
-    "ast_hash": "6f8dd06d2cd2947acc40750eccec3efe",
+    "mtime": 1794786142.2833085,
+    "seen": 1794786287.9004047,
+    "ast_hash": "37105b6e9c15aa42d73ae0124eaf82c4",
     "semantic_hash": ""
   },
   "web/src/pages/SubscriptionPage.tsx": {
