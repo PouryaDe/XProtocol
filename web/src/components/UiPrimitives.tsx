@@ -1,4 +1,5 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useUi } from '../i18n/context';
 
 const SPOTLIGHT_SELECTOR =
@@ -431,7 +432,7 @@ export function Tabs<T extends string = string>({
 export function Lamps({
   used,
   limit,
-  count = 16,
+  count = 12,
   size = 'sm',
 }: {
   used: number;
@@ -441,21 +442,167 @@ export function Lamps({
 }) {
   if (!limit || limit <= 0) {
     return (
-      <span className={size === 'lg' ? 'lamps lamps-lg' : 'lamps'} aria-hidden="true">
+      <span className={`${size === 'lg' ? 'lamps lamps-lg' : 'lamps'} lamps-unlimited`} aria-hidden="true">
         {Array.from({ length: count }).map((_, i) => (
-          <i key={i} />
+          <i key={i} className="on" />
         ))}
       </span>
     );
   }
-  const ratio = Math.max(0, Math.min(1, used / limit));
-  const litCount = ratio > 0 ? Math.max(1, Math.round(ratio * count)) : 0;
-  const toneClass = ratio >= 0.95 ? 'over' : ratio >= 0.8 ? 'hot' : 'lit';
+  const remainingFrac = Math.max(0, Math.min(1, 1 - used / limit));
+  const lit = remainingFrac * count;
   return (
     <span className={size === 'lg' ? 'lamps lamps-lg' : 'lamps'} aria-hidden="true">
-      {Array.from({ length: count }).map((_, i) => (
-        <i key={i} className={i < litCount ? toneClass : undefined} />
-      ))}
+      {Array.from({ length: count }).map((_, i) => {
+        const part = Math.max(0, Math.min(1, lit - i));
+        const cls = part >= 1 ? 'on' : part > 0 ? 'part' : undefined;
+        return (
+          <i
+            key={i}
+            className={cls}
+            style={part > 0 && part < 1 ? ({ '--f': part } as React.CSSProperties) : undefined}
+          />
+        );
+      })}
     </span>
+  );
+}
+
+export interface ActionMenuItem {
+  label: string;
+  onSelect: () => void;
+  danger?: boolean;
+  disabled?: boolean;
+}
+
+export function ActionMenu({
+  label,
+  trigger,
+  items,
+}: {
+  label: string;
+  trigger: React.ReactNode;
+  items: (ActionMenuItem | null | false | undefined)[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<React.CSSProperties | null>(null);
+  const [sheet, setSheet] = useState(false);
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const close = useCallback(() => setOpen(false), []);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPos(null);
+      return;
+    }
+    const triggerRect = btnRef.current?.getBoundingClientRect();
+    const menuEl = menuRef.current;
+    if (!triggerRect || !menuEl) return;
+    if (window.innerWidth < 640) {
+      setSheet(true);
+      setPos({});
+      return;
+    }
+    setSheet(false);
+    const w = menuEl.offsetWidth;
+    const h = menuEl.offsetHeight;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const isRtl = getComputedStyle(document.documentElement).direction === 'rtl';
+    let left = isRtl ? triggerRect.left : triggerRect.right - w;
+    left = Math.max(8, Math.min(left, vw - w - 8));
+    let top = triggerRect.bottom + 4;
+    if (top + h > vh - 8) {
+      const above = triggerRect.top - 4 - h;
+      top = above >= 8 ? above : Math.max(8, vh - h - 8);
+    }
+    setPos({ left, top, maxHeight: vh - 16 });
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as Node | null;
+      if (!menuRef.current?.contains(target) && !btnRef.current?.contains(target)) {
+        setOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setOpen(false);
+        btnRef.current?.focus();
+      }
+    };
+    const onScroll = (e: Event) => {
+      if (!menuRef.current?.contains(e.target as Node | null)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey, true);
+      document.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [open, close]);
+
+  const cleanItems = items.filter((item): item is ActionMenuItem | null => item !== false && item !== undefined);
+
+  return (
+    <div className="menu-wrap">
+      <button
+        ref={btnRef}
+        type="button"
+        className="btn ghost sm icon"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={label}
+        title={label}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {trigger}
+      </button>
+      {open &&
+        createPortal(
+          <>
+            {sheet ? <div className="menu-scrim" aria-hidden="true" onMouseDown={close} /> : null}
+            <div
+              ref={menuRef}
+              className={`menu${sheet ? ' sheet' : ''}`}
+              role="menu"
+              aria-label={label}
+              style={pos ?? { visibility: 'hidden', left: 0, top: 0 }}
+            >
+              {cleanItems.map((item, idx) =>
+                item === null ? (
+                  <hr key={idx} />
+                ) : (
+                  <button
+                    key={item.label + idx}
+                    type="button"
+                    role="menuitem"
+                    className={item.danger ? 'danger' : undefined}
+                    disabled={item.disabled}
+                    onClick={() => {
+                      setOpen(false);
+                      btnRef.current?.focus();
+                      item.onSelect();
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                ),
+              )}
+            </div>
+          </>,
+          btnRef.current?.closest('dialog[open]') ?? document.body,
+        )}
+    </div>
   );
 }

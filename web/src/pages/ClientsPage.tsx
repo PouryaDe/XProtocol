@@ -1,15 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Check,
   ChevronDown,
   ChevronUp,
   Copy,
   Download,
   ExternalLink,
+  Link2,
+  MoreHorizontal,
   Plus,
-  QrCode as QrIcon,
-  RefreshCw,
   Search,
-  Trash2,
   Users,
 } from 'lucide-react';
 import { apiFetch, getApiBase } from '../lib/api';
@@ -17,13 +17,13 @@ import { formatBytes, formatDaysLeft } from '../lib/format';
 import { getSubPath, navigate, toPanelUrl, updateSearchParams, useLocationState } from '../lib/router';
 import { useUi } from '../i18n/context';
 import {
+  ActionMenu,
   Button,
   EmptySonar,
   Input,
   Lamps,
   PageHead,
   Select,
-  StatusPill,
   Tabs,
 } from '../components/UiPrimitives';
 import { Modal } from '../components/Modal';
@@ -86,6 +86,9 @@ export function ClientsPage({
   const [editing, setEditing] = useState<ClientItem | null>(null);
   const [bulkMode, setBulkMode] = useState(false);
   const [qrClient, setQrClient] = useState<ClientItem | null>(null);
+  const [extendClient, setExtendClient] = useState<ClientItem | null>(null);
+  const [extDays, setExtDays] = useState('30');
+  const [extGb, setExtGb] = useState('');
   const [copiedId, setCopiedId] = useState<number | null>(null);
 
   // Form fields
@@ -321,23 +324,55 @@ export function ClientsPage({
     load();
   };
 
-  const statusTone = (s: ClientItem['status']) => {
-    if (s === 'online') return 'lime';
-    if (s === 'active') return 'green';
-    if (s === 'not_started') return 'blue';
-    if (s === 'used_up' || s === 'expired') return 'red';
-    return 'gray';
+  const formatEndDate = (iso: string | null) => {
+    if (!iso) return '';
+    try {
+      return new Intl.DateTimeFormat(lang === 'fa' ? 'fa-IR' : 'en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      }).format(new Date(iso));
+    } catch {
+      return '';
+    }
+  };
+
+  const renderClientStatusTag = (s: ClientItem['status']) => {
+    const label = t.clients.statuses[s];
+    const cls =
+      s === 'online'
+        ? 'tag tag-online cert-tag'
+        : s === 'active'
+          ? 'tag tag-active cert-tag'
+          : s === 'not_started'
+            ? 'tag tag-pending cert-tag'
+            : s === 'used_up' || s === 'expired'
+              ? 'tag tag-expired cert-tag'
+              : 'tag tag-disabled cert-tag';
+    return <span className={cls}>{label}</span>;
+  };
+
+  const submitExtend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!extendClient) return;
+    await apiFetch('/clients/bulk', {
+      method: 'POST',
+      body: JSON.stringify({
+        ids: [extendClient.id],
+        action: 'extend',
+        addDays: extDays ? Number(extDays) : undefined,
+        addTrafficGb: extGb ? Number(extGb) : undefined,
+      }),
+    });
+    setExtendClient(null);
+    load();
   };
 
   return (
     <div className="page">
       <PageHead
         title={t.clients.title}
-        sub={
-          lang === 'fa'
-            ? `${counts.all} کاربر ثبت‌شده · ${counts.online} آنلاین`
-            : `${counts.all} clients total · ${counts.online} online`
-        }
+        sub={lang === 'fa' ? `${counts.all} کاربر` : `${counts.all} clients`}
         actions={
           <>
             <Button onClick={() => openNew(true)}>
@@ -372,25 +407,41 @@ export function ClientsPage({
             type="search"
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder={t.common.search}
+            placeholder={lang === 'fa' ? 'نام، یادداشت یا راه ارتباطی' : 'Name, note or contact'}
             className="input"
           />
         </label>
-        <div className="flex flex-wrap items-center gap-2">
-          <Select value={groupFilter} onChange={(e) => setGroupFilterParam(e.target.value)}>
-            <option value="all">{lang === 'fa' ? 'گروه: همه' : 'Group: All'}</option>
-            {groups.map((g) => (
-              <option key={g.id} value={String(g.id)}>
-                {g.name}
-              </option>
-            ))}
-          </Select>
-          <Select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
-            <option value="newest">{lang === 'fa' ? 'مرتب‌سازی: جدیدترین' : 'Sort: Newest'}</option>
-            <option value="name">{lang === 'fa' ? 'مرتب‌سازی: نام' : 'Sort: Name'}</option>
-            <option value="traffic">{lang === 'fa' ? 'مرتب‌سازی: بیشترین مصرف' : 'Sort: Most traffic'}</option>
-            <option value="ending">{lang === 'fa' ? 'مرتب‌سازی: نزدیک‌ترین انقضا' : 'Sort: Ending soonest'}</option>
-          </Select>
+        <div className="sort-group">
+          {groups.length > 0 && (
+            <label className="sort">
+              <span className="faint small">{lang === 'fa' ? 'گروه' : 'Group'}</span>
+              <select
+                className="select"
+                value={groupFilter}
+                onChange={(e) => setGroupFilterParam(e.target.value)}
+              >
+                <option value="all">{lang === 'fa' ? 'همه گروه‌ها' : 'All groups'}</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={String(g.id)}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="sort">
+            <span className="faint small">{lang === 'fa' ? 'مرتب‌سازی' : 'Sort'}</span>
+            <select
+              className="select"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+            >
+              <option value="newest">{lang === 'fa' ? 'جدیدترین' : 'Newest'}</option>
+              <option value="name">{lang === 'fa' ? 'نام' : 'Name'}</option>
+              <option value="traffic">{lang === 'fa' ? 'بیشترین مصرف' : 'Most traffic'}</option>
+              <option value="ending">{lang === 'fa' ? 'نزدیک‌ترین پایان' : 'Ending soonest'}</option>
+            </select>
+          </label>
         </div>
       </div>
 
@@ -408,8 +459,8 @@ export function ClientsPage({
       )}
 
       {filtered.length === 0 ? (
-        <div className="panel py-6">
-          <EmptySonar text={lang === 'fa' ? 'هیچ کاربری پیدا نشد' : 'No clients match the filter'} />
+        <div className="cert-empty-box">
+          <EmptySonar text={lang === 'fa' ? 'هیچ کاربری پیدا نشد' : 'No clients match this view.'} />
         </div>
       ) : (
         <div className="table-wrap">
@@ -419,6 +470,7 @@ export function ClientsPage({
                 <th className="col-check">
                   <input
                     type="checkbox"
+                    aria-label={t.clients.tabs.all}
                     checked={filtered.length > 0 && selectedIds.length === filtered.length}
                     onChange={(e) => setSelectedIds(e.target.checked ? filtered.map((c) => c.id) : [])}
                   />
@@ -427,115 +479,173 @@ export function ClientsPage({
                 <th>{t.clients.columns.status}</th>
                 <th>{t.clients.columns.traffic}</th>
                 <th>{t.clients.columns.ends}</th>
-                <th className="text-end">{t.clients.columns.online}</th>
-                <th className="col-actions text-end">{t.common.actions}</th>
+                <th className="end">{t.clients.columns.online}</th>
+                <th className="hide-md">{t.clients.columns.owner}</th>
+                <th className="col-actions">
+                  <span className="sr-only">{t.common.actions}</span>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((c) => (
-                <tr
-                  key={c.id}
-                  className={selectedIds.includes(c.id) ? 'selected cursor-pointer' : 'cursor-pointer'}
-                  onClick={(e) => {
-                    const target = e.target as HTMLElement;
-                    if (target.closest('a,button,input')) return;
-                    navigate(`/clients/${c.id}`);
-                  }}
-                >
-                  <td className="col-check">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(c.id)}
-                      onChange={(e) =>
-                        setSelectedIds((prev) =>
-                          e.target.checked ? [...prev, c.id] : prev.filter((id) => id !== c.id),
-                        )
-                      }
-                    />
-                  </td>
-                  <td>
-                    <span className="cell-2">
-                      <a
-                        href={toPanelUrl(`/clients/${c.id}`)}
-                        onClick={(e) => {
-                          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-                          e.preventDefault();
-                          navigate(`/clients/${c.id}`);
-                        }}
-                        className="strong-link"
-                        dir="ltr"
-                      >
-                        {c.name}
-                      </a>
-                      <span className="text-xs text-(--text-muted)">
-                        {c.note || c.contact || c.groups.map((g) => g.name).join(', ') || '—'}
+              {filtered.map((c) => {
+                const subNote = c.note || c.contact;
+                const endDate = formatEndDate(c.expiresAt);
+                return (
+                  <tr
+                    key={c.id}
+                    className={selectedIds.includes(c.id) ? 'selected cursor-pointer' : 'cursor-pointer'}
+                    onClick={(e) => {
+                      const target = e.target as HTMLElement;
+                      if (target.closest('a,button,input,.menu-wrap,.menu,.menu-scrim')) return;
+                      navigate(`/clients/${c.id}`);
+                    }}
+                  >
+                    <td className="col-check">
+                      <input
+                        type="checkbox"
+                        aria-label={c.name}
+                        checked={selectedIds.includes(c.id)}
+                        onChange={(e) =>
+                          setSelectedIds((prev) =>
+                            e.target.checked ? [...prev, c.id] : prev.filter((id) => id !== c.id),
+                          )
+                        }
+                      />
+                    </td>
+                    <td>
+                      <span className="cell-2">
+                        <a
+                          href={toPanelUrl(`/clients/${c.id}`)}
+                          onClick={(e) => {
+                            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                            e.preventDefault();
+                            navigate(`/clients/${c.id}`);
+                          }}
+                          className="strong-link"
+                          dir="ltr"
+                        >
+                          {c.name}
+                        </a>
+                        {subNote ? (
+                          <span className="faint small clip" dir="auto">
+                            {subNote}
+                          </span>
+                        ) : null}
                       </span>
-                    </span>
-                  </td>
-                  <td>
-                    <StatusPill tone={statusTone(c.status)} label={t.clients.statuses[c.status]} />
-                  </td>
-                  <td>
-                    <div className="space-y-1">
-                      <div className="font-mono text-xs text-(--text-primary)">
-                        {formatBytes(c.trafficUsedBytes, lang)} / {formatBytes(c.trafficLimitBytes, lang)}
+                    </td>
+                    <td>{renderClientStatusTag(c.status)}</td>
+                    <td>
+                      <div className="traffic-cell">
+                        <Lamps used={c.trafficUsedBytes} limit={c.trafficLimitBytes ?? 0} count={12} />
+                        <span className="small num">
+                          <strong>{formatBytes(c.trafficUsedBytes, lang)}</strong>{' '}
+                          <span className="faint">/ {formatBytes(c.trafficLimitBytes, lang)}</span>
+                        </span>
                       </div>
-                      <Lamps used={c.trafficUsedBytes} limit={c.trafficLimitBytes ?? 0} count={14} />
-                    </div>
-                  </td>
-                  <td className="text-xs text-(--text-secondary)">
-                    {formatDaysLeft(c.expiresAt, c.firstConnectDays, lang)}
-                  </td>
-                  <td className="text-end font-mono text-xs text-(--text-secondary)">
-                    {c.onlineCount} / {c.deviceLimit ?? '∞'}
-                  </td>
-                  <td className="col-actions">
-                    <div className="row-actions">
-                      <Button size="sm" variant="ghost" onClick={() => copySub(c)} title={t.clients.subLink}>
-                        <Copy className="h-3.5 w-3.5" />
-                        {copiedId === c.id ? t.common.copied : ''}
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setQrClient(c)} title="QR">
-                        <QrIcon className="h-3.5 w-3.5" />
-                      </Button>
-                      <a
-                        href={`${getApiBase()}/clients/${c.id}/profile`}
-                        download
-                        className="inline-flex items-center rounded-xl p-1.5 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-primary)"
-                        title={t.clients.profile}
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                      </a>
-                      <Button size="sm" variant="ghost" onClick={() => openEdit(c)}>
-                        {t.common.edit}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={async () => {
-                          await apiFetch(`/clients/${c.id}/reset-traffic`, { method: 'POST' });
-                          load();
-                        }}
-                        title={t.clients.resetTraffic}
-                      >
-                        <RefreshCw className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={async () => {
-                          if (!confirm(t.common.confirmDelete)) return;
-                          await apiFetch(`/clients/${c.id}`, { method: 'DELETE' });
-                          load();
-                        }}
-                        className="text-red-400"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td>
+                      <div className="cell-2">
+                        <span>{formatDaysLeft(c.expiresAt, c.firstConnectDays, lang)}</span>
+                        {endDate ? <span className="faint small">{endDate}</span> : null}
+                      </div>
+                    </td>
+                    <td className="end num">
+                      <span className={c.onlineCount > 0 ? '' : 'faint'}>{c.onlineCount}</span>
+                      {c.deviceLimit ? <span className="faint"> / {c.deviceLimit}</span> : null}
+                    </td>
+                    <td className="hide-md faint">{c.ownerUsername}</td>
+                    <td className="col-actions">
+                      <div className="row-actions">
+                        <button
+                          type="button"
+                          className="btn ghost sm icon"
+                          onClick={() => copySub(c)}
+                          title={copiedId === c.id ? t.common.copied : t.clients.subLink}
+                          aria-label={t.clients.subLink}
+                        >
+                          {copiedId === c.id ? <Check size={16} aria-hidden="true" /> : <Link2 size={16} aria-hidden="true" />}
+                        </button>
+                        <a
+                          href={`${getApiBase()}/clients/${c.id}/profile`}
+                          download
+                          className="btn ghost sm icon"
+                          title={t.clients.profile}
+                          aria-label={t.clients.profile}
+                        >
+                          <Download size={16} aria-hidden="true" />
+                        </a>
+                        <ActionMenu
+                          label={t.common.actions}
+                          trigger={<MoreHorizontal size={16} aria-hidden="true" />}
+                          items={[
+                            {
+                              label: lang === 'fa' ? 'تمدید' : 'Extend',
+                              onSelect: () => {
+                                setExtDays('30');
+                                setExtGb('');
+                                setExtendClient(c);
+                              },
+                            },
+                            {
+                              label: t.common.edit,
+                              onSelect: () => openEdit(c),
+                            },
+                            {
+                              label: c.enabled
+                                ? lang === 'fa'
+                                  ? 'غیرفعال کردن'
+                                  : 'Disable'
+                                : lang === 'fa'
+                                  ? 'فعال کردن'
+                                  : 'Enable',
+                              onSelect: async () => {
+                                await apiFetch(`/clients/${c.id}`, {
+                                  method: 'PATCH',
+                                  body: JSON.stringify({ enabled: !c.enabled }),
+                                });
+                                load();
+                              },
+                            },
+                            {
+                              label: t.clients.resetTraffic,
+                              onSelect: async () => {
+                                await apiFetch(`/clients/${c.id}/reset-traffic`, { method: 'POST' });
+                                load();
+                              },
+                            },
+                            c.onlineCount > 0
+                              ? {
+                                  label: t.clients.disconnect,
+                                  onSelect: async () => {
+                                    await apiFetch('/clients/bulk', {
+                                      method: 'POST',
+                                      body: JSON.stringify({ ids: [c.id], action: 'disconnect' }),
+                                    });
+                                    load();
+                                  },
+                                }
+                              : null,
+                            {
+                              label: 'QR Code',
+                              onSelect: () => setQrClient(c),
+                            },
+                            null,
+                            {
+                              label: t.common.delete,
+                              danger: true,
+                              onSelect: async () => {
+                                if (!confirm(t.common.confirmDelete)) return;
+                                await apiFetch(`/clients/${c.id}`, { method: 'DELETE' });
+                                load();
+                              },
+                            },
+                          ]}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -864,6 +974,41 @@ export function ClientsPage({
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Extend Modal */}
+      <Modal
+        open={Boolean(extendClient)}
+        onClose={() => setExtendClient(null)}
+        title={extendClient ? `${lang === 'fa' ? 'تمدید' : 'Extend'} ${extendClient.name}` : ''}
+      >
+        <form onSubmit={submitExtend} className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input
+              label={t.clients.extendDays}
+              type="number"
+              min={0}
+              value={extDays}
+              onChange={(e) => setExtDays(e.target.value)}
+            />
+            <Input
+              label={t.clients.extendTraffic}
+              type="number"
+              min={0}
+              placeholder="0"
+              value={extGb}
+              onChange={(e) => setExtGb(e.target.value)}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" onClick={() => setExtendClient(null)}>
+              {t.common.cancel}
+            </Button>
+            <Button type="submit" variant="primary">
+              {lang === 'fa' ? 'تمدید' : 'Extend'}
+            </Button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

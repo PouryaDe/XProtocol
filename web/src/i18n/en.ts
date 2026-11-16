@@ -74,7 +74,7 @@ export const en = {
   clients: {
     title: 'Clients',
     newClient: 'New client',
-    bulkCreate: 'Bulk create',
+    bulkCreate: 'Create several',
     tabs: {
       all: 'All',
       online: 'Online',
