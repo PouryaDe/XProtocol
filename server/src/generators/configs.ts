@@ -178,23 +178,34 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
 
 export interface RoutingRule {
   id: string;
+  enabled?: boolean;
   geosite?: string[];
   geoip?: string[];
   domains?: string[];
   ips?: string[];
   ports?: string;
+  inboundIds?: number[];
   inboundNames?: string[];
   action: 'outbound' | 'direct' | 'block';
+  outboundId?: number;
   outboundTag?: string;
+}
+
+export interface InboundRouteOverride {
+  inbound: number;
+  action: { type: 'none' | 'direct' | 'block' | 'outbound'; outboundId?: number };
 }
 
 export function renderXrayRoutingConfig(params: {
   outbounds: { id: number; name: string; type: string; config_json: string }[];
-  defaultAction: 'direct' | 'outbound';
+  defaultAction: 'direct' | 'outbound' | 'block';
   defaultOutboundName?: string;
   rules: RoutingRule[];
+  inboundRoutes?: InboundRouteOverride[];
+  inboundNamesById?: Record<number, string>;
 }): string {
   const xrayOutbounds: Record<string, unknown>[] = [];
+  const obById = new Map(params.outbounds.map((o) => [o.id, o]));
   for (const ob of params.outbounds) {
     try {
       const cfg = JSON.parse(ob.config_json);
@@ -212,24 +223,54 @@ export function renderXrayRoutingConfig(params: {
     { type: 'field', ip: ['geoip:private'], outboundTag: 'direct' },
   ];
 
+  const resolveInboundTags = (r: RoutingRule): string[] => {
+    const names = [...(r.inboundNames || [])];
+    if (r.inboundIds && params.inboundNamesById) {
+      for (const id of r.inboundIds) {
+        const mapped = params.inboundNamesById[id];
+        if (mapped && !names.includes(mapped)) names.push(mapped);
+      }
+    }
+    return names;
+  };
+
   for (const r of params.rules) {
+    if (r.enabled === false) continue;
     const entry: Record<string, unknown> = { type: 'field' };
     const domains: string[] = [...(r.domains || []), ...(r.geosite || [])];
     const ips: string[] = [...(r.ips || []), ...(r.geoip || [])];
     if (domains.length > 0) entry.domain = domains;
     if (ips.length > 0) entry.ip = ips;
     if (r.ports) entry.port = r.ports;
-    if (r.inboundNames && r.inboundNames.length > 0) entry.inboundTag = r.inboundNames;
+    const inboundTags = resolveInboundTags(r);
+    if (inboundTags.length > 0) entry.inboundTag = inboundTags;
+    const obName = r.outboundTag || (r.outboundId ? obById.get(r.outboundId)?.name : undefined);
     entry.outboundTag =
       r.action === 'block'
         ? 'block'
-        : r.action === 'outbound' && r.outboundTag
-          ? `out-${r.outboundTag}`
+        : r.action === 'outbound' && obName
+          ? `out-${obName}`
           : 'direct';
     xrayRules.push(entry);
   }
 
-  if (params.defaultAction === 'outbound' && params.defaultOutboundName) {
+  for (const ir of params.inboundRoutes || []) {
+    if (ir.action.type === 'none') continue;
+    const tagName = params.inboundNamesById?.[ir.inbound];
+    if (!tagName) continue;
+    const obName = ir.action.outboundId ? obById.get(ir.action.outboundId)?.name : undefined;
+    const outboundTag =
+      ir.action.type === 'block'
+        ? 'block'
+        : ir.action.type === 'outbound' && obName
+          ? `out-${obName}`
+          : 'direct';
+    xrayRules.push({ type: 'field', inboundTag: [tagName], network: 'tcp,udp', outboundTag });
+  }
+
+  if (params.defaultAction === 'block') {
+    xrayRules.push({ type: 'field', network: 'tcp,udp', outboundTag: 'block' });
+  } else if (params.defaultAction === 'outbound' && params.defaultOutboundName) {
     xrayRules.push({ type: 'field', network: 'tcp,udp', outboundTag: `out-${params.defaultOutboundName}` });
   }
 

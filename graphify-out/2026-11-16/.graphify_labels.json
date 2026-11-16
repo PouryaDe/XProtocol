@@ -1,5 +1,5 @@
 {
-  "0": "OverviewPage.tsx",
+  "0": "UiPrimitives.tsx",
   "1": "context.tsx",
   "2": "index.ts",
   "3": "web/package.json",
@@ -9,18 +9,20 @@
   "7": "App.tsx",
   "8": "Workspace Monorepo Scripts",
   "9": "Server TypeScript Configuration",
-  "10": "UiPrimitives.tsx",
+  "10": "ClientDetailPage.tsx",
   "11": "Project Documentation & Architecture",
   "12": "install.sh",
-  "13": "ConnectionsPage.tsx",
-  "14": "useUi",
-  "15": "runtime.ts",
+  "13": "useUi",
+  "14": "NodesPage.tsx",
+  "15": "context.ts",
   "16": "SubscriptionPage.tsx",
   "17": "database.ts",
   "18": "clientRoutes.ts",
   "19": "updater.ts",
   "20": "getDb",
   "21": "linuxEngine.ts",
+  "22": "AccountsPage.tsx",
   "23": "xprotocol-cli.sh",
-  "24": "DonutChart.tsx"
+  "24": "DonutChart.tsx",
+  "25": "authRoutes.ts"
 }
