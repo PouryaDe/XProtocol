@@ -89,7 +89,7 @@ function PanelRoot() {
       })
       .catch(() => setAccount(null))
       .finally(() => setChecking(false));
-  }, [Boolean(subMatch), setAccent, setBrandName, setSupportTelegram]);
+  }, [Boolean(subMatch)]);
 
   useEffect(() => {
     if (!checking && account && !subMatch && route.unknown) {
