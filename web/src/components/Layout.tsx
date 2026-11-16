@@ -1,19 +1,17 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  Activity,
   ArrowDownToLine,
-  ExternalLink,
+  Clock,
   FolderKanban,
-  Globe,
   KeyRound,
   LayoutDashboard,
-  LifeBuoy,
   LogOut,
   Menu,
   Monitor,
   Moon,
   Network,
   Radio,
+  Send,
   Server,
   Settings,
   ShieldCheck,
@@ -22,6 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import { useUi, type ThemeMode } from '../i18n/context';
+import { apiFetch } from '../lib/api';
 import { formatBytes, formatDaysLeft } from '../lib/format';
 import { toPanelUrl } from '../lib/router';
 import { BrandMark, useSlidingIndicator } from './UiPrimitives';
@@ -82,8 +81,22 @@ interface LayoutProps {
 export function Layout({ active, onNavigate, account, onLogout, children }: LayoutProps) {
   const { t, lang, setLang, theme, resolvedTheme, setTheme, brandName, supportTelegram } = useUi();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
   const desktopNavRef = useRef<HTMLElement | null>(null);
   useSlidingIndicator(desktopNavRef, '.xp-nav-active', active);
+
+  useEffect(() => {
+    if (!account.isOwner) return;
+    let alive = true;
+    apiFetch<{ available?: boolean; updateAvailable?: boolean }>('/updates/status')
+      .then((res) => {
+        if (alive) setUpdateAvailable(Boolean(res?.available || res?.updateAvailable));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [account.isOwner]);
 
   const cycleTheme = () => {
     const order: ThemeMode[] = ['system', 'dark', 'light'];
@@ -106,11 +119,11 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
 
   const themeIcon =
     theme === 'system' ? (
-      <Monitor className="h-3.5 w-3.5" />
+      <Monitor className="h-4 w-4" />
     ) : resolvedTheme === 'dark' ? (
-      <Moon className="h-3.5 w-3.5" />
+      <Moon className="h-4 w-4" />
     ) : (
-      <Sun className="h-3.5 w-3.5" />
+      <Sun className="h-4 w-4" />
     );
 
   const supportHref = supportTelegram
@@ -120,231 +133,217 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
     : '';
 
   const items: { key: NavKey; path: string; label: string; icon: React.ReactNode; visible: boolean }[] = [
-    { key: 'overview', path: '/', label: t.nav.overview, icon: <LayoutDashboard className="h-4 w-4" />, visible: true },
+    { key: 'overview', path: '/', label: t.nav.overview, icon: <LayoutDashboard size={18} strokeWidth={1.7} />, visible: true },
     {
       key: 'clients',
       path: '/clients',
       label: t.nav.clients,
-      icon: <Users className="h-4 w-4" />,
+      icon: <Users size={18} strokeWidth={1.7} />,
       visible: account.isOwner || account.permissions.clients.view !== 'none',
     },
     {
       key: 'inbounds',
       path: '/inbounds',
       label: t.nav.inbounds,
-      icon: <Radio className="h-4 w-4" />,
+      icon: <Radio size={18} strokeWidth={1.7} />,
       visible: account.isOwner || account.permissions.inbounds.view !== 'none',
     },
     {
       key: 'nodes',
       path: '/nodes',
       label: t.nav.nodes,
-      icon: <Server className="h-4 w-4" />,
+      icon: <Server size={18} strokeWidth={1.7} />,
       visible: account.isOwner || account.permissions.nodes.view !== 'none',
     },
-    {
-      key: 'connections',
-      path: '/connections',
-      label: t.nav.connections,
-      icon: <Activity className="h-4 w-4" />,
-      visible: account.isOwner || account.permissions.connections.view !== 'none',
-    },
-    { key: 'certificates', path: '/certificates', label: t.nav.certificates, icon: <ShieldCheck className="h-4 w-4" />, visible: account.isOwner },
-    { key: 'routing', path: '/routing', label: t.nav.routing, icon: <Network className="h-4 w-4" />, visible: account.isOwner },
+    { key: 'certificates', path: '/certificates', label: t.nav.certificates, icon: <ShieldCheck size={18} strokeWidth={1.7} />, visible: account.isOwner },
+    { key: 'routing', path: '/routing', label: t.nav.routing, icon: <Network size={18} strokeWidth={1.7} />, visible: account.isOwner },
     {
       key: 'groups',
       path: '/groups',
       label: t.nav.groups,
-      icon: <FolderKanban className="h-4 w-4" />,
+      icon: <FolderKanban size={18} strokeWidth={1.7} />,
       visible: account.isOwner || account.permissions.groups.view !== 'none',
     },
-    { key: 'accounts', path: '/accounts', label: t.nav.accounts, icon: <KeyRound className="h-4 w-4" />, visible: account.isOwner },
-    { key: 'updates', path: '/updates', label: t.nav.updates, icon: <ArrowDownToLine className="h-4 w-4" />, visible: account.isOwner },
-    { key: 'settings', path: '/settings', label: t.nav.settings, icon: <Settings className="h-4 w-4" />, visible: true },
+    { key: 'accounts', path: '/accounts', label: t.nav.accounts, icon: <KeyRound size={18} strokeWidth={1.7} />, visible: account.isOwner },
+    { key: 'settings', path: '/settings', label: t.nav.settings, icon: <Settings size={18} strokeWidth={1.7} />, visible: true },
+    { key: 'updates', path: '/updates', label: t.nav.updates, icon: <ArrowDownToLine size={18} strokeWidth={1.7} />, visible: account.isOwner },
   ];
 
+  const pool = account.trafficPoolBytes;
   const quotaPct =
-    account.trafficPoolBytes && account.trafficPoolBytes > 0
-      ? Math.min(100, Math.round((account.trafficUsedBytes / account.trafficPoolBytes) * 100))
-      : 0;
+    pool && pool > 0 ? Math.min(100, Math.round((account.trafficUsedBytes / pool) * 100)) : 0;
+  const quotaExhausted = Boolean(pool && pool > 0 && account.trafficUsedBytes >= pool);
+  const expiresDiff = account.expiresAt ? new Date(account.expiresAt).getTime() - Date.now() : null;
+  const expiryClass =
+    expiresDiff !== null && expiresDiff <= 0
+      ? ' expired'
+      : expiresDiff !== null && expiresDiff <= 5 * 86400_000
+        ? ' soon'
+        : '';
 
   const renderNavBody = (navRef?: React.RefObject<HTMLElement | null>) => (
-    <div className="flex h-full flex-col justify-between px-3 py-4">
-      <div>
-        <div className="xp-brand mb-5 flex items-center justify-between px-2 pt-0.5">
-          <div className="flex items-center gap-3">
-            <BrandMark size={30} />
-            <div>
-              <div className="font-display text-lg font-bold tracking-tight text-(--text-primary) leading-none">
-                {brandName}
-              </div>
-              <div className="mt-1 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-(--text-muted)">
-                {lang === 'fa' ? 'پنل کنترل وی‌پی‌ان' : 'VPN CONTROL PANEL'}
-              </div>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setMobileOpen(false)}
-            className="rounded-lg p-1 text-(--text-secondary) lg:hidden"
-          >
-            <X className="h-4 w-4" />
-          </button>
+    <>
+      <div className="brand">
+        <BrandMark size={30} />
+        <div>
+          <strong>{brandName}</strong>
+          <span className="faint">{lang === 'fa' ? 'پنل مدیریت VPN' : 'VPN Control Panel'}</span>
         </div>
-
-        <nav ref={navRef} className="xp-nav-track space-y-1">
-          {items
-            .filter((i) => i.visible)
-            .map((item, idx) => {
-              const isActive = item.key === active;
-              return (
-                <a
-                  key={item.key}
-                  href={toPanelUrl(item.path)}
-                  style={{ '--i': idx } as React.CSSProperties}
-                  onClick={(e) => {
-                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-                    e.preventDefault();
-                    onNavigate(item.key);
-                    setMobileOpen(false);
-                  }}
-                  className={`xp-nav-item flex h-10 w-full items-center gap-2.5 rounded-xl px-3.5 text-sm font-medium no-underline ${
-                    isActive
-                      ? 'xp-nav-active text-(--text-primary) font-semibold'
-                      : 'text-(--text-secondary) hover:text-(--text-primary)'
-                  }`}
-                >
-                  {isActive && <span className="xp-led" />}
-                  <span className={isActive ? 'text-(--accent-text)' : ''}>{item.icon}</span>
-                  <span>{item.label}</span>
-                </a>
-              );
-            })}
-        </nav>
+        <button
+          type="button"
+          onClick={() => setMobileOpen(false)}
+          className="btn ghost icon sm ms-auto lg:hidden"
+          aria-label={t.common.close}
+        >
+          <X size={16} />
+        </button>
       </div>
 
-      <div className="space-y-2.5 border-t border-(--border-subtle) pt-3">
+      <nav ref={navRef}>
+        {items
+          .filter((i) => i.visible)
+          .map((item, idx) => {
+            const isActive = item.key === active;
+            return (
+              <a
+                key={item.key}
+                href={toPanelUrl(item.path)}
+                style={{ '--i': idx } as React.CSSProperties}
+                onClick={(e) => {
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                  e.preventDefault();
+                  onNavigate(item.key);
+                  setMobileOpen(false);
+                }}
+                className={`navlink ${isActive ? 'active xp-nav-active' : ''}`}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+                {item.key === 'updates' && updateAvailable && (
+                  <i className="nav-dot" aria-label={t.nav.updates} />
+                )}
+              </a>
+            );
+          })}
+      </nav>
+
+      <div className="side-foot">
         {supportHref && (
           <a
+            className="side-support"
             href={supportHref}
             target="_blank"
-            rel="noreferrer"
-            className="flex items-center justify-between rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-3 py-2 text-xs text-(--text-secondary) hover:border-(--accent) hover:bg-(--accent-wash) hover:text-(--text-primary) transition"
+            rel="noopener noreferrer"
+            title={lang === 'fa' ? 'پیام به پشتیبانی در تلگرام' : 'Message support on Telegram'}
           >
-            <span className="inline-flex items-center gap-2 font-medium">
-              <LifeBuoy className="h-3.5 w-3.5 text-(--accent-text)" />
-              {lang === 'fa' ? 'پشتیبانی' : 'Support'}
-            </span>
-            <span className="inline-flex items-center gap-1 text-[11px] text-(--text-muted)">
-              {supportTelegram}
-              <ExternalLink className="h-3 w-3" />
+            <Send aria-hidden="true" />
+            <span className="side-support-text">
+              <strong>{lang === 'fa' ? 'پشتیبانی' : 'Support'}</strong>
+              <span dir="ltr">{supportTelegram}</span>
             </span>
           </a>
         )}
 
-        <div className="flex items-center gap-1.5">
+        <div className="prefs">
           <button
             type="button"
+            className="btn ghost sm"
             onClick={() => setLang(lang === 'en' ? 'fa' : 'en')}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) py-1.5 text-xs text-(--text-secondary) hover:border-(--border-strong) hover:text-(--text-primary) transition"
+            aria-label={lang === 'fa' ? 'زبان' : 'Language'}
           >
-            <Globe className="h-3.5 w-3.5" />
-            <span>{lang === 'en' ? 'فارسی' : 'English'}</span>
+            {lang === 'fa' ? 'English' : 'فارسی'}
           </button>
           <button
             type="button"
+            className="btn ghost sm"
             onClick={cycleTheme}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) py-1.5 text-xs text-(--text-secondary) hover:border-(--border-strong) hover:text-(--text-primary) transition"
+            aria-label={`${lang === 'fa' ? 'پوسته' : 'Theme'}: ${themeLabel}`}
+            title={`${lang === 'fa' ? 'پوسته' : 'Theme'}: ${themeLabel}`}
           >
             {themeIcon}
             <span>{themeLabel}</span>
           </button>
         </div>
 
-        {(account.trafficPoolBytes !== null || account.expiresAt) && (
-          <div className="rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-2.5 space-y-1.5">
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="text-(--text-muted)">{lang === 'fa' ? 'سهمیه ترافیک' : 'Traffic quota'}</span>
-              <span className="font-mono font-medium text-(--text-primary)">
-                {formatBytes(account.trafficUsedBytes, lang)} / {formatBytes(account.trafficPoolBytes, lang)}
-              </span>
-            </div>
-            {account.trafficPoolBytes !== null && (
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-(--bg-hover)">
-                <div
-                  className="h-full rounded-full bg-(--accent) transition-all"
-                  style={{ width: `${quotaPct}%` }}
-                />
-              </div>
-            )}
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="text-(--text-muted)">{lang === 'fa' ? 'اعتبار حساب' : 'Account validity'}</span>
-              <span className="text-(--text-secondary)">
-                {formatDaysLeft(account.expiresAt, null, lang)}
-              </span>
-            </div>
-          </div>
-        )}
-
-        <div className="flex items-center justify-between rounded-xl bg-(--bg-elevated)/75 px-2.5 py-2">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <div className="xp-avatar grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-bold uppercase">
-              {account.username.slice(0, 1)}
-            </div>
-            <div className="min-w-0">
-              <div className="truncate text-xs font-semibold text-(--text-primary)">{account.username}</div>
-              <div className="text-[11px] text-(--text-muted)">{account.roleName}</div>
-            </div>
-          </div>
+        <div className="who">
+          <span className="who-text">
+            <strong dir="auto">{account.username}</strong>
+          </span>
           <button
             type="button"
+            className="btn ghost icon"
             onClick={onLogout}
+            aria-label={t.nav.signOut}
             title={t.nav.signOut}
-            className="rounded-lg p-1.5 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-red-400 transition"
           >
-            <LogOut className="h-4 w-4" />
+            <LogOut size={16} />
           </button>
         </div>
+
+        <section
+          className={`side-usage${quotaExhausted ? ' exhausted' : ''}`}
+          aria-label={lang === 'fa' ? 'سهمیهٔ ترافیک' : 'Traffic quota'}
+        >
+          <div className="side-usage-head">
+            <span>{lang === 'fa' ? 'سهمیهٔ ترافیک' : 'Traffic quota'}</span>
+            <strong>
+              {pool !== null
+                ? formatBytes(pool, lang)
+                : lang === 'fa'
+                  ? 'نامحدود'
+                  : 'Unlimited'}
+            </strong>
+          </div>
+          <div className="side-usage-value">
+            <b className="num">{formatBytes(account.trafficUsedBytes, lang)}</b>
+            <span>{lang === 'fa' ? 'مصرف‌شده' : 'used'}</span>
+          </div>
+          {pool !== null && pool > 0 && (
+            <div className="side-usage-meter" aria-hidden="true">
+              <span style={{ width: `${quotaPct}%` }} />
+            </div>
+          )}
+          <div className={`side-expiry${expiryClass}`}>
+            <span className="side-expiry-label">
+              <Clock aria-hidden="true" />
+              <span>{lang === 'fa' ? 'اعتبار حساب' : 'Account validity'}</span>
+            </span>
+            <time>
+              <strong>{formatDaysLeft(account.expiresAt, null, lang)}</strong>
+            </time>
+          </div>
+        </section>
       </div>
-    </div>
+    </>
   );
 
   return (
-    <div className="flex min-h-screen">
-      {/* Desktop Floating Glassmorphic Sidebar */}
-      <aside className="hidden w-64 shrink-0 p-3.5 lg:block">
-        <div className="xp-sidebar sticky top-3.5 h-[calc(100dvh-1.75rem)] overflow-y-auto">
-          {renderNavBody(desktopNavRef)}
-        </div>
+    <div className={`shell${mobileOpen ? ' nav-open' : ''}`}>
+      <header className="topbar">
+        <button
+          type="button"
+          className="btn ghost icon"
+          aria-label={lang === 'fa' ? 'منو' : 'Menu'}
+          aria-expanded={mobileOpen}
+          onClick={() => setMobileOpen((v) => !v)}
+        >
+          {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+        </button>
+        <span className="brand-sm">
+          <BrandMark size={24} />
+          <span>{brandName}</span>
+        </span>
+      </header>
+
+      <div className="scrim" onClick={() => setMobileOpen(false)} aria-hidden={!mobileOpen} />
+
+      <aside className="sidebar" aria-label={lang === 'fa' ? 'منو' : 'Navigation'}>
+        {renderNavBody(desktopNavRef)}
       </aside>
 
-      {/* Mobile Drawer */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-40 flex lg:hidden">
-          <div className="xp-backdrop fixed inset-0" onClick={() => setMobileOpen(false)} />
-          <aside className="xp-sidebar relative z-50 m-3 w-64 rounded-2xl shadow-xl">{renderNavBody()}</aside>
-        </div>
-      )}
-
-      {/* Main Content */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-(--border-subtle) bg-(--glass) backdrop-blur-md px-4 py-3 lg:hidden">
-          <button
-            type="button"
-            onClick={() => setMobileOpen(true)}
-            className="rounded-lg p-1.5 text-(--text-secondary) hover:bg-(--bg-hover)"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
-          <span className="inline-flex items-center gap-2 font-display text-sm font-bold text-(--text-primary)">
-            <BrandMark size={22} />
-            {brandName}
-          </span>
-          <div className="w-8" />
-        </header>
-
+      <div className="canvas">
         {!account.isOwner && account.status !== 'active' && (
-          <div className="border-b border-red-500/30 bg-red-500/10 px-6 py-2.5 text-xs font-medium text-red-400">
+          <div className="banner bad">
             {account.status === 'expired'
               ? 'Your reseller plan has expired. Contact the panel owner to extend it.'
               : account.status === 'out_of_traffic'
@@ -353,7 +352,7 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
           </div>
         )}
 
-        <main key={active} className="xp-stagger mx-auto w-full max-w-[1360px] flex-1 px-4 py-6 sm:px-8">
+        <main key={active} className="xp-stagger">
           {children}
         </main>
       </div>

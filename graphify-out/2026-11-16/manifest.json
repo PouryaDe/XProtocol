@@ -1,8 +1,8 @@
 {
   "deploy/install.sh": {
-    "mtime": 1794758834.5844073,
-    "seen": 1794758877.2300808,
-    "ast_hash": "b9a3bfe4a6d6ed2785096e985fd2b26e",
+    "mtime": 1794779730.9511626,
+    "seen": 1794779828.031082,
+    "ast_hash": "c5bf7aa7ddbf351f93d1adb061822db3",
     "semantic_hash": ""
   },
   "deploy/node.sh": {
@@ -60,9 +60,9 @@
     "semantic_hash": ""
   },
   "server/src/index.ts": {
-    "mtime": 1794760411.2974021,
-    "seen": 1794762419.8976474,
-    "ast_hash": "d76385fbbe209b3a6b7a1d03d515ee4e",
+    "mtime": 1794777402.1503222,
+    "seen": 1794777807.847642,
+    "ast_hash": "acc3d8081a27ffe30184d9426e21704e",
     "semantic_hash": ""
   },
   "server/src/routes/accountRoutes.ts": {
@@ -198,9 +198,9 @@
     "semantic_hash": ""
   },
   "web/src/App.tsx": {
-    "mtime": 1794761179.4847467,
-    "seen": 1794762419.8976665,
-    "ast_hash": "7197ed1104ffa8506775a629928f091d",
+    "mtime": 1794780104.7042565,
+    "seen": 1794780237.1323671,
+    "ast_hash": "622d8fd8aec5a998c4b280cd57751a22",
     "semantic_hash": ""
   },
   "web/src/components/DonutChart.tsx": {
@@ -216,9 +216,9 @@
     "semantic_hash": ""
   },
   "web/src/components/Layout.tsx": {
-    "mtime": 1794761135.0610793,
-    "seen": 1794762419.8976693,
-    "ast_hash": "524f233db429749cb96d3ed15585099d",
+    "mtime": 1794777584.410759,
+    "seen": 1794777807.8476653,
+    "ast_hash": "d19f466244424c004ee6d02c4b049bed",
     "semantic_hash": ""
   },
   "web/src/components/Modal.tsx": {
@@ -240,9 +240,9 @@
     "semantic_hash": ""
   },
   "web/src/components/UiPrimitives.tsx": {
-    "mtime": 1794761058.6155953,
-    "seen": 1794762419.8976724,
-    "ast_hash": "d5984f404a940032535f6079110afb3d",
+    "mtime": 1794781328.0697,
+    "seen": 1794781608.165387,
+    "ast_hash": "6117a0e2e6c158920b5384be204a2ab1",
     "semantic_hash": ""
   },
   "web/src/i18n/context.tsx": {
@@ -252,16 +252,16 @@
     "semantic_hash": ""
   },
   "web/src/i18n/en.ts": {
-    "mtime": 1794703427.3731387,
-    "seen": 1794708422.9708636,
-    "ast_hash": "785cdc843759e5cb79667f92b90c64b6",
-    "semantic_hash": "785cdc843759e5cb79667f92b90c64b6"
+    "mtime": 1794777568.7194247,
+    "seen": 1794777807.8476706,
+    "ast_hash": "5a1da664323bd9d60ea0c9e27925e581",
+    "semantic_hash": ""
   },
   "web/src/i18n/fa.ts": {
-    "mtime": 1794703429.345843,
-    "seen": 1794708422.970864,
-    "ast_hash": "ad16325b0ed63eec68d3179c61259e39",
-    "semantic_hash": "ad16325b0ed63eec68d3179c61259e39"
+    "mtime": 1794777571.795985,
+    "seen": 1794777807.8476713,
+    "ast_hash": "cf0f2992eb90039ec9c7fb8920e4f1ed",
+    "semantic_hash": ""
   },
   "web/src/lib/api.ts": {
     "mtime": 1794760498.214543,
@@ -342,9 +342,9 @@
     "semantic_hash": ""
   },
   "web/src/pages/SettingsPage.tsx": {
-    "mtime": 1794762195.0884943,
-    "seen": 1794762419.8976889,
-    "ast_hash": "3818a27f17274e792c6a5804800abef1",
+    "mtime": 1794781519.937462,
+    "seen": 1794781608.1654038,
+    "ast_hash": "6f8dd06d2cd2947acc40750eccec3efe",
     "semantic_hash": ""
   },
   "web/src/pages/SubscriptionPage.tsx": {
@@ -384,9 +384,9 @@
     "semantic_hash": ""
   },
   "deploy/xprotocol-cli.sh": {
-    "mtime": 1794758802.3767476,
-    "seen": 1794758877.230088,
-    "ast_hash": "5e92196562b50ac280b87bef38c8ef31",
+    "mtime": 1794779758.8801122,
+    "seen": 1794779828.03109,
+    "ast_hash": "5a24b8bb50d193c0063cce32a7df1f6d",
     "semantic_hash": ""
   },
   "deploy/xprotocol-tui.sh": {
@@ -402,9 +402,9 @@
     "semantic_hash": ""
   },
   "web/src/lib/router.ts": {
-    "mtime": 1794760416.2271113,
-    "seen": 1794762419.8976781,
-    "ast_hash": "20119634b2a6f3c096728e35fb2ae0f3",
+    "mtime": 1794780175.3659925,
+    "seen": 1794780237.1323793,
+    "ast_hash": "c539f158e2619824a8f476a6df92cbe9",
     "semantic_hash": ""
   },
   "web/src/pages/ClientDetailPage.tsx": {
@@ -417,6 +417,24 @@
     "mtime": 1794761716.9034383,
     "seen": 1794762419.8976846,
     "ast_hash": "1989137bb9b38530bc5273e4c646d727",
+    "semantic_hash": ""
+  },
+  "server/src/routes/updateRoutes.ts": {
+    "mtime": 1794777360.1741626,
+    "seen": 1794777807.8476534,
+    "ast_hash": "248e11c4a56d9b3bd41f7d46e9265eaf",
+    "semantic_hash": ""
+  },
+  "server/src/services/updater.ts": {
+    "mtime": 1794777357.0855503,
+    "seen": 1794777807.8476593,
+    "ast_hash": "36e709a3abe4e0f28c92d8bcf25b301b",
+    "semantic_hash": ""
+  },
+  "web/src/pages/UpdatesPage.tsx": {
+    "mtime": 1794785721.675501,
+    "seen": 1794785847.0855963,
+    "ast_hash": "d2ad1c80ee200a13b551942e164b7d7e",
     "semantic_hash": ""
   }
 }

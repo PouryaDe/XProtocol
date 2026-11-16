@@ -240,7 +240,7 @@ export function Button({
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
   size?: 'sm' | 'md';
 }) {
-  const sizes = size === 'sm' ? 'h-8 px-2.5 text-xs' : 'h-9 px-3.5 text-sm';
+  const sizes = size === 'sm' ? 'h-[30px] px-3 text-[13px] rounded-[8px]' : 'h-[36px] px-4 text-[14px]';
   const variants = {
     primary: 'xp-btn-primary',
     secondary:
@@ -251,11 +251,44 @@ export function Button({
 
   return (
     <button
+      type="button"
       {...rest}
-      className={`xp-btn inline-flex items-center justify-center gap-1.5 font-medium disabled:opacity-50 disabled:cursor-not-allowed ${sizes} ${variants} ${className}`}
+      className={`xp-btn inline-flex items-center justify-center gap-2 font-[560] whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed ${sizes} ${variants} ${className}`}
     >
       {children}
     </button>
+  );
+}
+
+export function Segmented<T extends string>({
+  value,
+  options,
+  onChange,
+  label,
+  disabled,
+}: {
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (value: T) => void;
+  label?: string;
+  disabled?: boolean;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useSlidingIndicator(ref, '[aria-pressed="true"]', value);
+  return (
+    <div className="segmented" role="group" aria-label={label} ref={ref}>
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          aria-pressed={opt.value === value}
+          disabled={disabled}
+          onClick={() => onChange(opt.value)}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
   );
 }
 

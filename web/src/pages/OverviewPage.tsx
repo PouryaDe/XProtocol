@@ -5,17 +5,24 @@ import {
   ArrowUp,
   BarChart3,
   CheckCircle2,
+  Clock,
   Plus,
   RefreshCw,
-  Server,
   TrendingUp,
   Users,
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
-import { formatBytes, formatDaysLeft, formatDuration, formatSpeed } from '../lib/format';
+import {
+  formatBytes,
+  formatBytesParts,
+  formatDaysLeft,
+  formatDuration,
+  formatSpeed,
+  formatSpeedParts,
+} from '../lib/format';
 import { navigate, toPanelUrl } from '../lib/router';
 import { useUi } from '../i18n/context';
-import { Button, Odometer, PageHead, StatusPill, EqLoader } from '../components/UiPrimitives';
+import { Button, EqLoader, Odometer, PageHead, Segmented } from '../components/UiPrimitives';
 import { TrafficChart } from '../components/TrafficChart';
 import type { NavKey } from '../components/Layout';
 
@@ -166,22 +173,24 @@ export function OverviewPage({
   );
 
   const statusItems = [
-    { key: 'active', label: lang === 'fa' ? 'فعال' : 'Active', count: breakdown.active, color: 'var(--accent)' },
+    { key: 'active', label: lang === 'fa' ? 'فعال' : 'Active', count: breakdown.active, color: 'var(--good)' },
+    { key: 'expired', label: lang === 'fa' ? 'منقضی‌شده' : 'Expired', count: breakdown.expired, color: 'var(--warn)' },
     {
-      key: 'not_started',
-      label: lang === 'fa' ? 'شروع‌نشده' : 'Not started',
-      count: breakdown.not_started,
-      color: '#38bdf8',
+      key: 'limited',
+      label: lang === 'fa' ? 'حجم تمام‌شده' : 'Traffic used up',
+      count: breakdown.used_up,
+      color: 'var(--bad)',
     },
-    { key: 'limited', label: lang === 'fa' ? 'اتمام حجم' : 'Used up', count: breakdown.used_up, color: '#f59e0b' },
-    { key: 'expired', label: lang === 'fa' ? 'منقضی' : 'Expired', count: breakdown.expired, color: '#ef4444' },
     {
       key: 'disabled',
       label: lang === 'fa' ? 'غیرفعال' : 'Disabled',
       count: breakdown.disabled,
-      color: 'var(--text-muted)',
+      color: 'var(--ink-3)',
     },
   ];
+
+  const todayParts = formatBytesParts(data.summary.todayDownloadBytes + data.summary.todayUploadBytes, lang);
+  const speedParts = formatSpeedParts(data.summary.speedDownBps + data.summary.speedUpBps);
 
   const ringRadius = 66;
   const ringCirc = 2 * Math.PI * ringRadius;
@@ -201,17 +210,17 @@ export function OverviewPage({
         title={t.overview.title}
         sub={
           lang === 'fa'
-            ? `${data.summary.onlineClients} کاربر آنلاین · ${data.summary.totalClients} کل · ${data.summary.runningOutCount} نیازمند توجه`
-            : `${data.summary.onlineClients} online · ${data.summary.totalClients} total · ${data.summary.runningOutCount} need attention`
+            ? `${data.summary.onlineClients} آنلاین · ${data.summary.totalClients} کاربر · ${data.summary.runningOutCount} نیازمند رسیدگی`
+            : `${data.summary.onlineClients} online · ${data.summary.totalClients} clients · ${data.summary.runningOutCount} need attention`
         }
         actions={
           <>
-            <Button size="sm" onClick={() => void load(true)} disabled={refreshing}>
-              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-              {lang === 'fa' ? 'به‌روزرسانی' : 'Refresh'}
+            <Button onClick={() => void load(true)} disabled={refreshing}>
+              <RefreshCw className={refreshing ? 'spin' : ''} aria-hidden="true" />
+              {t.common.refresh}
             </Button>
-            <Button variant="primary" size="sm" onClick={onOpenNewClient}>
-              <Plus className="h-3.5 w-3.5" />
+            <Button variant="primary" onClick={onOpenNewClient}>
+              <Plus aria-hidden="true" />
               {t.overview.newClient}
             </Button>
           </>
@@ -223,19 +232,18 @@ export function OverviewPage({
         <span>
           {stale
             ? lang === 'fa'
-              ? 'اتصال زنده موقتاً قطع شد'
-              : 'Live updates paused — retrying'
+              ? 'به‌روزرسانی نشد · آخرین اطلاعات دریافتی نمایش داده می‌شود'
+              : 'Could not refresh · showing the last received data'
             : lang === 'fa'
-              ? 'پایش زنده هر ۵ ثانیه'
-              : 'Live · polling every 5s'}
+              ? 'نمای زنده · به‌روزرسانی هر ۵ ثانیه'
+              : 'Live overview · refreshes every 5 seconds'}
         </span>
         {updatedAt ? (
           <span>
-            ·{' '}
-            {updatedAt.toLocaleTimeString(lang === 'fa' ? 'fa-IR' : 'en-US', {
+            {lang === 'fa' ? 'آخرین دریافت ' : 'Updated '}
+            {updatedAt.toLocaleTimeString(lang === 'fa' ? 'fa-IR' : 'en-GB', {
               hour: '2-digit',
               minute: '2-digit',
-              second: '2-digit',
             })}
           </span>
         ) : null}
@@ -243,7 +251,7 @@ export function OverviewPage({
 
       {data.notices.needsPublicAddress && (
         <div className="banner">
-          <span>{t.overview.publicAddrNotice}</span>
+          <span>{t.overview.publicAddrNotice}</span>{' '}
           <a href={toPanelUrl('/settings')} onClick={go('/settings')}>
             {t.overview.setIt}
           </a>
@@ -258,11 +266,11 @@ export function OverviewPage({
             <Odometer value={data.summary.onlineClients} />
           </span>
           <span className="kpi-sub">
-            {data.summary.openTunnels} {lang === 'fa' ? 'تانل باز' : 'open tunnels'}
+            {lang === 'fa' ? `${data.summary.openTunnels} تونل` : `${data.summary.openTunnels} tunnels`}
           </span>
           <a className="kpi-link" href={toPanelUrl('/connections')} onClick={go('/connections')}>
-            {lang === 'fa' ? 'مشاهده لیست' : 'View list'}
-            <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" />
+            {lang === 'fa' ? 'مشاهده فهرست' : 'View list'}
+            <ArrowRight aria-hidden="true" className="rtl:rotate-180" />
           </a>
         </div>
 
@@ -272,133 +280,127 @@ export function OverviewPage({
             <Odometer value={data.summary.activeClients} />
           </span>
           <span className="kpi-sub">
-            {lang === 'fa' ? `از ${data.summary.totalClients} کاربر` : `out of ${data.summary.totalClients} clients`}
+            {lang === 'fa' ? `از ${data.summary.totalClients}` : `of ${data.summary.totalClients}`}
           </span>
         </div>
 
         <div className="kpi">
           <span className="kpi-label">{t.overview.trafficToday}</span>
           <span className="kpi-value num">
-            <Odometer value={formatBytes(data.summary.todayDownloadBytes + data.summary.todayUploadBytes, lang)} />
+            <span className="ov-metric-value">
+              <span>{todayParts.value}</span>{' '}
+              {todayParts.unit ? <small>{todayParts.unit}</small> : null}
+            </span>
           </span>
-          <span className="kpi-sub">30d: {formatBytes(data.summary.total30dBytes, lang)}</span>
+          <span className="kpi-sub">
+            {t.overview.traffic30d}: {formatBytes(data.summary.total30dBytes, lang)}
+          </span>
         </div>
 
         <div className="kpi">
           <span className="kpi-label">{t.overview.throughputNow}</span>
           <span className="kpi-value num">
-            {formatSpeed(data.summary.speedDownBps + data.summary.speedUpBps)}
-          </span>
-          <span className="kpi-sub flex items-center gap-3">
-            <span className="inline-flex items-center gap-1">
-              <ArrowDown className="h-3 w-3 text-(--accent-text)" />
-              {formatSpeed(data.summary.speedDownBps)}
+            <span className="ov-metric-value">
+              <span>{speedParts.value}</span> <small>{speedParts.unit}</small>
             </span>
-            <span className="inline-flex items-center gap-1">
-              <ArrowUp className="h-3 w-3 text-sky-400" />
-              {formatSpeed(data.summary.speedUpBps)}
+          </span>
+          <span className="kpi-sub">
+            <span>
+              <ArrowDown aria-hidden="true" /> {formatSpeed(data.summary.speedDownBps)}
+            </span>
+            <span>
+              <ArrowUp aria-hidden="true" /> {formatSpeed(data.summary.speedUpBps)}
             </span>
           </span>
         </div>
       </section>
 
-      {/* Primary analytics: Traffic Explorer + Client Health */}
+      {/* Primary analytics: Traffic overview + Client status */}
       <div className="ov-analytics">
         <section className="panel ov-traffic-panel">
           <header className="panel-head">
             <div>
-              <h2>{lang === 'fa' ? 'تحلیلگر ترافیک' : 'Traffic explorer'}</h2>
+              <h2>{lang === 'fa' ? 'روند مصرف ترافیک' : 'Traffic overview'}</h2>
               <p className="ov-section-note">
-                {lang === 'fa' ? 'مصرف ثبت‌شده کاربران در بازه انتخابی' : 'Counted client traffic for the selected window'}
+                {lang === 'fa'
+                  ? 'ترافیک محاسبه‌شده برای سهمیه · با اعمال ضریب نود'
+                  : 'Quota traffic · node multipliers apply'}
               </p>
             </div>
-            <div className="inline-flex rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-0.5 text-xs">
-              {(['24h', '7d', '30d'] as const).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setChartRange(r)}
-                  className={`rounded-lg px-2.5 py-1 font-medium transition ${
-                    chartRange === r
-                      ? 'bg-(--accent-soft) text-(--accent-text)'
-                      : 'text-(--text-secondary) hover:text-(--text-primary)'
-                  }`}
-                >
-                  {r === '24h'
-                    ? lang === 'fa'
-                      ? '۲۴ ساعت'
-                      : '24h'
-                    : r === '7d'
-                      ? lang === 'fa'
-                        ? '۷ روز'
-                        : '7d'
-                      : lang === 'fa'
-                        ? '۳۰ روز'
-                        : '30d'}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              label={lang === 'fa' ? 'بازهٔ مصرف' : 'Traffic period'}
+              value={chartRange}
+              onChange={setChartRange}
+              options={[
+                { value: '24h', label: lang === 'fa' ? '۲۴ ساعت' : '24 hours' },
+                { value: '7d', label: lang === 'fa' ? '۷ روز' : '7 days' },
+                { value: '30d', label: lang === 'fa' ? '۳۰ روز' : '30 days' },
+              ]}
+            />
           </header>
 
           <div className="ov-traffic-summary">
             <div className="ov-traffic-total">
-              <span>{lang === 'fa' ? 'مجموع بازه' : 'Period total'}</span>
+              <span>{lang === 'fa' ? 'مجموع این بازه' : 'Total in this period'}</span>
               <strong className="num">{formatBytes(periodTotal, lang)}</strong>
             </div>
             <div>
               <span>
-                <ArrowDown className="h-3.5 w-3.5 text-(--accent-text)" />
-                {lang === 'fa' ? 'دانلود' : 'Download'}
+                <ArrowDown aria-hidden="true" />
+                {t.overview.download}
               </span>
               <strong className="num">{formatBytes(periodDown, lang)}</strong>
             </div>
             <div>
               <span>
-                <ArrowUp className="h-3.5 w-3.5 text-sky-400" />
-                {lang === 'fa' ? 'آپلود' : 'Upload'}
+                <ArrowUp aria-hidden="true" />
+                {t.overview.upload}
               </span>
               <strong className="num">{formatBytes(periodUp, lang)}</strong>
             </div>
           </div>
 
           <div className="ov-chart-tools">
-            <div className="text-xs text-(--text-muted)">
-              {chartRange === '24h'
-                ? lang === 'fa'
-                  ? 'نمای ساعتی ۲۴ ساعت گذشته'
-                  : 'Hourly buckets over last 24 hours'
-                : chartRange === '7d'
-                  ? lang === 'fa'
-                    ? 'نمای روزانه ۷ روز گذشته'
-                    : 'Daily buckets over last 7 days'
-                  : lang === 'fa'
-                    ? 'نمای روزانه ۳۰ روز گذشته'
-                    : 'Daily buckets over last 30 days'}
-            </div>
-            <div className="ov-chart-mode" role="group">
+            <span className="legend">
+              <span>
+                <i className="sw down" />
+                {t.overview.download}
+              </span>
+              <span>
+                <i className="sw up" />
+                {t.overview.upload}
+              </span>
+            </span>
+            <div className="ov-chart-mode" role="group" aria-label={lang === 'fa' ? 'نوع نمایش نمودار' : 'Chart display'}>
               <button type="button" aria-pressed={chartMode === 'bars'} onClick={() => setChartMode('bars')}>
-                <BarChart3 className="h-3.5 w-3.5" />
+                <BarChart3 aria-hidden="true" />
                 {lang === 'fa' ? 'ستونی' : 'Bars'}
               </button>
               <button type="button" aria-pressed={chartMode === 'trend'} onClick={() => setChartMode('trend')}>
-                <TrendingUp className="h-3.5 w-3.5" />
+                <TrendingUp aria-hidden="true" />
                 {lang === 'fa' ? 'روند' : 'Trend'}
               </button>
             </div>
           </div>
 
-          <TrafficChart data={chartData} height={240} mode={chartMode} showTableToggle />
+          <TrafficChart
+            data={chartData}
+            height={280}
+            mode={chartMode}
+            showTableToggle
+            daily={chartRange !== '24h'}
+          />
 
           <div className="ov-chart-insight">
-            <TrendingUp className="h-3.5 w-3.5 text-(--accent-text)" />
+            <Clock aria-hidden="true" />
             <span>
               {peakPoint && periodTotal > 0
                 ? lang === 'fa'
-                  ? `بیشترین مصرف در ${peakPoint.ts}: ${formatBytes(peakPoint.download_bytes + peakPoint.upload_bytes, lang)}`
-                  : `Peak bucket (${peakPoint.ts}): ${formatBytes(peakPoint.download_bytes + peakPoint.upload_bytes, lang)}`
+                  ? `بیشترین مصرف: ${peakPoint.ts} · ${formatBytes(peakPoint.download_bytes + peakPoint.upload_bytes, lang)}`
+                  : `Highest usage: ${peakPoint.ts} · ${formatBytes(peakPoint.download_bytes + peakPoint.upload_bytes, lang)}`
                 : lang === 'fa'
-                  ? 'در این بازه ترافیکی ثبت نشده است'
-                  : 'No recorded traffic in this window'}
+                  ? 'در این بازه ترافیکی ثبت نشده است.'
+                  : 'No traffic recorded in this period.'}
             </span>
           </div>
         </section>
@@ -406,17 +408,17 @@ export function OverviewPage({
         <section className="panel ov-client-panel">
           <header className="panel-head">
             <div>
-              <h2>{lang === 'fa' ? 'سلامت کاربران' : 'Client health'}</h2>
+              <h2>{lang === 'fa' ? 'وضعیت کاربران' : 'Client status'}</h2>
               <p className="ov-section-note">
-                {lang === 'fa' ? 'توزیع وضعیت اشتراک‌ها' : 'Status breakdown across all clients'}
+                {lang === 'fa' ? 'نمایی از وضعیت حساب‌های کاربران' : 'A snapshot of your client accounts'}
               </p>
             </div>
-            <Users className="h-4 w-4 text-(--text-muted)" />
+            <Users aria-hidden="true" />
           </header>
 
           <div className="ov-status-figure">
-            <svg viewBox="0 0 180 180" role="img" aria-label="Client health">
-              <circle cx="90" cy="90" r={ringRadius} fill="none" stroke="var(--border-subtle)" strokeWidth="14" />
+            <svg viewBox="0 0 180 180" role="img" aria-label={`Client status: ${data.summary.totalClients}`}>
+              <circle cx="90" cy="90" r={ringRadius} fill="none" stroke="var(--line-strong)" strokeWidth="14" />
               {statusItems.map((seg) => {
                 const len = (seg.count / Math.max(1, data.summary.totalClients)) * ringCirc;
                 const dashOffset = -ringOffset;
@@ -447,6 +449,9 @@ export function OverviewPage({
           <ul className="ov-status-list">
             {statusItems.map((seg) => {
               const target = `/clients?status=${seg.key}`;
+              const pct = data.summary.totalClients
+                ? ((seg.count / data.summary.totalClients) * 100).toFixed(0)
+                : '0';
               return (
                 <li key={seg.key}>
                   <a href={toPanelUrl(target)} onClick={go(target)}>
@@ -455,11 +460,25 @@ export function OverviewPage({
                       {seg.label}
                     </span>
                     <strong className="num">{seg.count}</strong>
+                    <span className="num">{pct}%</span>
                   </a>
                 </li>
               );
             })}
           </ul>
+
+          <div className="ov-status-foot">
+            <span>
+              {lang === 'fa'
+                ? `${data.summary.onlineClients} آنلاین از ${data.summary.totalClients} کاربر`
+                : `${data.summary.onlineClients} active out of ${data.summary.totalClients} clients`}
+            </span>
+            <span>
+              {lang === 'fa'
+                ? `${breakdown.not_started} در انتظار اولین استفاده`
+                : `${breakdown.not_started} awaiting first use`}
+            </span>
+          </div>
         </section>
       </div>
 
@@ -467,138 +486,131 @@ export function OverviewPage({
       <div className="ov-secondary">
         <section className="panel">
           <header className="panel-head">
-            <h2>{lang === 'fa' ? 'نیازمند توجه' : 'Needs attention'}</h2>
-            <a
-              className="head-action"
-              href={toPanelUrl('/clients')}
-              onClick={(e) => {
-                e.preventDefault();
-                onNavigate('clients');
-              }}
-            >
-              {t.common.all}
-            </a>
+            <h2>{t.overview.runningOut}</h2>
+            {data.summary.runningOutCount > data.runningOut.length && (
+              <a
+                className="link-sm"
+                href={toPanelUrl('/clients')}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onNavigate('clients');
+                }}
+              >
+                {lang === 'fa' ? 'مشاهده همه' : 'View all'} ({data.summary.runningOutCount})
+              </a>
+            )}
           </header>
 
           {data.runningOut.length === 0 ? (
             <div className="ov-all-clear">
-              <CheckCircle2 />
-              <span>{t.overview.noRunningOut}</span>
+              <CheckCircle2 aria-hidden="true" />
+              <strong>{t.overview.noRunningOut}</strong>
+              <span>
+                {lang === 'fa'
+                  ? 'هشدار نزدیک شدن انقضا و اتمام حجم اینجا نمایش داده می‌شود.'
+                  : 'Upcoming expiry and low-traffic warnings appear here.'}
+              </span>
             </div>
           ) : (
-            <div className="space-y-2">
+            <ul className="rows">
               {data.runningOut.map((c) => (
-                <div
-                  key={c.id}
-                  className="flex items-center justify-between gap-2 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <a
-                      href={toPanelUrl(`/clients/${c.id}`)}
-                      onClick={go(`/clients/${c.id}`)}
-                      className="strong-link block truncate text-xs"
-                    >
+                <li key={c.id} className="row-item">
+                  <div className="ri-main">
+                    <a href={toPanelUrl(`/clients/${c.id}`)} onClick={go(`/clients/${c.id}`)} className="ri-title">
                       {c.name}
                     </a>
-                    <div className="text-[11px] text-amber-400">
+                    <span className="ri-sub">
                       {c.reason === 'traffic' && c.trafficLimitBytes
-                        ? `${Math.round((c.trafficUsedBytes / c.trafficLimitBytes) * 100)}% used`
+                        ? lang === 'fa'
+                          ? `${Math.round((c.trafficUsedBytes / c.trafficLimitBytes) * 100)}٪ حجم مصرف شده`
+                          : `${Math.round((c.trafficUsedBytes / c.trafficLimitBytes) * 100)}% of traffic used`
                         : formatDaysLeft(c.expiresAt, null, lang)}
-                    </div>
+                    </span>
                   </div>
                   <Button size="sm" onClick={() => void quickExtend(c.id)}>
-                    +30d
+                    {t.overview.extend}
                   </Button>
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
         </section>
 
         <section className="panel">
           <header className="panel-head">
             <h2>{t.overview.heaviestUsers}</h2>
-            <a className="head-action" href={toPanelUrl('/clients')} onClick={go('/clients')}>
-              {t.common.all}
-            </a>
           </header>
 
           {data.heaviestUsers.length === 0 ? (
-            <div className="ov-all-clear">
-              <span>{lang === 'fa' ? 'هنوز مصرفی ثبت نشده' : 'No usage recorded yet'}</span>
-            </div>
+            <p className="muted pad">
+              {lang === 'fa'
+                ? 'با ثبت مصرف کاربران، رتبه‌بندی اینجا نمایش داده می‌شود.'
+                : 'Usage rankings will appear as clients transfer traffic.'}
+            </p>
           ) : (
-            <div className="ov-rank">
+            <ol className="rows bars-list">
               {data.heaviestUsers.map((u, idx) => (
-                <div key={u.id} className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="font-mono text-[11px] text-(--text-muted)">#{idx + 1}</span>
-                      <a
-                        href={toPanelUrl(`/clients/${u.id}`)}
-                        onClick={go(`/clients/${u.id}`)}
-                        className="strong-link truncate"
-                      >
-                        {u.name}
-                      </a>
-                    </div>
-                    <span className="font-mono text-(--text-secondary)">{formatBytes(u.trafficUsedBytes, lang)}</span>
+                <li key={u.id} className="row-item">
+                  <span className="ov-rank num">{idx + 1}</span>
+                  <div className="ri-main">
+                    <a href={toPanelUrl(`/clients/${u.id}`)} onClick={go(`/clients/${u.id}`)} className="ri-title">
+                      {u.name}
+                    </a>
+                    <span className="hbar" aria-hidden="true">
+                      <span style={{ inlineSize: `${Math.round((u.trafficUsedBytes / heaviestMax) * 100)}%` }} />
+                    </span>
                   </div>
-                  <div className="hbar">
-                    <div style={{ width: `${Math.round((u.trafficUsedBytes / heaviestMax) * 100)}%` }} />
-                  </div>
-                </div>
+                  <span className="num ri-fig">{formatBytes(u.trafficUsedBytes, lang)}</span>
+                </li>
               ))}
-            </div>
+            </ol>
           )}
         </section>
       </div>
 
       {/* Bottom row: Inbounds + This server */}
-      <div className="ov-secondary">
+      <div className="ov-secondary ov-infrastructure">
         {data.inbounds.length > 0 && (
           <section className="panel">
             <header className="panel-head">
               <h2>{t.overview.inbounds}</h2>
               <a
-                className="head-action"
+                className="link-sm"
                 href={toPanelUrl('/inbounds')}
                 onClick={(e) => {
                   e.preventDefault();
                   onNavigate('inbounds');
                 }}
               >
-                {t.common.all}
+                {lang === 'fa' ? 'مشاهده همه' : 'View all'}
               </a>
             </header>
-            <div className="space-y-2">
+            <ul className="rows">
               {data.inbounds.map((ib) => (
-                <div
-                  key={ib.id}
-                  className="flex items-center justify-between gap-2 rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3 py-2 text-xs"
-                >
-                  <div className="min-w-0">
+                <li key={ib.id} className="row-item">
+                  <span
+                    className={`dot ${ib.running ? 'ok' : ib.enabled ? 'bad' : 'off'}`}
+                    aria-hidden="true"
+                  />
+                  <div className="ri-main">
                     <a
                       href={toPanelUrl(`/inbounds/${ib.id}`)}
                       onClick={go(`/inbounds/${ib.id}`)}
-                      className="strong-link block truncate"
+                      className="ri-title"
                     >
                       {ib.name}
                     </a>
-                    <div className="text-[11px] text-(--text-muted)">
-                      {ib.protocol.toUpperCase()} · {ib.transport.toUpperCase()}/{ib.port}
-                    </div>
+                    <span className="ri-sub">
+                      {ib.protocol.toUpperCase()} {ib.port} ·{' '}
+                      {ib.running ? t.inbounds.running : t.inbounds.stopped}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-[11px] text-(--text-secondary)">{ib.onlineCount} online</span>
-                    <StatusPill
-                      tone={ib.running ? 'green' : ib.enabled ? 'amber' : 'gray'}
-                      label={ib.running ? t.inbounds.running : t.inbounds.stopped}
-                    />
-                  </div>
-                </div>
+                  <span className="num ri-fig">
+                    {lang === 'fa' ? `${ib.onlineCount} آنلاین` : `${ib.onlineCount} online`}
+                  </span>
+                </li>
               ))}
-            </div>
+            </ul>
           </section>
         )}
 
@@ -606,75 +618,84 @@ export function OverviewPage({
           <section className="panel">
             <header className="panel-head">
               <h2>{t.overview.thisServer}</h2>
-              <span className="inline-flex items-center gap-1.5 text-xs text-(--text-muted)">
-                <Server className="h-3.5 w-3.5" />
-                {data.server.driverMode}
+              <span className="faint small">
+                {lang === 'fa'
+                  ? `روشن از ${formatDuration(data.server.uptimeSeconds, lang)}`
+                  : `Up ${formatDuration(data.server.uptimeSeconds, lang)}`}
               </span>
             </header>
 
-            <div className="sysgrid">
-              {[
-                { label: 'CPU', pct: data.server.cpuPercent, sub: '' },
-                {
-                  label: lang === 'fa' ? 'حافظه' : 'Memory',
-                  pct: data.server.memPercent,
-                  sub: `${formatBytes(data.server.memUsedBytes, lang)} / ${formatBytes(data.server.memTotalBytes, lang)}`,
-                },
-                {
-                  label: lang === 'fa' ? 'دیسک' : 'Disk',
-                  pct: data.server.diskPercent,
-                  sub: data.server.diskTotalBytes
-                    ? `${formatBytes(data.server.diskUsedBytes ?? 0, lang)} / ${formatBytes(data.server.diskTotalBytes, lang)}`
-                    : '',
-                },
-              ].map((m) => (
-                <div key={m.label} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-(--text-secondary)">{m.label}</span>
-                    <span className="font-mono text-(--text-primary)">
-                      {m.pct}%{m.sub ? ` · ${m.sub}` : ''}
-                    </span>
-                  </div>
+            <dl className="sysgrid">
+              <div>
+                <dt>CPU</dt>
+                <dd className="num">{data.server.cpuPercent}%</dd>
+                <div className="meter">
+                  <span
+                    className={data.server.cpuPercent >= 85 ? 'hot' : ''}
+                    style={{ width: `${Math.min(100, data.server.cpuPercent)}%` }}
+                  />
+                </div>
+              </div>
+              <div>
+                <dt>{lang === 'fa' ? 'حافظه' : 'Memory'}</dt>
+                <dd className="num">
+                  {formatBytes(data.server.memUsedBytes, lang)}{' '}
+                  <span className="faint">/ {formatBytes(data.server.memTotalBytes, lang)}</span>
+                </dd>
+                <div className="meter">
+                  <span
+                    className={data.server.memPercent >= 85 ? 'hot' : ''}
+                    style={{ width: `${Math.min(100, data.server.memPercent)}%` }}
+                  />
+                </div>
+              </div>
+              {data.server.diskTotalBytes ? (
+                <div>
+                  <dt>{lang === 'fa' ? 'دیسک' : 'Disk'}</dt>
+                  <dd className="num">
+                    {formatBytes(data.server.diskUsedBytes ?? 0, lang)}{' '}
+                    <span className="faint">/ {formatBytes(data.server.diskTotalBytes, lang)}</span>
+                  </dd>
                   <div className="meter">
                     <span
-                      style={{
-                        width: `${Math.min(100, m.pct)}%`,
-                        background: m.pct >= 85 ? '#ef4444' : m.pct >= 65 ? '#f59e0b' : 'var(--accent)',
-                      }}
+                      className={data.server.diskPercent >= 85 ? 'hot' : ''}
+                      style={{ width: `${Math.min(100, data.server.diskPercent)}%` }}
                     />
                   </div>
                 </div>
-              ))}
-            </div>
-
-            <div className="mt-3 text-xs text-(--text-muted)">
-              Uptime: {formatDuration(data.server.uptimeSeconds, lang)} · {data.server.platform}
-            </div>
+              ) : null}
+              <div>
+                <dt>{lang === 'fa' ? 'سیستم' : 'System'}</dt>
+                <dd className="num">
+                  {data.server.platform} <span className="faint">· {data.server.driverMode}</span>
+                </dd>
+              </div>
+            </dl>
           </section>
         ) : data.resellerAccount ? (
           <section className="panel">
             <header className="panel-head">
               <h2>{t.overview.yourAccount}</h2>
             </header>
-            <div className="space-y-2 text-xs text-(--text-secondary)">
-              <div className="flex justify-between">
-                <span>Traffic pool</span>
-                <span className="font-mono text-(--text-primary)">
-                  {formatBytes(data.resellerAccount.trafficUsedBytes, lang)} /{' '}
-                  {formatBytes(data.resellerAccount.trafficPoolBytes, lang)}
-                </span>
+            <dl className="sysgrid">
+              <div>
+                <dt>{lang === 'fa' ? 'سهمیه ترافیک' : 'Traffic pool'}</dt>
+                <dd className="num">
+                  {formatBytes(data.resellerAccount.trafficUsedBytes, lang)}{' '}
+                  <span className="faint">/ {formatBytes(data.resellerAccount.trafficPoolBytes, lang)}</span>
+                </dd>
               </div>
-              <div className="flex justify-between">
-                <span>Clients</span>
-                <span className="font-mono text-(--text-primary)">
+              <div>
+                <dt>{lang === 'fa' ? 'کاربران' : 'Clients'}</dt>
+                <dd className="num">
                   {data.resellerAccount.clientCount} / {data.resellerAccount.clientLimit ?? '∞'}
-                </span>
+                </dd>
               </div>
-              <div className="flex justify-between">
-                <span>Ends</span>
-                <span>{formatDaysLeft(data.resellerAccount.expiresAt, null, lang)}</span>
+              <div>
+                <dt>{lang === 'fa' ? 'پایان' : 'Ends'}</dt>
+                <dd>{formatDaysLeft(data.resellerAccount.expiresAt, null, lang)}</dd>
               </div>
-            </div>
+            </dl>
           </section>
         ) : null}
       </div>

@@ -1,20 +1,37 @@
-export function formatBytes(bytes: number | null | undefined, lang: 'en' | 'fa' = 'en'): string {
-  if (bytes === null || bytes === undefined) return lang === 'fa' ? 'نامحدود' : 'Unlimited';
-  if (bytes === 0) return '0 B';
+export function formatBytesParts(
+  bytes: number | null | undefined,
+  lang: 'en' | 'fa' = 'en',
+): { value: string; unit: string } {
+  if (bytes === null || bytes === undefined) {
+    return { value: lang === 'fa' ? 'نامحدود' : 'Unlimited', unit: '' };
+  }
+  if (bytes === 0) return { value: '0', unit: 'B' };
   const k = 1024;
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.min(units.length - 1, Math.floor(Math.log(Math.abs(bytes)) / Math.log(k)));
   const val = bytes / Math.pow(k, i);
-  return `${val >= 100 ? val.toFixed(0) : val >= 10 ? val.toFixed(1) : val.toFixed(2)} ${units[i]}`;
+  const formatted = val >= 100 ? val.toFixed(0) : val >= 10 ? val.toFixed(1) : val.toFixed(2);
+  return { value: formatted.replace(/\.00$/, ''), unit: units[i] };
 }
 
-export function formatSpeed(bps: number): string {
-  if (!bps || bps <= 0) return '0 B/s';
+export function formatBytes(bytes: number | null | undefined, lang: 'en' | 'fa' = 'en'): string {
+  const { value, unit } = formatBytesParts(bytes, lang);
+  return unit ? `${value} ${unit}` : value;
+}
+
+export function formatSpeedParts(bps: number): { value: string; unit: string } {
+  if (!bps || bps <= 0) return { value: '0', unit: 'B/s' };
   const k = 1024;
   const units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
   const i = Math.min(units.length - 1, Math.floor(Math.log(bps) / Math.log(k)));
   const val = bps / Math.pow(k, i);
-  return `${val >= 10 ? val.toFixed(1) : val.toFixed(2)} ${units[i]}`;
+  const formatted = val >= 10 ? val.toFixed(1) : val.toFixed(2);
+  return { value: formatted.replace(/\.00$/, ''), unit: units[i] };
+}
+
+export function formatSpeed(bps: number): string {
+  const { value, unit } = formatSpeedParts(bps);
+  return `${value} ${unit}`;
 }
 
 export function formatDuration(seconds: number, lang: 'en' | 'fa' = 'en'): string {

@@ -1,8 +1,8 @@
 {
   "deploy/install.sh": {
-    "mtime": 1794777444.688729,
-    "seen": 1794777807.8476243,
-    "ast_hash": "398716a45c9d0fc770e480abd63f20e0",
+    "mtime": 1794779730.9511626,
+    "seen": 1794779828.031082,
+    "ast_hash": "c5bf7aa7ddbf351f93d1adb061822db3",
     "semantic_hash": ""
   },
   "deploy/node.sh": {
@@ -198,9 +198,9 @@
     "semantic_hash": ""
   },
   "web/src/App.tsx": {
-    "mtime": 1794777614.9926553,
-    "seen": 1794777807.8476627,
-    "ast_hash": "8e860fffcbcb93595aa21671ba4d1dea",
+    "mtime": 1794780104.7042565,
+    "seen": 1794780237.1323671,
+    "ast_hash": "622d8fd8aec5a998c4b280cd57751a22",
     "semantic_hash": ""
   },
   "web/src/components/DonutChart.tsx": {
@@ -240,9 +240,9 @@
     "semantic_hash": ""
   },
   "web/src/components/UiPrimitives.tsx": {
-    "mtime": 1794761058.6155953,
-    "seen": 1794762419.8976724,
-    "ast_hash": "d5984f404a940032535f6079110afb3d",
+    "mtime": 1794781328.0697,
+    "seen": 1794781608.165387,
+    "ast_hash": "6117a0e2e6c158920b5384be204a2ab1",
     "semantic_hash": ""
   },
   "web/src/i18n/context.tsx": {
@@ -342,9 +342,9 @@
     "semantic_hash": ""
   },
   "web/src/pages/SettingsPage.tsx": {
-    "mtime": 1794776864.1442487,
-    "seen": 1794777807.8476856,
-    "ast_hash": "286e7903500e8bfcda8ee69c3884dbf2",
+    "mtime": 1794786142.2833085,
+    "seen": 1794786287.9004047,
+    "ast_hash": "37105b6e9c15aa42d73ae0124eaf82c4",
     "semantic_hash": ""
   },
   "web/src/pages/SubscriptionPage.tsx": {
@@ -384,9 +384,9 @@
     "semantic_hash": ""
   },
   "deploy/xprotocol-cli.sh": {
-    "mtime": 1794777458.786764,
-    "seen": 1794777807.8476317,
-    "ast_hash": "f9ec1d92a35764d2a0f89e53d2ef88ae",
+    "mtime": 1794779758.8801122,
+    "seen": 1794779828.03109,
+    "ast_hash": "5a24b8bb50d193c0063cce32a7df1f6d",
     "semantic_hash": ""
   },
   "deploy/xprotocol-tui.sh": {
@@ -402,9 +402,9 @@
     "semantic_hash": ""
   },
   "web/src/lib/router.ts": {
-    "mtime": 1794760416.2271113,
-    "seen": 1794762419.8976781,
-    "ast_hash": "20119634b2a6f3c096728e35fb2ae0f3",
+    "mtime": 1794780175.3659925,
+    "seen": 1794780237.1323793,
+    "ast_hash": "c539f158e2619824a8f476a6df92cbe9",
     "semantic_hash": ""
   },
   "web/src/pages/ClientDetailPage.tsx": {
@@ -432,9 +432,9 @@
     "semantic_hash": ""
   },
   "web/src/pages/UpdatesPage.tsx": {
-    "mtime": 1794777700.7933078,
-    "seen": 1794777807.8476875,
-    "ast_hash": "bd77658665e46e94e9cab7bf3220a406",
+    "mtime": 1794785721.675501,
+    "seen": 1794785847.0855963,
+    "ast_hash": "d2ad1c80ee200a13b551942e164b7d7e",
     "semantic_hash": ""
   }
 }
