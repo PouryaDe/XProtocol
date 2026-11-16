@@ -94,29 +94,35 @@ export function useSlidingIndicator(
   }, [containerRef, activeSelector, depKey]);
 }
 
+const BRAND_X_HALF_PATH =
+  'M13.15 15.65 6.8 8.3h4.5l3.95 4.5Q18.25 16.22 21.25 12.8L25.2 8.3h-4.5L18 11.4';
+
 export function BrandMark({ size = 28 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" className="xp-mark">
       <rect width="32" height="32" rx="9" fill="var(--accent)" />
-      <circle
-        className="m-ring"
-        cx="16"
-        cy="16"
-        r="8.4"
+      <path
+        className="x-half"
         pathLength={1}
+        d={BRAND_X_HALF_PATH}
         fill="none"
         stroke="var(--accent-ink)"
-        strokeWidth="2.6"
+        strokeWidth="1.65"
         strokeLinecap="round"
+        strokeLinejoin="miter"
+        strokeMiterlimit={4}
       />
       <path
-        className="m-v"
-        d="M11.9 13.4 16 19.2l4.1-5.8"
+        className="x-half bot"
+        pathLength={1}
+        d={BRAND_X_HALF_PATH}
+        transform="rotate(180 16 16)"
         fill="none"
         stroke="var(--accent-ink)"
-        strokeWidth="2.6"
+        strokeWidth="1.65"
         strokeLinecap="round"
-        strokeLinejoin="round"
+        strokeLinejoin="miter"
+        strokeMiterlimit={4}
       />
     </svg>
   );

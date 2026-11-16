@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <defs>
+    <linearGradient id="xp-metal" x1="4" y1="6" x2="28" y2="26" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3f434a" />
+      <stop offset="50%" stop-color="#111317" />
+      <stop offset="100%" stop-color="#484d55" />
+    </linearGradient>
+  </defs>
+  <path
+    d="M13.15 15.65 6.8 8.3h4.5l3.95 4.5Q18.25 16.22 21.25 12.8L25.2 8.3h-4.5L18 11.4"
+    stroke="url(#xp-metal)"
+    stroke-width="1.65"
+    stroke-linecap="round"
+    stroke-linejoin="miter"
+    stroke-miterlimit="4"
+  />
+  <path
+    d="M13.15 15.65 6.8 8.3h4.5l3.95 4.5Q18.25 16.22 21.25 12.8L25.2 8.3h-4.5L18 11.4"
+    transform="rotate(180 16 16)"
+    stroke="url(#xp-metal)"
+    stroke-width="1.65"
+    stroke-linecap="round"
+    stroke-linejoin="miter"
+    stroke-miterlimit="4"
+  />
+</svg>

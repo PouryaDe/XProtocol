@@ -288,18 +288,13 @@
 .xp-brand:hover .xp-mark {
   transform: rotate(-8deg) scale(1.08);
 }
-.xp-mark .m-ring {
+.xp-mark .x-half {
   stroke-dasharray: 1;
   stroke-dashoffset: 1px;
-  transform-box: fill-box;
-  transform-origin: 50%;
-  animation: draw 1s var(--out) 0.2s forwards;
-  transform: rotate(-90deg);
+  animation: draw 0.85s var(--out) 0.15s forwards;
 }
-.xp-mark .m-v {
-  transform-box: fill-box;
-  transform-origin: 50%;
-  animation: v-in 0.7s var(--spring) 0.8s backwards, v-beat 3.2s ease-in-out 2.2s infinite;
+.xp-mark .x-half.bot {
+  animation-delay: 0.28s;
 }
 
 /* ── Glass Sidebar & Sliding Spring Nav Indicator ─────────────────────────────── */
