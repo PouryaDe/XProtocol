@@ -23,7 +23,7 @@ import { SubscriptionPage } from './pages/SubscriptionPage';
 function resolveRoute(pathname: string): {
   nav: NavKey;
   clientId?: number;
-  inboundId?: number;
+  inboundId?: number | 'new';
   routingTab?: 'rules' | 'outbounds';
   unknown?: boolean;
 } {
@@ -34,6 +34,7 @@ function resolveRoute(pathname: string): {
   if (clientMatch) return { nav: 'clients', clientId: Number(clientMatch[1]) };
   if (clean === '/connections') return { nav: 'connections' };
   if (clean === '/inbounds' || clean === '/servers') return { nav: 'inbounds' };
+  if (clean === '/inbounds/new' || clean === '/servers/new') return { nav: 'inbounds', inboundId: 'new' };
   const inboundMatch = clean.match(/^\/(?:inbounds|servers)\/(\d+)$/);
   if (inboundMatch) return { nav: 'inbounds', inboundId: Number(inboundMatch[1]) };
   if (clean === '/nodes') return { nav: 'nodes' };

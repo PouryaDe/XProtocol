@@ -84,10 +84,10 @@
     "semantic_hash": "68d920454e8176cd5e226440417fd236"
   },
   "server/src/routes/clientRoutes.ts": {
-    "mtime": 1794707309.283886,
-    "seen": 1794708422.9708462,
-    "ast_hash": "6524cdd6261ba2252c7072d6267ce7e3",
-    "semantic_hash": "6524cdd6261ba2252c7072d6267ce7e3"
+    "mtime": 1794808752.094674,
+    "seen": 1794809443.7081387,
+    "ast_hash": "0fab13ab233e8c7dbdb6b7295d240d52",
+    "semantic_hash": ""
   },
   "server/src/routes/connectionRoutes.ts": {
     "mtime": 1794703303.5529313,
@@ -198,9 +198,9 @@
     "semantic_hash": ""
   },
   "web/src/App.tsx": {
-    "mtime": 1794780104.7042565,
-    "seen": 1794780237.1323671,
-    "ast_hash": "622d8fd8aec5a998c4b280cd57751a22",
+    "mtime": 1794811493.735567,
+    "seen": 1794811727.9130034,
+    "ast_hash": "2257983d0546b44ad3d910a17a1c98f8",
     "semantic_hash": ""
   },
   "web/src/components/DonutChart.tsx": {
@@ -246,9 +246,9 @@
     "semantic_hash": ""
   },
   "web/src/i18n/context.tsx": {
-    "mtime": 1794711761.6894097,
-    "seen": 1794758040.0076232,
-    "ast_hash": "c58d9440a3819c0f6dbda87c4e389565",
+    "mtime": 1794811491.0026965,
+    "seen": 1794811727.9130113,
+    "ast_hash": "0dc990645b5b2e2bd6849101203db858",
     "semantic_hash": ""
   },
   "web/src/i18n/en.ts": {
@@ -294,9 +294,9 @@
     "semantic_hash": ""
   },
   "web/src/pages/ClientsPage.tsx": {
-    "mtime": 1794801236.6538806,
-    "seen": 1794801485.9266222,
-    "ast_hash": "37509c4c7cc25bcac2b6bc2544482e28",
+    "mtime": 1794809237.905872,
+    "seen": 1794809443.7081752,
+    "ast_hash": "3a9083c321fd4cd18fc48fd3646396d4",
     "semantic_hash": ""
   },
   "web/src/pages/ConnectionsPage.tsx": {

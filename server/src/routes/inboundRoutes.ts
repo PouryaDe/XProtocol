@@ -20,6 +20,59 @@ function getInboundPeers(inboundId: number, subnet: string): PeerEntry[] {
   }));
 }
 
+function defaultSlugPrefix(protocol: string, transport: string): string {
+  switch (protocol) {
+    case 'wireguard':
+    case 'amneziawg':
+      return 'wg';
+    case 'ocserv':
+    case 'openconnect':
+      return 'oc';
+    case 'ikev2':
+      return 'ikev2';
+    case 'l2tp':
+      return 'l2tp';
+    default:
+      return (transport || 'udp').toLowerCase().startsWith('tcp') ? 'tcp' : 'udp';
+  }
+}
+
+function resolveUniqueSlug(rawName: string | undefined, displayName: string | undefined, protocol: string, transport: string, port: number): string {
+  const db = getDb();
+  let base = (rawName || '').trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+  if (!base || base.length < 2) {
+    const slugFromDisplay = (displayName || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    base = slugFromDisplay.length >= 2 ? slugFromDisplay.slice(0, 28) : `${defaultSlugPrefix(protocol, transport)}${port}`;
+  }
+  base = base.slice(0, 28);
+  let candidate = base;
+  let n = 2;
+  while (db.prepare('SELECT 1 FROM inbounds WHERE name = ?').get(candidate)) {
+    candidate = `${base.slice(0, 25)}-${n++}`;
+  }
+  return candidate;
+}
+
+function countAllowedClients(inboundId: number): number {
+  const db = getDb();
+  const row = db
+    .prepare(
+      `SELECT COUNT(DISTINCT c.id) AS cnt
+       FROM clients c
+       LEFT JOIN client_groups cg ON cg.client_id = c.id
+       LEFT JOIN groups g ON g.id = cg.group_id AND g.enabled = 1
+       LEFT JOIN group_inbounds gi ON gi.group_id = g.id AND gi.inbound_id = ?
+       LEFT JOIN client_inbounds ci ON ci.client_id = c.id AND ci.inbound_id = ?
+       WHERE g.all_inbounds = 1 OR gi.inbound_id IS NOT NULL OR ci.inbound_id IS NOT NULL`,
+    )
+    .get(inboundId, inboundId) as { cnt: number } | undefined;
+  return Number(row?.cnt || 0);
+}
+
 export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
   const router = Router();
 
@@ -52,30 +105,67 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
     const liveMap = new Map(liveCounts.map((l) => [l.inbound_id, l.cnt]));
 
     res.json({
-      inbounds: rows.map((r) => ({
-        id: Number(r.id),
-        nodeId: r.node_id === null ? null : Number(r.node_id),
-        nodeName: r.node_name ? String(r.node_name) : null,
-        nodeStatus: r.node_status ? String(r.node_status) : null,
-        nodeIsLocal: Boolean(r.node_is_local),
-        protocol: String(r.protocol),
-        name: String(r.name),
-        transport: String(r.transport),
-        port: Number(r.port),
-        subnet: String(r.subnet),
-        authMode: String(r.auth_mode),
-        description: String(r.description || ''),
-        publicAddressOverride: String(r.public_address_override || ''),
-        enabled: Boolean(r.enabled),
-        running: Boolean(r.running),
-        certId: r.cert_id === null ? null : Number(r.cert_id),
-        certDomain: r.cert_domain ? String(r.cert_domain) : null,
-        serverPublicKey: String(r.server_public_key || ''),
-        settings: JSON.parse(String(r.settings_json || '{}')),
-        onlineCount: liveMap.get(Number(r.id)) || 0,
-        createdAt: String(r.created_at),
-      })),
+      inbounds: rows.map((r) => {
+        const id = Number(r.id);
+        const settings = JSON.parse(String(r.settings_json || '{}')) as Record<string, unknown>;
+        return {
+          id,
+          nodeId: r.node_id === null ? null : Number(r.node_id),
+          nodeName: r.node_name ? String(r.node_name) : null,
+          nodeStatus: r.node_status ? String(r.node_status) : null,
+          nodeIsLocal: Boolean(r.node_is_local),
+          protocol: String(r.protocol),
+          name: String(r.name),
+          displayName: String(settings.displayName || r.name),
+          transport: String(r.transport),
+          port: Number(r.port),
+          subnet: String(r.subnet),
+          authMode: String(r.auth_mode),
+          description: String(r.description || ''),
+          publicAddressOverride: String(r.public_address_override || ''),
+          enabled: Boolean(r.enabled),
+          running: Boolean(r.running),
+          certId: r.cert_id === null ? null : Number(r.cert_id),
+          certDomain: r.cert_domain ? String(r.cert_domain) : null,
+          serverPublicKey: String(r.server_public_key || ''),
+          settings,
+          onlineCount: liveMap.get(id) || 0,
+          allowedClientsCount: countAllowedClients(id),
+          createdAt: String(r.created_at),
+        };
+      }),
     });
+  });
+
+  router.post('/preflight', (req: AuthedRequest, res) => {
+    const { nodeIds = [], port, ports = {}, excludeInboundId } = req.body as {
+      nodeIds?: number[];
+      port?: number;
+      ports?: Record<number, number>;
+      excludeInboundId?: number;
+    };
+    const db = getDb();
+    const items = nodeIds.map((nodeId) => {
+      const node = db.prepare('SELECT id, enabled, status, is_local FROM nodes WHERE id = ?').get(nodeId) as
+        | { id: number; enabled: number; status: string; is_local: number }
+        | undefined;
+      if (!node) return { nodeId, error: 'Node not found' };
+      if (!node.enabled) return { nodeId, error: 'Node is disabled' };
+      if (!node.is_local && node.status === 'offline') return { nodeId, error: 'Node is unreachable' };
+      const targetPort = Number(ports[nodeId] || port || 0);
+      if (targetPort > 0) {
+        const conflict = db
+          .prepare('SELECT id, name FROM inbounds WHERE node_id = ? AND port = ? AND (? IS NULL OR id != ?)')
+          .get(nodeId, targetPort, excludeInboundId ?? null, excludeInboundId ?? null) as
+          | { id: number; name: string }
+          | undefined;
+        if (conflict) {
+          return { nodeId, error: `Port ${targetPort} is already used by ${conflict.name}` };
+        }
+      }
+      return { nodeId, error: null };
+    });
+    res.json({ items });
   });
 
   router.post('/', async (req: AuthedRequest, res) => {
@@ -88,8 +178,10 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
     const body = req.body as {
       nodeId?: number | null;
       nodeIds?: number[];
+      ports?: Record<number, number>;
       protocol?: string;
       name?: string;
+      displayName?: string;
       transport?: string;
       port?: number;
       subnet?: string;
@@ -102,18 +194,20 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       groupIds?: number[];
     };
 
-    const name = (body.name || '').trim();
-    if (!/^[a-z0-9-]{2,32}$/.test(name)) {
-      res.status(400).json({ error: 'Inbound name must be lowercase letters, digits and dashes (2-32 chars)' });
-      return;
-    }
+    const protocol = body.protocol || 'wireguard';
+    const transport = body.transport || 'udp';
     const port = Number(body.port || 0);
     if (port < 1 || port > 65535) {
       res.status(400).json({ error: 'Port must be 1-65535' });
       return;
     }
 
-    const protocol = body.protocol || 'wireguard';
+    if (body.name && !/^[a-z0-9-]{2,32}$/.test(body.name.trim()) && !body.displayName) {
+      res.status(400).json({ error: 'Inbound name must be lowercase letters, digits and dashes (2-32 chars)' });
+      return;
+    }
+
+    const name = resolveUniqueSlug(body.name, body.displayName, protocol, transport, port);
     const keys =
       protocol === 'wireguard' || protocol === 'amneziawg'
         ? generateWireGuardKeypair()
@@ -127,11 +221,17 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
           ? [body.nodeId]
           : [null];
 
+    const settingsObj: Record<string, unknown> = {
+      ...(body.settings || { dns: '1.1.1.1, 8.8.8.8' }),
+      ...(body.displayName ? { displayName: body.displayName.trim() } : {}),
+    };
+
     const createdIds: number[] = [];
     try {
       for (let i = 0; i < targetNodeIds.length; i++) {
         const nid = targetNodeIds[i];
         const instanceName = targetNodeIds.length > 1 ? `${name}-n${nid}` : name;
+        const nodePort = nid && body.ports?.[nid] ? Number(body.ports[nid]) : port;
         const shouldRun = nid && body.enabled !== false ? 1 : 0;
         const info = db
           .prepare(
@@ -142,8 +242,8 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
             nid ?? null,
             protocol,
             instanceName,
-            body.transport || 'udp',
-            port,
+            transport,
+            nodePort,
             body.subnet || '10.69.0.0/24',
             body.authMode || (protocol === 'wireguard' || protocol === 'amneziawg' ? 'device_keys' : 'certificate_password'),
             body.description || '',
@@ -153,7 +253,7 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
             body.certId ?? null,
             keys.publicKey,
             keys.privateKey,
-            JSON.stringify(body.settings || { dns: '1.1.1.1, 8.8.8.8' }),
+            JSON.stringify(settingsObj),
             new Date().toISOString(),
           );
         const id = Number(info.lastInsertRowid);
@@ -173,7 +273,7 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
     }
   });
 
-  router.patch('/:id', async (req: AuthedRequest, res) => {
+  const handleUpdate = async (req: AuthedRequest, res: import('express').Response) => {
     const acc = req.auth!.account;
     if (!acc.isOwner && acc.permissions.inbounds.manage === 'none') {
       res.status(403).json({ error: 'No permission' });
@@ -188,6 +288,7 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
     }
 
     const body = req.body as {
+      displayName?: string;
       transport?: string;
       port?: number;
       subnet?: string;
@@ -198,6 +299,13 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       certId?: number | null;
       settings?: Record<string, unknown>;
     };
+
+    const existingSettings = JSON.parse(existing.settings_json || '{}') as Record<string, unknown>;
+    const nextSettings = body.settings
+      ? { ...existingSettings, ...body.settings, ...(body.displayName !== undefined ? { displayName: body.displayName } : {}) }
+      : body.displayName !== undefined
+        ? { ...existingSettings, displayName: body.displayName }
+        : existingSettings;
 
     db.prepare(
       `UPDATE inbounds SET transport = ?, port = ?, subnet = ?, auth_mode = ?, description = ?, public_address_override = ?, enabled = ?, cert_id = ?, settings_json = ? WHERE id = ?`,
@@ -210,7 +318,7 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       body.publicAddressOverride ?? existing.public_address_override,
       body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled,
       body.certId !== undefined ? body.certId : existing.cert_id,
-      body.settings ? JSON.stringify(body.settings) : existing.settings_json,
+      JSON.stringify(nextSettings),
       id,
     );
 
@@ -219,6 +327,105 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       await applyInboundRuntime(driverMode, updated, getInboundPeers(id, updated.subnet), 'restart');
     }
     recordAudit({ accountId: acc.id, username: acc.username, action: 'instance.update', target: existing.name, ip: req.clientIp });
+    res.json({ ok: true });
+  };
+
+  router.patch('/:id', handleUpdate);
+  router.put('/:id', handleUpdate);
+
+  router.post('/:id/deployments', async (req: AuthedRequest, res) => {
+    const acc = req.auth!.account;
+    if (!acc.isOwner && acc.permissions.inbounds.manage === 'none') {
+      res.status(403).json({ error: 'No permission' });
+      return;
+    }
+    const id = Number(req.params.id);
+    const { nodeIds = [], ports = {} } = req.body as { nodeIds?: number[]; ports?: Record<number, number> };
+    const db = getDb();
+    const existing = db.prepare('SELECT * FROM inbounds WHERE id = ?').get(id) as InboundRow | undefined;
+    if (!existing) {
+      res.status(404).json({ error: 'Inbound not found' });
+      return;
+    }
+    if (!nodeIds.length) {
+      res.status(400).json({ error: 'Select at least one node' });
+      return;
+    }
+
+    const firstNode = nodeIds[0];
+    const restNodes = nodeIds.slice(1);
+    if (!existing.node_id) {
+      const nodePort = Number(ports[firstNode] || existing.port);
+      const shouldRun = existing.enabled ? 1 : 0;
+      db.prepare('UPDATE inbounds SET node_id = ?, port = ?, running = ? WHERE id = ?').run(
+        firstNode,
+        nodePort,
+        shouldRun,
+        id,
+      );
+      const row = db.prepare('SELECT * FROM inbounds WHERE id = ?').get(id) as unknown as InboundRow;
+      if (shouldRun) {
+        await applyInboundRuntime(driverMode, row, getInboundPeers(id, row.subnet), 'start');
+      }
+    } else if (existing.node_id !== firstNode) {
+      restNodes.unshift(firstNode);
+    }
+
+    for (const nid of restNodes) {
+      const nodePort = Number(ports[nid] || existing.port);
+      const cloneName = resolveUniqueSlug(`${existing.name}-n${nid}`, undefined, existing.protocol, existing.transport, nodePort);
+      const shouldRun = existing.enabled ? 1 : 0;
+      const info = db
+        .prepare(
+          `INSERT INTO inbounds (node_id, protocol, name, transport, port, subnet, auth_mode, description, public_address_override, enabled, running, cert_id, server_public_key, server_private_key, settings_json, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          nid,
+          existing.protocol,
+          cloneName,
+          existing.transport,
+          nodePort,
+          existing.subnet,
+          existing.auth_mode,
+          existing.description,
+          existing.public_address_override,
+          existing.enabled,
+          shouldRun,
+          existing.cert_id,
+          existing.server_public_key,
+          existing.server_private_key,
+          existing.settings_json,
+          new Date().toISOString(),
+        );
+      const newId = Number(info.lastInsertRowid);
+      if (shouldRun) {
+        const row = db.prepare('SELECT * FROM inbounds WHERE id = ?').get(newId) as unknown as InboundRow;
+        await applyInboundRuntime(driverMode, row, getInboundPeers(newId, row.subnet), 'start');
+      }
+    }
+
+    res.json({ ok: true });
+  });
+
+  router.delete('/:id/deployments/:nodeId', async (req: AuthedRequest, res) => {
+    const acc = req.auth!.account;
+    if (!acc.isOwner && acc.permissions.inbounds.manage === 'none') {
+      res.status(403).json({ error: 'No permission' });
+      return;
+    }
+    const id = Number(req.params.id);
+    const nodeId = Number(req.params.nodeId);
+    const db = getDb();
+    const row = db.prepare('SELECT * FROM inbounds WHERE id = ?').get(id) as InboundRow | undefined;
+    if (!row || row.node_id !== nodeId) {
+      res.status(404).json({ error: 'Deployment not found' });
+      return;
+    }
+    if (row.running) {
+      await applyInboundRuntime(driverMode, row, [], 'stop');
+    }
+    db.prepare('UPDATE inbounds SET node_id = NULL, running = 0 WHERE id = ?').run(id);
     res.json({ ok: true });
   });
 
