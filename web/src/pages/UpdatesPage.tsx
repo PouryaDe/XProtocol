@@ -79,7 +79,7 @@ export function UpdatesPage() {
   );
 
   const load = useCallback(async (autoCheck = false) => {
-    const res = await apiFetch<UpdateState>(autoCheck ? '/updates?auto=1&ttl=45000' : '/updates');
+    const res = await apiFetch<UpdateState>(autoCheck ? '/updates?auto=1&ttl=30000' : '/updates');
     setState(res);
     return res;
   }, []);
@@ -100,7 +100,7 @@ export function UpdatesPage() {
     const timers: number[] = [];
 
     const pollIfChecking = (attempt = 0) => {
-      if (!alive || attempt >= 4) {
+      if (!alive || attempt >= 12) {
         if (alive) setChecking(false);
         return;
       }
@@ -119,7 +119,7 @@ export function UpdatesPage() {
           .catch(() => {
             if (alive) setChecking(false);
           });
-      }, attempt === 0 ? 1800 : 2500);
+      }, 1400);
       timers.push(id);
     };
 
@@ -280,17 +280,21 @@ export function UpdatesPage() {
           <span className="text-xs text-(--text-secondary)">
             {busyInstalling
               ? stepText[state.step || 'downloading']
-              : state.latest
+              : checking || state.checking
                 ? lang === 'fa'
-                  ? `نسخه جدید ${state.latest.tag} آماده نصب است`
-                  : `${state.latest.tag} is available`
-                : state.checkedAt && !state.checkError
+                  ? 'در حال بررسی…'
+                  : 'Checking…'
+                : state.latest
                   ? lang === 'fa'
-                    ? 'شما از آخرین نسخه استفاده می‌کنید'
-                    : 'You are on the latest version'
-                  : lang === 'fa'
-                    ? 'در حال بررسی…'
-                    : 'Checking…'}
+                    ? `نسخه جدید ${state.latest.tag} آماده نصب است`
+                    : `${state.latest.tag} is available`
+                  : state.checkedAt && !state.checkError
+                    ? lang === 'fa'
+                      ? 'شما از آخرین نسخه استفاده می‌کنید'
+                      : 'You are on the latest version'
+                    : lang === 'fa'
+                      ? 'برای بررسی وضعیت روی دکمه بررسی کلیک کنید'
+                      : 'Click Check for updates to verify'}
           </span>
           {state.checkError ? (
             <span className="text-xs text-red-400">

@@ -114,15 +114,20 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
           applyUpdateRes(res);
           if (res?.checking) {
             window.clearTimeout(followUpTimer);
-            followUpTimer = window.setTimeout(() => {
-              if (!alive) return;
-              apiFetch<{ latest?: { tag?: string } | null; newer?: unknown[] }>('/updates')
-                .then((fresh) => {
-                  if (!alive) return;
-                  applyUpdateRes(fresh);
-                })
-                .catch(() => {});
-            }, 2500);
+            const pollFollowUp = (attempt = 0) => {
+              if (!alive || attempt >= 5) return;
+              followUpTimer = window.setTimeout(() => {
+                if (!alive) return;
+                apiFetch<{ checking?: boolean; latest?: { tag?: string } | null; newer?: unknown[] }>('/updates')
+                  .then((fresh) => {
+                    if (!alive) return;
+                    applyUpdateRes(fresh);
+                    if (fresh?.checking) pollFollowUp(attempt + 1);
+                  })
+                  .catch(() => {});
+              }, 2000);
+            };
+            pollFollowUp(0);
           }
         })
         .catch(() => {});

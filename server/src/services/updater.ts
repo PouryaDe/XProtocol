@@ -267,12 +267,22 @@ async function fetchGithubJson<T>(url: string): Promise<T> {
       Accept: 'application/vnd.github+json',
       'User-Agent': 'XProtocol-Panel/1.0',
     },
-    signal: AbortSignal.timeout(8000),
+    signal: AbortSignal.timeout(4500),
   });
   if (!res.ok) {
     throw new Error(`GitHub HTTP ${res.status}`);
   }
   return (await res.json()) as T;
+}
+
+async function lsRemoteHeadSha(): Promise<string> {
+  const { stdout } = await execFileAsync(
+    'git',
+    ['ls-remote', `https://github.com/${REPO_OWNER}/${REPO_NAME}.git`, `refs/heads/${REPO_BRANCH}`],
+    { timeout: 5000 },
+  );
+  const sha = stdout.trim().split(/\s+/)[0] || '';
+  return /^[a-f0-9]{7,}$/i.test(sha) ? sha.slice(0, 7) : '';
 }
 
 export async function checkForUpdates(): Promise<UpdateState> {
@@ -287,40 +297,20 @@ export async function checkForUpdates(): Promise<UpdateState> {
   const settings = getUpdateSettings();
 
   try {
-    const releasesRaw = await fetchGithubJson<
-      Array<{
-        tag_name: string;
-        name?: string;
-        prerelease?: boolean;
-        draft?: boolean;
-        published_at?: string;
-        created_at?: string;
-        body?: string;
-        html_url?: string;
-      }>
-    >(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases?per_page=15`);
-
-    const filteredReleases: ReleaseEntry[] = releasesRaw
-      .filter((r) => !r.draft && (settings.channel === 'beta' || !r.prerelease))
-      .map((r) => ({
-        tag: r.tag_name,
-        name: r.name || r.tag_name,
-        prerelease: Boolean(r.prerelease),
-        published: r.published_at || r.created_at || new Date().toISOString(),
-        notes: (r.body || '').trim(),
-        url: r.html_url || `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases`,
-      }));
-
-    let latest: ReleaseEntry | null = null;
-    let newer: ReleaseEntry[] = [];
-    let recent: ReleaseEntry[] = filteredReleases.slice(0, 10);
-
-    if (filteredReleases.length > 0) {
-      newer = filteredReleases.filter((r) => compareSemver(r.tag, installedVersion) > 0);
-      latest = newer[0] || null;
-    } else {
-      // Repository uses rolling main commits rather than GitHub Releases: surface recent commits cleanly
-      const commitsRaw = await fetchGithubJson<
+    const [relRes, comRes] = await Promise.allSettled([
+      fetchGithubJson<
+        Array<{
+          tag_name: string;
+          name?: string;
+          prerelease?: boolean;
+          draft?: boolean;
+          published_at?: string;
+          created_at?: string;
+          body?: string;
+          html_url?: string;
+        }>
+      >(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases?per_page=10`),
+      fetchGithubJson<
         Array<{
           sha: string;
           html_url?: string;
@@ -329,9 +319,33 @@ export async function checkForUpdates(): Promise<UpdateState> {
             author?: { date?: string };
           };
         }>
-      >(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/commits?sha=${REPO_BRANCH}&per_page=8`);
+      >(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/commits?sha=${REPO_BRANCH}&per_page=8`),
+    ]);
 
-      recent = commitsRaw.map((c) => {
+    const filteredReleases: ReleaseEntry[] =
+      relRes.status === 'fulfilled'
+        ? relRes.value
+            .filter((r) => !r.draft && (settings.channel === 'beta' || !r.prerelease))
+            .map((r) => ({
+              tag: r.tag_name,
+              name: r.name || r.tag_name,
+              prerelease: Boolean(r.prerelease),
+              published: r.published_at || r.created_at || new Date().toISOString(),
+              notes: (r.body || '').trim(),
+              url: r.html_url || `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases`,
+            }))
+        : [];
+
+    let latest: ReleaseEntry | null = null;
+    let newer: ReleaseEntry[] = [];
+    let recent: ReleaseEntry[] = filteredReleases.slice(0, 10);
+    let source: 'github' | 'git' = 'github';
+
+    if (filteredReleases.length > 0) {
+      newer = filteredReleases.filter((r) => compareSemver(r.tag, installedVersion) > 0);
+      latest = newer[0] || null;
+    } else if (comRes.status === 'fulfilled' && comRes.value.length > 0) {
+      recent = comRes.value.map((c) => {
         const shortSha = c.sha.slice(0, 7);
         const msg = (c.commit?.message || '').trim();
         const title = msg.split('\n')[0] || shortSha;
@@ -353,11 +367,32 @@ export async function checkForUpdates(): Promise<UpdateState> {
         };
         newer = [latest];
       }
+    } else {
+      // GitHub REST API failed or rate-limited: fallback to `git ls-remote` (fast & unthrottled)
+      const remoteSha = await lsRemoteHeadSha();
+      source = 'git';
+      if (remoteSha) {
+        const prevMeta = getMeta();
+        recent = prevMeta.recent;
+        if (currentCommit && remoteSha !== currentCommit) {
+          latest = {
+            tag: `${REPO_BRANCH}@${remoteSha}`,
+            name: `Latest ${REPO_BRANCH} build (${remoteSha})`,
+            prerelease: false,
+            published: new Date().toISOString(),
+            notes: '',
+            url: `https://github.com/${REPO_OWNER}/${REPO_NAME}/commits/${REPO_BRANCH}`,
+          };
+          newer = [latest];
+        }
+      } else if (comRes.status === 'rejected') {
+        throw comRes.reason;
+      }
     }
 
     saveMeta({
       checkedAt: new Date().toISOString(),
-      source: 'github',
+      source,
       checkError: null,
       latest,
       newer,
@@ -416,8 +451,8 @@ export async function startUpdateInstall(targetTag?: string, initiator = 'system
           }
         }
 
-        // Clear stale update badge before restarting into the newly built release
-        saveMeta({ latest: null, newer: [], checkedAt: null, lastError: null });
+        // Record fresh check timestamp & clear stale badge before restarting into newly built release
+        saveMeta({ latest: null, newer: [], checkedAt: new Date().toISOString(), lastError: null });
         currentStep = 'restarting';
         // Trigger clean systemd restart after a short delay so UI receives 'restarting' status
         setTimeout(() => {
