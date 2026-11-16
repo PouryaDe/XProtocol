@@ -521,6 +521,16 @@ h1 .w > span {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
   display: inline-flex;
+  align-items: flex-end;
+}
+.odo-frac {
+  display: inline-flex;
+  align-items: flex-end;
+  font-size: 0.54em;
+  line-height: 1.3;
+  opacity: 0.82;
+  padding-inline-start: 0.04em;
+  margin-bottom: 0.21em;
 }
 .odo-u {
   font-family: var(--font);

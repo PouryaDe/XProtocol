@@ -149,26 +149,33 @@ export function Odometer({ value, className = '' }: { value: string | number; cl
           ) : null;
         }
         const chars = Array.from(part);
+        const dotIdx = chars.findIndex((c) => c === '.' || c === '٫');
+        const intChars = dotIdx >= 0 ? chars.slice(0, dotIdx) : chars;
+        const fracChars = dotIdx >= 0 ? chars.slice(dotIdx) : [];
+        const renderChar = (ch: string, ci: number) => {
+          const setIdx = DIGIT_SETS.findIndex((s) => s.includes(ch));
+          if (setIdx < 0) return <span key={chars.length - ci}>{ch}</span>;
+          const pos = DIGIT_SETS[setIdx].indexOf(ch);
+          return (
+            <span
+              key={chars.length - ci}
+              className="odo-d"
+              style={{ '--n': armed ? pos : 0, '--k': chars.length - ci } as React.CSSProperties}
+            >
+              <span className="odo-strip">
+                {Array.from(DIGIT_SETS[setIdx]).map((d) => (
+                  <span key={d}>{d}</span>
+                ))}
+              </span>
+            </span>
+          );
+        };
         return (
           <span key={idx} className="odo-n" dir="ltr" aria-hidden="true">
-            {chars.map((ch, ci) => {
-              const setIdx = DIGIT_SETS.findIndex((s) => s.includes(ch));
-              if (setIdx < 0) return <span key={chars.length - ci}>{ch}</span>;
-              const pos = DIGIT_SETS[setIdx].indexOf(ch);
-              return (
-                <span
-                  key={chars.length - ci}
-                  className="odo-d"
-                  style={{ '--n': armed ? pos : 0, '--k': chars.length - ci } as React.CSSProperties}
-                >
-                  <span className="odo-strip">
-                    {Array.from(DIGIT_SETS[setIdx]).map((d) => (
-                      <span key={d}>{d}</span>
-                    ))}
-                  </span>
-                </span>
-              );
-            })}
+            {intChars.map((ch, i) => renderChar(ch, i))}
+            {fracChars.length > 0 && (
+              <span className="odo-frac">{fracChars.map((ch, i) => renderChar(ch, intChars.length + i))}</span>
+            )}
           </span>
         );
       })}

@@ -10,8 +10,8 @@ export function formatBytesParts(
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.min(units.length - 1, Math.floor(Math.log(Math.abs(bytes)) / Math.log(k)));
   const val = bytes / Math.pow(k, i);
-  const formatted = val >= 100 ? val.toFixed(0) : val >= 10 ? val.toFixed(1) : val.toFixed(2);
-  return { value: formatted.replace(/\.00$/, ''), unit: units[i] };
+  const digits = i <= 1 || val >= 100 ? 0 : val >= 10 ? 1 : 2;
+  return { value: String(Number(val.toFixed(digits))), unit: units[i] };
 }
 
 export function formatBytes(bytes: number | null | undefined, lang: 'en' | 'fa' = 'en'): string {
@@ -25,8 +25,8 @@ export function formatSpeedParts(bps: number): { value: string; unit: string } {
   const units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
   const i = Math.min(units.length - 1, Math.floor(Math.log(bps) / Math.log(k)));
   const val = bps / Math.pow(k, i);
-  const formatted = val >= 10 ? val.toFixed(1) : val.toFixed(2);
-  return { value: formatted.replace(/\.00$/, ''), unit: units[i] };
+  const digits = i === 0 || val >= 100 ? 0 : val >= 10 ? 1 : 2;
+  return { value: String(Number(val.toFixed(digits))), unit: units[i] };
 }
 
 export function formatSpeed(bps: number): string {
