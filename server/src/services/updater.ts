@@ -360,7 +360,6 @@ export async function startUpdateInstall(targetTag?: string, initiator = 'system
         setTimeout(() => {
           execFile('systemctl', ['restart', 'xprotocol.service'], () => undefined);
         }, 1200);
-        currentStep = 'done';
       } else {
         // Non-Linux or local development checkout without systemd unit
         currentStep = 'done';

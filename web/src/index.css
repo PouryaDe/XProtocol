@@ -2079,6 +2079,120 @@ h1 .w > span {
   .uh-actions { grid-column: 1 / -1; justify-content: flex-start; }
 }
 
+.update-overlay {
+  z-index: 90;
+  background: var(--scrim);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  animation: overlay-in var(--med) var(--ease);
+  place-items: center;
+  padding: 20px;
+  display: grid;
+  position: fixed;
+  inset: 0;
+}
+@keyframes overlay-in {
+  0% { opacity: 0; }
+}
+@keyframes uo-rise {
+  0% { opacity: 0; transform: translateY(14px) scale(0.97); }
+}
+@keyframes uo-pulse {
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 22%, transparent); }
+}
+.uo-card {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-xl);
+  background: var(--raise);
+  width: min(420px, 100%);
+  box-shadow: var(--shadow-float);
+  text-align: center;
+  animation: uo-rise 0.55s var(--out) backwards;
+  justify-items: center;
+  gap: 12px;
+  padding: 32px 28px 28px;
+  display: grid;
+}
+.uo-card h2 {
+  font-family: var(--font-display);
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+.uo-card p {
+  font-size: var(--t-md);
+  color: var(--ink-2);
+  margin: 0;
+}
+.uo-icon {
+  width: 56px;
+  height: 56px;
+  color: var(--accent-text);
+  place-items: center;
+  display: grid;
+}
+.uo-icon > svg {
+  background: var(--accent-wash);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  padding: 8px;
+}
+.uo-steps {
+  text-align: start;
+  justify-self: stretch;
+  gap: 10px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+}
+.uo-steps li {
+  color: var(--ink-3);
+  transition: color var(--med) var(--ease);
+  align-items: center;
+  gap: 10px;
+  display: flex;
+}
+.uo-steps li.now {
+  color: var(--ink);
+  font-weight: 600;
+}
+.uo-steps li.done {
+  color: var(--ink-2);
+}
+.uo-dot {
+  border: 1.5px solid var(--line-strong);
+  width: 20px;
+  height: 20px;
+  transition: background var(--med) var(--ease), border-color var(--med) var(--ease);
+  border-radius: 50%;
+  flex: none;
+  place-items: center;
+  display: grid;
+}
+.uo-steps li.now .uo-dot {
+  border-color: var(--accent);
+  animation: uo-pulse 1.4s var(--ease) infinite;
+}
+.uo-steps li.done .uo-dot {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.uo-dot svg {
+  stroke-width: 3px;
+  width: 12px;
+  height: 12px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .uo-steps li.now .uo-dot,
+  .uo-card,
+  .update-overlay {
+    animation: none;
+  }
+}
+
 .pad {
   padding: 4px 20px 20px;
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CheckCircle2, ChevronDown, Download, DownloadCloud, RefreshCw } from 'lucide-react';
+import { Check, CheckCircle2, ChevronDown, Download, DownloadCloud, RefreshCw } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { formatDateTime } from '../lib/format';
 import { useUi } from '../i18n/context';
@@ -56,6 +56,11 @@ export function UpdatesPage() {
   const [checking, setChecking] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
+  const [updatingTarget, setUpdatingTarget] = useState<string | null>(null);
+  const [serverDown, setServerDown] = useState(false);
+  const [arrivedVersion, setArrivedVersion] = useState<string | null>(null);
+  const installStartedAtRef = useRef(0);
+  const sawRestartRef = useRef(false);
   const channelSegRef = useRef<HTMLDivElement | null>(null);
   const autoSegRef = useRef<HTMLDivElement | null>(null);
 
@@ -102,21 +107,54 @@ export function UpdatesPage() {
   }, [load, checkNow]);
 
   useEffect(() => {
-    if (!state?.installing) return;
-    const timer = setInterval(() => {
-      load()
-        .then((next) => {
+    if (state?.installing) {
+      setUpdatingTarget(state.installing);
+      if (state.step === 'restarting' || state.step === 'done') {
+        sawRestartRef.current = true;
+      }
+    }
+  }, [state?.installing, state?.step]);
+
+  useEffect(() => {
+    if (!updatingTarget || arrivedVersion) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const next = await apiFetch<UpdateState>('/updates');
+        if (cancelled) return;
+        setState(next);
+        if (next.installing) {
           if (next.step === 'restarting' || next.step === 'done') {
-            setTimeout(() => window.location.reload(), 2500);
+            sawRestartRef.current = true;
           }
-        })
-        .catch(() => {
-          // Server is likely restarting right now; reload shortly
-          setTimeout(() => window.location.reload(), 3000);
-        });
-    }, 2000);
-    return () => clearInterval(timer);
-  }, [state?.installing, load]);
+          setServerDown(false);
+        } else if (serverDown || sawRestartRef.current || Date.now() - installStartedAtRef.current > 4000) {
+          if (next.lastError) {
+            setUpdatingTarget(null);
+            setServerDown(false);
+            sawRestartRef.current = false;
+          } else {
+            setServerDown(false);
+            setArrivedVersion(next.installedVersion || updatingTarget.replace(/^v/i, ''));
+            window.dispatchEvent(new Event('xp-updates-changed'));
+            setTimeout(() => window.location.reload(), 950);
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setServerDown(true);
+          sawRestartRef.current = true;
+        }
+      }
+    };
+    const timer = window.setInterval(() => {
+      void poll();
+    }, 1200);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [updatingTarget, arrivedVersion, serverDown]);
 
   const updateSettings = async (patch: Partial<UpdateSettings>) => {
     if (!state || saving) return;
@@ -142,11 +180,21 @@ export function UpdatesPage() {
         ? `بروزرسانی به ${state.latest.tag} نصب و سرویس پنل ریستارت شود؟`
         : `Install ${state.latest.tag} from GitHub and restart the panel service?`;
     if (!confirm(msg)) return;
-    const res = await apiFetch<{ ok: boolean; state: UpdateState }>('/updates/install', {
-      method: 'POST',
-      body: JSON.stringify({ tag: state.latest.tag }),
-    });
-    setState(res.state);
+    const targetTag = state.latest.tag;
+    installStartedAtRef.current = Date.now();
+    sawRestartRef.current = false;
+    setServerDown(false);
+    setArrivedVersion(null);
+    setUpdatingTarget(targetTag);
+    try {
+      const res = await apiFetch<{ ok: boolean; state: UpdateState }>('/updates/install', {
+        method: 'POST',
+        body: JSON.stringify({ tag: targetTag }),
+      });
+      setState(res.state);
+    } catch {
+      setUpdatingTarget(null);
+    }
   };
 
   if (!state) {
@@ -413,6 +461,69 @@ export function UpdatesPage() {
           )}
         </div>
       </details>
+
+      {(updatingTarget || arrivedVersion) && (() => {
+        const uoStages: { key: 'downloading' | 'installing' | 'restarting'; label: string }[] = [
+          { key: 'downloading', label: lang === 'fa' ? 'دریافت و بررسی' : 'Download and verify' },
+          { key: 'installing', label: lang === 'fa' ? 'نصب' : 'Install' },
+          { key: 'restarting', label: lang === 'fa' ? 'راه‌اندازی دوباره' : 'Restart' },
+        ];
+        const stageIdx = arrivedVersion
+          ? uoStages.length
+          : serverDown || state.step === 'restarting' || state.step === 'done'
+            ? 2
+            : state.step === 'installing' || state.step === 'nodes'
+              ? 1
+              : 0;
+        const targetLabel = updatingTarget || arrivedVersion || '';
+        return (
+          <div className="update-overlay" role="alertdialog" aria-modal="true" aria-live="polite" aria-labelledby="uo-title">
+            <div className="uo-card">
+              <div className="uo-icon" aria-hidden="true">
+                {arrivedVersion ? (
+                  <Check />
+                ) : (
+                  <div className="xp-loader">
+                    <i />
+                    <i />
+                    <i />
+                    <i />
+                    <i />
+                  </div>
+                )}
+              </div>
+              <h2 id="uo-title" dir="auto">
+                {arrivedVersion
+                  ? lang === 'fa'
+                    ? `به ${arrivedVersion} به‌روز شد`
+                    : `Updated to ${arrivedVersion}`
+                  : lang === 'fa'
+                    ? `در حال به‌روزرسانی به ${targetLabel}`
+                    : `Updating to ${targetLabel}`}
+              </h2>
+              <p>
+                {arrivedVersion
+                  ? lang === 'fa'
+                    ? 'در حال بارگذاری دوبارهٔ پنل…'
+                    : 'Reloading the panel…'
+                  : lang === 'fa'
+                    ? 'این صفحه را باز نگه دارید. پنل چند ثانیه دوباره راه می‌افتد و این صفحه خودش بارگذاری می‌شود. اتصال‌های فعال بدون وقفه می‌مانند.'
+                    : 'Keep this page open. The panel restarts in a few seconds and this page reloads by itself. Active VPN tunnels stay up.'}
+              </p>
+              <ol className="uo-steps">
+                {uoStages.map((s, idx) => (
+                  <li key={s.key} className={idx < stageIdx ? 'done' : idx === stageIdx ? 'now' : ''}>
+                    <span className="uo-dot" aria-hidden="true">
+                      {idx < stageIdx ? <Check /> : null}
+                    </span>
+                    {s.label}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
