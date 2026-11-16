@@ -229,19 +229,21 @@ export function NodesPage() {
 
   const nodeInstallCmd = `bash <(curl -fsSL ${window.location.origin}/install-node.sh) --port ${port || '62060'} --name "${name || 'eu-node'}"`;
 
+  const hasRemoteNodes = nodes.some((n) => !n.isLocal);
+
   return (
     <div className="page nodes-page">
       <PageHead
         title={t.nodes.title}
         sub={
           lang === 'fa'
-            ? `${summary.connected} نود متصل از ${summary.total} · ${summary.onlineNow} نشست فعال`
-            : `${summary.connected} of ${summary.total} nodes connected · ${summary.onlineNow} live sessions`
+            ? 'سرورهای خود را پایش کنید، سلامت آن‌ها را ببینید و اینباندها را یک‌جا مدیریت کنید.'
+            : 'Monitor your servers, check their health and manage inbounds in one place.'
         }
         actions={
           <Button variant="primary" onClick={openCreate}>
             <Plus className="h-4 w-4" />
-            {t.nodes.connectNode}
+            {lang === 'fa' ? 'اتصال نود' : 'Connect a node'}
           </Button>
         }
       />
@@ -276,7 +278,7 @@ export function NodesPage() {
           {([
             { id: 'all', label: t.common.all, count: nodes.length },
             { id: 'connected', label: t.nodes.connected, count: summary.connected },
-            { id: 'attention', label: lang === 'fa' ? 'نیازمند توجه' : 'Attention', count: summary.attention },
+            { id: 'attention', label: lang === 'fa' ? 'نیازمند توجه' : 'Needs attention', count: summary.attention },
             {
               id: 'disabled',
               label: lang === 'fa' ? 'غیرفعال' : 'Disabled',
@@ -302,19 +304,46 @@ export function NodesPage() {
             type="search"
             value={nodeSearchQuery}
             onChange={(e) => setNodeSearchQuery(e.target.value)}
-            placeholder={lang === 'fa' ? 'جستجوی نود یا آدرس...' : 'Search node or address...'}
+            placeholder={lang === 'fa' ? 'جستجوی نام یا نشانی…' : 'Search name or address…'}
           />
         </label>
       </div>
 
       {filteredNodes.length === 0 ? (
-        <div className="panel py-8">
-          <EmptySonar text={lang === 'fa' ? 'نودی با این مشخصات یافت نشد' : 'No nodes match the filter'} />
+        <div className="cert-empty-box">
+          <EmptySonar text={lang === 'fa' ? 'نودی با این مشخصات یافت نشد' : 'No nodes match your search or filter.'} />
         </div>
       ) : (
         <ul className="nd-rows">
           {filteredNodes.map((n) => {
             const dotTone = n.status === 'connected' ? 'ok' : n.enabled ? 'warn' : 'off';
+            const stateLabel = n.isLocal
+              ? lang === 'fa'
+                ? 'پنل + نود'
+                : 'Panel + node'
+              : !n.enabled || n.status === 'disabled'
+                ? lang === 'fa'
+                  ? 'غیرفعال'
+                  : 'Disabled'
+                : n.status === 'connected'
+                  ? t.nodes.connected
+                  : lang === 'fa'
+                    ? 'آفلاین'
+                    : 'Unreachable';
+            const protos = Array.from(
+              new Set([
+                ...(n.openvpnVersion && n.openvpnVersion !== 'missing' ? ['OPENVPN'] : []),
+                ...(n.openconnectVersion && n.openconnectVersion !== 'missing' ? ['OPENCONNECT'] : []),
+                ...(n.wireguardReady ? ['WIREGUARD'] : []),
+                ...n.inbounds.map((ib) => ib.protocol.toUpperCase()),
+              ]),
+            );
+            const verText = n.xprotocolVersion
+              ? n.xprotocolVersion.startsWith('v')
+                ? n.xprotocolVersion
+                : `v${n.xprotocolVersion}`
+              : 'v1.0.4';
+
             return (
               <li
                 key={n.id}
@@ -325,58 +354,36 @@ export function NodesPage() {
                   <div className="nr-line">
                     <button type="button" className="nr-open" onClick={() => openDetails(n, 'overview')}>
                       <span className="nr-name" dir="auto">
-                        {n.name}
+                        {n.isLocal && (n.name === 'Main server' || n.name === 'localhost')
+                          ? lang === 'fa'
+                            ? 'این سرور'
+                            : 'This server'
+                          : n.name}
                       </span>
                     </button>
-                    <StatusPill
-                      tone={n.status === 'connected' ? 'green' : n.status === 'disabled' ? 'gray' : 'red'}
-                      label={n.status === 'connected' ? t.nodes.connected : n.status}
-                    />
-                    <span className="tag">×{n.multiplier}</span>
+                    <span className={`nc-state ${dotTone}`}>{stateLabel}</span>
+                    {n.multiplier !== 1 && <span className="tag cert-tag">×{n.multiplier}</span>}
                   </div>
 
                   <div className="nr-sub">
                     {n.isLocal ? (
-                      <span>{lang === 'fa' ? 'سرور اصلی پنل' : 'Panel host node'}</span>
+                      <span>{lang === 'fa' ? 'سرور پنل' : 'Panel server'}</span>
                     ) : (
                       <span dir="ltr" className="font-mono">
                         {n.address}:{n.port}
                       </span>
                     )}
                     <span aria-hidden="true">·</span>
-                    <span dir="ltr">XProtocol {n.xprotocolVersion}</span>
-                    {n.uptimeSec > 0 && (
-                      <>
-                        <span aria-hidden="true">·</span>
-                        <span>{formatDuration(n.uptimeSec, lang)}</span>
-                      </>
-                    )}
+                    <span dir="ltr">{verText}</span>
                   </div>
 
-                  <div className="nr-chips">
-                    <span className="tag" dir="ltr">
-                      OpenVPN {n.openvpnVersion}
-                    </span>
-                    <span className="tag" dir="ltr">
-                      {n.wireguardReady ? 'WireGuard ready' : 'No TUN'}
-                    </span>
-                    <span className="tag" dir="ltr">
-                      OpenConnect {n.openconnectVersion}
-                    </span>
-                    {n.inbounds.map((ib) => (
-                      <span key={ib.id} className="tag" dir="ltr">
-                        {ib.name}:{ib.port}
-                      </span>
-                    ))}
-                  </div>
-
-                  {n.connectAddresses.length > 0 && (
-                    <div className="mt-1.5 flex items-center gap-2 text-xs text-(--text-muted)">
-                      <span>Relays</span>
-                      <span className="rl-line min-w-8 flex-1" aria-hidden="true" />
-                      <span className="font-mono text-(--text-primary)" dir="ltr">
-                        {n.connectAddresses.join(', ')}
-                      </span>
+                  {protos.length > 0 && (
+                    <div className="nr-chips">
+                      {protos.map((proto) => (
+                        <span key={proto} className="tag cert-tag" dir="ltr">
+                          {proto}
+                        </span>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -391,55 +398,43 @@ export function NodesPage() {
                       navigate(`/connections?node=${encodeURIComponent(n.name)}`);
                     }}
                   >
-                    <b className="num">{n.onlineCount}</b>{' '}
-                    <span>{lang === 'fa' ? 'نشست' : 'sessions'}</span>
+                    <b className="num">{n.onlineCount}</b> <span>{t.overview.onlineNow}</span>
                   </a>
                   <span className="nr-traffic">
                     <b className="num">{formatBytes(n.realTrafficBytes, lang)}</b>
                   </span>
                 </div>
 
-                <div className="flex items-center gap-1">
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setAttachNodeId(n.id);
-                      setAttachInboundId(unattached[0] ? String(unattached[0].id) : '');
-                    }}
-                    title={t.nodes.attachInbound}
-                  >
-                    <Link2 className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button size="sm" onClick={() => openEdit(n)}>
-                    {t.common.edit}
-                  </Button>
-                  {!n.isLocal && (
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      onClick={async () => {
-                        if (!confirm(t.common.confirmDelete)) return;
-                        await apiFetch(`/nodes/${n.id}`, { method: 'DELETE' });
-                        load();
-                      }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                  <button
-                    type="button"
-                    className="rounded-lg p-1 text-(--text-muted) hover:text-(--text-primary)"
-                    onClick={() => openDetails(n, 'overview')}
-                    aria-label="Details"
-                  >
-                    <ChevronRight className="nr-chev h-4 w-4 rtl:rotate-180" />
-                  </button>
-                </div>
+                <ChevronRight className="nr-chev rtl:rotate-180" aria-hidden="true" />
               </li>
             );
           })}
         </ul>
       )}
+
+      {!hasRemoteNodes && (
+        <div className="cert-empty-box">
+          <EmptySonar
+            text={
+              lang === 'fa'
+                ? 'یک سرور دیگر متصل کنید و اینباندها را اینجا به آن وصل کنید.'
+                : 'Connect another server, then attach inbounds to it here.'
+            }
+            action={
+              <Button onClick={openCreate}>
+                <Plus className="h-4 w-4" />
+                {lang === 'fa' ? 'اتصال نود' : 'Connect a node'}
+              </Button>
+            }
+          />
+        </div>
+      )}
+
+      <p className="faint small nd-foot">
+        {lang === 'fa'
+          ? 'ضریب ترافیک مشخص می‌کند مصرف روی هر نود چطور در سهمیه حساب شود: در ضریب ×۱.۵، هر ۱ گیگابایت مصرف، ۱.۵ گیگابایت محاسبه می‌شود. ترافیک نمایش‌داده‌شده روی هر نود مقدار واقعی است.'
+          : 'The multiplier changes how traffic on a node counts toward quotas: at ×1.5, 1 GB used counts as 1.5 GB. The traffic shown on each node is the real amount.'}
+      </p>
 
       {/* Node Details Slide-Over Drawer */}
       <Drawer
@@ -451,26 +446,47 @@ export function NodesPage() {
       >
         {detailNode && (
           <div className="space-y-4">
-            <div className="flex flex-wrap gap-1.5 border-b border-(--border-subtle) pb-3">
-              {([
-                { id: 'overview', label: lang === 'fa' ? 'نمای کلی' : 'Overview' },
-                { id: 'protocols', label: lang === 'fa' ? 'پروتکل‌ها و نصب' : 'Protocols' },
-                { id: 'inbounds', label: t.nav.inbounds },
-                { id: 'addresses', label: lang === 'fa' ? 'آدرس‌ها' : 'Addresses' },
-              ] as const).map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setDetailTab(tab.id)}
-                  className={`rounded-xl px-3 py-1.5 text-xs font-medium transition ${
-                    detailTab === tab.id
-                      ? 'bg-(--accent-soft) text-(--accent)'
-                      : 'text-(--text-secondary) hover:bg-(--bg-elevated) hover:text-(--text-primary)'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-(--border-subtle) pb-3">
+              <div className="flex flex-wrap gap-1.5">
+                {([
+                  { id: 'overview', label: lang === 'fa' ? 'نمای کلی' : 'Overview' },
+                  { id: 'protocols', label: lang === 'fa' ? 'پروتکل‌ها و نصب' : 'Protocols' },
+                  { id: 'inbounds', label: t.nav.inbounds },
+                  { id: 'addresses', label: lang === 'fa' ? 'آدرس‌ها' : 'Addresses' },
+                ] as const).map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setDetailTab(tab.id)}
+                    className={`rounded-xl px-3 py-1.5 text-xs font-medium transition ${
+                      detailTab === tab.id
+                        ? 'bg-(--accent-soft) text-(--accent)'
+                        : 'text-(--text-secondary) hover:bg-(--bg-elevated) hover:text-(--text-primary)'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Button size="sm" onClick={() => openEdit(detailNode)}>
+                  {t.common.edit}
+                </Button>
+                {!detailNode.isLocal && (
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={async () => {
+                      if (!confirm(t.common.confirmDelete)) return;
+                      await apiFetch(`/nodes/${detailNode.id}`, { method: 'DELETE' });
+                      setDetailNode(null);
+                      load();
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
             </div>
 
             {detailTab === 'overview' && (

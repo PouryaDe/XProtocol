@@ -215,7 +215,7 @@ export function EqLoader({ label }: { label?: string }) {
   );
 }
 
-export function EmptySonar({ text }: { text: string }) {
+export function EmptySonar({ text, action }: { text: string; action?: React.ReactNode }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-8 text-center">
       <div className="xp-empty-ring" aria-hidden="true">
@@ -224,6 +224,7 @@ export function EmptySonar({ text }: { text: string }) {
         <i />
       </div>
       <p className="text-xs text-(--text-muted)">{text}</p>
+      {action}
     </div>
   );
 }
