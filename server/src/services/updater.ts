@@ -204,6 +204,28 @@ export async function getUpdateState(): Promise<UpdateState> {
   };
 }
 
+/**
+ * Trigger a non-blocking background GitHub update check only if cached metadata is missing
+ * or older than `maxAgeMs`. Always returns immediately without stalling the caller.
+ */
+export function triggerBackgroundUpdateCheckIfStale(maxAgeMs = 3 * 60_000): boolean {
+  if (process.env.XPROTOCOL_SKIP_NET_FETCH === '1') return false;
+  if (checkingNow || installingTag) return false;
+  const settings = getUpdateSettings();
+  if (settings.autoUpdate === 'off') return false;
+
+  const meta = getMeta();
+  const checkedMs = meta.checkedAt ? Date.parse(meta.checkedAt) : 0;
+  if (checkedMs > 0 && Date.now() - checkedMs < maxAgeMs) {
+    return false;
+  }
+
+  setImmediate(() => {
+    checkForUpdates().catch(() => undefined);
+  });
+  return true;
+}
+
 async function fetchGithubJson<T>(url: string): Promise<T> {
   const res = await fetch(url, {
     headers: {
@@ -220,6 +242,10 @@ async function fetchGithubJson<T>(url: string): Promise<T> {
 
 export async function checkForUpdates(): Promise<UpdateState> {
   if (checkingNow) return getUpdateState();
+  if (process.env.XPROTOCOL_SKIP_NET_FETCH === '1') {
+    saveMeta({ checkedAt: new Date().toISOString(), checkError: null });
+    return getUpdateState();
+  }
   checkingNow = true;
   const installedVersion = getInstalledVersion();
   const currentCommit = await getCurrentCommit();

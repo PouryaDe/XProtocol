@@ -4,6 +4,7 @@ import { apiFetch } from '../lib/api';
 import { formatDateTime } from '../lib/format';
 import { useUi } from '../i18n/context';
 import { Button, EqLoader, PageHead, Select, StatusPill, useSlidingIndicator } from '../components/UiPrimitives';
+import { Modal } from '../components/Modal';
 
 interface ReleaseEntry {
   tag: string;
@@ -57,6 +58,8 @@ export function UpdatesPage() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
   const [updatingTarget, setUpdatingTarget] = useState<string | null>(null);
+  const [confirmInstallOpen, setConfirmInstallOpen] = useState(false);
+  const [installError, setInstallError] = useState('');
   const [serverDown, setServerDown] = useState(false);
   const [arrivedVersion, setArrivedVersion] = useState<string | null>(null);
   const installStartedAtRef = useRef(0);
@@ -75,8 +78,8 @@ export function UpdatesPage() {
     `${Boolean(state)}:${state?.settings.autoUpdate || 'notify'}`,
   );
 
-  const load = useCallback(async () => {
-    const res = await apiFetch<UpdateState>('/updates');
+  const load = useCallback(async (autoCheck = false) => {
+    const res = await apiFetch<UpdateState>(autoCheck ? '/updates?auto=1&ttl=45000' : '/updates');
     setState(res);
     return res;
   }, []);
@@ -94,17 +97,47 @@ export function UpdatesPage() {
 
   useEffect(() => {
     let alive = true;
-    load()
+    const timers: number[] = [];
+
+    const pollIfChecking = (attempt = 0) => {
+      if (!alive || attempt >= 4) {
+        if (alive) setChecking(false);
+        return;
+      }
+      const id = window.setTimeout(() => {
+        if (!alive) return;
+        load(false)
+          .then((next) => {
+            if (!alive) return;
+            if (next.checking) {
+              pollIfChecking(attempt + 1);
+            } else {
+              setChecking(false);
+              window.dispatchEvent(new Event('xp-updates-changed'));
+            }
+          })
+          .catch(() => {
+            if (alive) setChecking(false);
+          });
+      }, attempt === 0 ? 1800 : 2500);
+      timers.push(id);
+    };
+
+    load(true)
       .then((res) => {
-        if (alive && !res.checkedAt) {
-          void checkNow();
+        if (!alive) return;
+        if (res.checking) {
+          setChecking(true);
+          pollIfChecking(0);
         }
       })
       .catch(() => undefined);
+
     return () => {
       alive = false;
+      timers.forEach((id) => window.clearTimeout(id));
     };
-  }, [load, checkNow]);
+  }, [load]);
 
   useEffect(() => {
     if (state?.installing) {
@@ -173,13 +206,10 @@ export function UpdatesPage() {
     }
   };
 
-  const installNow = async () => {
+  const performInstall = async () => {
     if (!state?.latest) return;
-    const msg =
-      lang === 'fa'
-        ? `بروزرسانی به ${state.latest.tag} نصب و سرویس پنل ریستارت شود؟`
-        : `Install ${state.latest.tag} from GitHub and restart the panel service?`;
-    if (!confirm(msg)) return;
+    setConfirmInstallOpen(false);
+    setInstallError('');
     const targetTag = state.latest.tag;
     installStartedAtRef.current = Date.now();
     sawRestartRef.current = false;
@@ -192,8 +222,9 @@ export function UpdatesPage() {
         body: JSON.stringify({ tag: targetTag }),
       });
       setState(res.state);
-    } catch {
+    } catch (e) {
       setUpdatingTarget(null);
+      setInstallError(e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -265,6 +296,7 @@ export function UpdatesPage() {
               {lang === 'fa' ? `پیام آخرین بروزرسانی: ${state.lastError}` : `Last update note: ${state.lastError}`}
             </span>
           ) : null}
+          {installError ? <span className="text-xs text-red-400">{installError}</span> : null}
         </div>
 
         <div className="uh-actions">
@@ -273,7 +305,7 @@ export function UpdatesPage() {
             {lang === 'fa' ? 'بررسی بروزرسانی' : 'Check for updates'}
           </Button>
           {state.latest && !busyInstalling && (
-            <Button variant="primary" onClick={() => void installNow()}>
+            <Button variant="primary" onClick={() => setConfirmInstallOpen(true)}>
               <Download className="h-4 w-4" />
               {lang === 'fa' ? `نصب ${state.latest.tag}` : `Install ${state.latest.tag}`}
             </Button>
@@ -461,6 +493,30 @@ export function UpdatesPage() {
           )}
         </div>
       </details>
+
+      <Modal
+        open={confirmInstallOpen}
+        onClose={() => setConfirmInstallOpen(false)}
+        title={lang === 'fa' ? 'نصب بروزرسانی جدید' : 'Install update'}
+        subtitle={state.latest?.tag || ''}
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-(--text-secondary)">
+            {lang === 'fa'
+              ? `نسخه جدید (${state.latest?.tag}) از GitHub دریافت و بیلد می‌شود و سرویس پنل به‌طور موقت ری‌استارت خواهد شد. اتصال‌های فعال VPN کاربران قطع نمی‌شوند.`
+              : `XProtocol will download and build ${state.latest?.tag} from GitHub and restart the panel service. Active client VPN tunnels stay up.`}
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setConfirmInstallOpen(false)}>
+              {lang === 'fa' ? 'انصراف' : 'Cancel'}
+            </Button>
+            <Button variant="primary" onClick={() => void performInstall()}>
+              <Download className="h-4 w-4" />
+              {lang === 'fa' ? 'شروع نصب و راه‌اندازی مجدد' : 'Install & restart'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {(updatingTarget || arrivedVersion) && (() => {
         const uoStages: { key: 'downloading' | 'installing' | 'restarting'; label: string }[] = [

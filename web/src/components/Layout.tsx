@@ -88,36 +88,56 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
   useEffect(() => {
     if (!account.isOwner) return;
     let alive = true;
+    let followUpTimer: number | undefined;
+
+    const applyUpdateRes = (res: { latest?: { tag?: string } | null; newer?: unknown[] }) => {
+      const tag = res?.latest?.tag || '';
+      const hasUpdate = Boolean(tag || (res?.newer && res.newer.length > 0));
+      setUpdateAvailable(hasUpdate);
+      try {
+        if (tag) sessionStorage.setItem('xp_latest_update_tag', tag);
+        else sessionStorage.removeItem('xp_latest_update_tag');
+      } catch {
+        // ignore storage errors
+      }
+      window.dispatchEvent(new CustomEvent('xp-updates-state', { detail: tag || null }));
+    };
+
     const syncUpdates = () => {
       apiFetch<{
-        checkedAt?: string | null;
-        settings?: { autoUpdate?: string };
+        checking?: boolean;
         latest?: { tag?: string } | null;
         newer?: unknown[];
-      }>('/updates')
+      }>('/updates?auto=1&ttl=180000')
         .then((res) => {
           if (!alive) return;
-          const hasUpdate = Boolean(res?.latest || (res?.newer && res.newer.length > 0));
-          setUpdateAvailable(hasUpdate);
-          if (!res?.checkedAt && res?.settings?.autoUpdate !== 'off') {
-            apiFetch<{ latest?: { tag?: string } | null; newer?: unknown[] }>('/updates/check', { method: 'POST' })
-              .then((fresh) => {
-                if (alive) setUpdateAvailable(Boolean(fresh?.latest || (fresh?.newer && fresh.newer.length > 0)));
-              })
-              .catch(() => {});
+          applyUpdateRes(res);
+          if (res?.checking) {
+            window.clearTimeout(followUpTimer);
+            followUpTimer = window.setTimeout(() => {
+              if (!alive) return;
+              apiFetch<{ latest?: { tag?: string } | null; newer?: unknown[] }>('/updates')
+                .then((fresh) => {
+                  if (!alive) return;
+                  applyUpdateRes(fresh);
+                })
+                .catch(() => {});
+            }, 2500);
           }
         })
         .catch(() => {});
     };
+
     syncUpdates();
     window.addEventListener('xp-updates-changed', syncUpdates);
     const timer = setInterval(syncUpdates, 10 * 60_000);
     return () => {
       alive = false;
+      window.clearTimeout(followUpTimer);
       window.removeEventListener('xp-updates-changed', syncUpdates);
       clearInterval(timer);
     };
-  }, [account.isOwner, active]);
+  }, [account.isOwner]);
 
   const cycleTheme = () => {
     const order: ThemeMode[] = ['system', 'dark', 'light'];

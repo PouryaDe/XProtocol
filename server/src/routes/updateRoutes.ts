@@ -4,6 +4,7 @@ import {
   getUpdateState,
   saveUpdateSettings,
   startUpdateInstall,
+  triggerBackgroundUpdateCheckIfStale,
   type UpdateSettings,
 } from '../services/updater.js';
 import { recordAudit } from '../services/audit.js';
@@ -12,9 +13,18 @@ import { requireOwner, type AuthedRequest } from './context.js';
 export function createUpdateRouter(): Router {
   const router = Router();
 
-  router.get('/', requireOwner, async (_req, res) => {
+  router.get('/', requireOwner, async (req, res) => {
+    let backgroundTriggered = false;
+    if (req.query.auto === '1') {
+      const ttlRaw = Number(req.query.ttl || 180_000);
+      const ttl = Number.isFinite(ttlRaw) ? Math.max(15_000, Math.min(3_600_000, ttlRaw)) : 180_000;
+      backgroundTriggered = triggerBackgroundUpdateCheckIfStale(ttl);
+    }
     const state = await getUpdateState();
-    res.json(state);
+    res.json({
+      ...state,
+      checking: state.checking || backgroundTriggered,
+    });
   });
 
   router.post('/check', requireOwner, async (_req, res) => {

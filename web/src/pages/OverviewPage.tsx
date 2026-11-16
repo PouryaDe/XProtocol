@@ -113,6 +113,13 @@ export function OverviewPage({
   const [refreshing, setRefreshing] = useState(false);
   const [chartRange, setChartRange] = useState<'24h' | '7d' | '30d'>('24h');
   const [chartMode, setChartMode] = useState<'bars' | 'trend'>('bars');
+  const [availableUpdateTag, setAvailableUpdateTag] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem('xp_latest_update_tag');
+    } catch {
+      return null;
+    }
+  });
 
   const load = async (manual = false) => {
     if (manual) setRefreshing(true);
@@ -132,6 +139,17 @@ export function OverviewPage({
     void load(false);
     const timer = setInterval(() => void load(false), 5000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const onState = (e: Event) => {
+      const detail = (e as CustomEvent<string | null>).detail;
+      setAvailableUpdateTag(detail || null);
+    };
+    window.addEventListener('xp-updates-state', onState);
+    return () => {
+      window.removeEventListener('xp-updates-state', onState);
+    };
   }, []);
 
   const quickExtend = async (clientId: number) => {
@@ -254,6 +272,19 @@ export function OverviewPage({
           <span>{t.overview.publicAddrNotice}</span>{' '}
           <a href={toPanelUrl('/settings')} onClick={go('/settings')}>
             {t.overview.setIt}
+          </a>
+        </div>
+      )}
+
+      {availableUpdateTag && (
+        <div className="banner">
+          <span>
+            {lang === 'fa'
+              ? `نسخه جدید XProtocol (${availableUpdateTag}) آماده نصب است.`
+              : `A new XProtocol update (${availableUpdateTag}) is available.`}
+          </span>{' '}
+          <a href={toPanelUrl('/updates')} onClick={go('/updates')}>
+            {lang === 'fa' ? 'مشاهده و بروزرسانی' : 'View update'}
           </a>
         </div>
       )}
