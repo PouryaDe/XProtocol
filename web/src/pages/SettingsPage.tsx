@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Check,
   ChevronDown,
@@ -195,6 +195,26 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
 
   const cleanSubPath = (panelAccess.subPath || 'sub').replace(/^\/+|\/+$/g, '') || 'sub';
   const previewUrl = previewToken ? `/${cleanSubPath}/${previewToken}` : '';
+  const previewFrameRef = useRef<HTMLIFrameElement | null>(null);
+
+  useEffect(() => {
+    const win = previewFrameRef.current?.contentWindow;
+    if (!win || !subSettings) return;
+    win.postMessage({ type: 'xp-preview', settings: subSettings }, window.location.origin);
+  }, [subSettings]);
+
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (e.origin === window.location.origin && e.data?.type === 'xp-preview-ready' && subSettings) {
+        previewFrameRef.current?.contentWindow?.postMessage(
+          { type: 'xp-preview', settings: subSettings },
+          window.location.origin,
+        );
+      }
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, [subSettings]);
 
   const saveGeneral = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -664,7 +684,19 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
           <aside className="sp-preview">
             <div className="phone">
               {previewUrl ? (
-                <iframe title="Subscription page live preview" src={previewUrl} />
+                <iframe
+                  ref={previewFrameRef}
+                  title="Subscription page live preview"
+                  src={previewUrl}
+                  onLoad={() => {
+                    if (subSettings) {
+                      previewFrameRef.current?.contentWindow?.postMessage(
+                        { type: 'xp-preview', settings: subSettings },
+                        window.location.origin,
+                      );
+                    }
+                  }}
+                />
               ) : (
                 <div className="phone-empty">
                   {isFa

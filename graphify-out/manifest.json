@@ -216,9 +216,9 @@
     "semantic_hash": ""
   },
   "web/src/components/Layout.tsx": {
-    "mtime": 1794787109.0134592,
-    "seen": 1794787684.2270777,
-    "ast_hash": "e8a96f7f5b29af42e1c6cddebb67f3f6",
+    "mtime": 1794788275.0378716,
+    "seen": 1794788422.664012,
+    "ast_hash": "4a02ed8ec94865f79914094c860bb0ac",
     "semantic_hash": ""
   },
   "web/src/components/Modal.tsx": {
@@ -330,9 +330,9 @@
     "semantic_hash": ""
   },
   "web/src/pages/OverviewPage.tsx": {
-    "mtime": 1794787296.700982,
-    "seen": 1794787684.2270954,
-    "ast_hash": "be3642ca5f679b9a5f4bd136d9f37ef0",
+    "mtime": 1794788279.8033273,
+    "seen": 1794788422.6640425,
+    "ast_hash": "062f1c2152ef9a40aec791a7ec90ca91",
     "semantic_hash": ""
   },
   "web/src/pages/RoutingPage.tsx": {
