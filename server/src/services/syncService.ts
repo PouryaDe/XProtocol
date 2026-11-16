@@ -1,5 +1,6 @@
 import { getDb } from '../db/database.js';
 import { applyLinuxInbound, disconnectLinuxPeer, syncL2tpSecrets, syncLinuxInboundPeers } from '../drivers/linuxEngine.js';
+import { writeLiveClientCounts } from '../drivers/pki.js';
 import type { InboundRow } from '../generators/configs.js';
 import { getEligiblePeersForInbound } from './peerResolver.js';
 
@@ -35,7 +36,16 @@ async function runSyncPass(): Promise<void> {
   const l2tpMerged = new Map<string, { name: string; vpnPassword: string }>();
 
   for (const ib of runningInbounds) {
-    const peers = getEligiblePeersForInbound(ib.id, ib.subnet);
+    let peers = getEligiblePeersForInbound(ib.id, ib.subnet);
+    if (ib.protocol === 'wireguard' || ib.protocol === 'amneziawg') {
+      const otherRows = db
+        .prepare('SELECT client_id, COUNT(*) AS cnt FROM connections_live WHERE inbound_id != ? GROUP BY client_id')
+        .all(ib.id) as Array<{ client_id: number; cnt: number }>;
+      const otherMap = new Map(otherRows.map((r) => [r.client_id, Number(r.cnt)]));
+      peers = peers.filter(
+        (p) => !p.deviceLimit || p.deviceLimit <= 0 || (otherMap.get(p.clientId) || 0) < p.deviceLimit,
+      );
+    }
     if (ib.protocol === 'l2tp') {
       for (const p of peers) {
         l2tpMerged.set(p.name, { name: p.name, vpnPassword: p.vpnPassword || '' });
@@ -123,6 +133,21 @@ export async function kickConnectionById(
     reason,
   );
   db.prepare('DELETE FROM connections_live WHERE id = ?').run(connectionId);
+  const countRows = db
+    .prepare(
+      `SELECT LOWER(c.name) AS uname, COUNT(*) AS cnt
+       FROM connections_live l
+       JOIN clients c ON c.id = l.client_id
+       GROUP BY LOWER(c.name)`,
+    )
+    .all() as Array<{ uname: string; cnt: number }>;
+  const counts: Record<string, number> = {};
+  for (const r of countRows) counts[r.uname] = Number(r.cnt);
+  try {
+    writeLiveClientCounts(counts);
+  } catch {
+    // ignore in restricted environments
+  }
 
   return { found: true, row };
 }

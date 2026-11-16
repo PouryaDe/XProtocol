@@ -18,8 +18,9 @@ const { parseCidr, allocateTunnelIp, isClientActiveQuota, getEligiblePeersForInb
   await import('../src/services/peerResolver.js');
 const { renderInboundServerConfig, renderInboundExtraFiles } = await import('../src/generators/configs.js');
 const { generateClientProfile } = await import('../src/generators/profiles.js');
-const { syncOpenVpnAuthScript } = await import('../src/drivers/pki.js');
+const { syncOpenVpnAuthScript, writeLiveClientCounts } = await import('../src/drivers/pki.js');
 const { getCurrentCommit, getUpdateState } = await import('../src/services/updater.js');
+const { selectSessionsWithinLimit } = await import('../src/services/collector.js');
 
 initDatabase();
 
@@ -351,19 +352,71 @@ test('Config rendering sanitizes CRLF/quotes across OpenConnect, IKEv2, L2TP, an
   assert.equal(wgIpv4Only.content.includes('::/0'), false);
 });
 
-test('OpenVPN salted scrypt auth verifier accepts valid password and rejects invalid credentials', async () => {
+test('OpenVPN salted scrypt auth verifier enforces credentials and cross-protocol device_limit', async () => {
   const scriptPath = syncOpenVpnAuthScript('ovpn-test', [
-    { clientId: 1, name: 'alice', wgPublicKey: '', vpnPassword: 'Strong#Pass!99', tunnelIp: '10.8.0.2' },
+    { clientId: 1, name: 'alice', wgPublicKey: '', vpnPassword: 'Strong#Pass!99', tunnelIp: '10.8.0.2', deviceLimit: 1 },
+    { clientId: 2, name: 'bob', wgPublicKey: '', vpnPassword: 'Bob#Pass!22', tunnelIp: '10.8.0.3', deviceLimit: 2 },
   ]);
 
   const validCred = path.join(tempDir, 'cred-ok.txt');
+  const bobCred = path.join(tempDir, 'cred-bob.txt');
   const badCred = path.join(tempDir, 'cred-bad.txt');
   fs.writeFileSync(validCred, 'alice\nStrong#Pass!99\n');
+  fs.writeFileSync(bobCred, 'bob\nBob#Pass!22\n');
   fs.writeFileSync(badCred, 'alice\nwrong-password\n');
 
+  writeLiveClientCounts({ alice: 0, bob: 1 });
   await execFileAsync(process.execPath, [scriptPath, validCred]);
+  await execFileAsync(process.execPath, [scriptPath, bobCred]);
   await assert.rejects(() => execFileAsync(process.execPath, [scriptPath, badCred]));
   await assert.rejects(() => execFileAsync(process.execPath, [scriptPath, path.join(tempDir, 'missing.txt')]));
+
+  // Single-user client already active on another protocol must be rejected at OpenVPN login
+  writeLiveClientCounts({ alice: 1, bob: 1 });
+  await assert.rejects(() => execFileAsync(process.execPath, [scriptPath, validCred]));
+  await execFileAsync(process.execPath, [scriptPath, bobCred]);
+});
+
+test('Multi-protocol device_limit enforcement keeps both WG + OpenVPN on limit=2 and isolates single-user', () => {
+  const now = 1_000_000;
+
+  // 1) Single-user (limit=1): active OpenVPN blocks concurrent second WireGuard session
+  const singleRes = selectSessionsWithinLimit(
+    [
+      { id: 'ovpn-2-cid1', isWireGuard: false, connectedAtMs: now - 20_000, lastActiveMs: now - 1_000 },
+      { id: 'wg-1-pubkey', isWireGuard: true, connectedAtMs: now - 2_000, lastActiveMs: now - 1_000 },
+    ],
+    1,
+    now,
+  );
+  assert.deepEqual([...singleRes.keepIds], ['ovpn-2-cid1']);
+  assert.deepEqual(singleRes.evictIds, ['wg-1-pubkey']);
+
+  // 2) Single-user (limit=1): stale disconnected WireGuard (>45s silent) yields to new OpenVPN session
+  const handoffRes = selectSessionsWithinLimit(
+    [
+      { id: 'wg-1-pubkey', isWireGuard: true, connectedAtMs: now - 120_000, lastActiveMs: now - 60_000 },
+      { id: 'ovpn-2-cid2', isWireGuard: false, connectedAtMs: now - 2_000, lastActiveMs: now - 1_000 },
+    ],
+    1,
+    now,
+  );
+  assert.deepEqual([...handoffRes.keepIds], ['ovpn-2-cid2']);
+  assert.deepEqual(handoffRes.evictIds, ['wg-1-pubkey']);
+
+  // 3) Dual-user (limit=2): WireGuard + OpenVPN both stay active, 3rd L2TP is evicted
+  const dualRes = selectSessionsWithinLimit(
+    [
+      { id: 'wg-1-pubkey', isWireGuard: true, connectedAtMs: now - 30_000, lastActiveMs: now - 2_000 },
+      { id: 'ovpn-2-cid3', isWireGuard: false, connectedAtMs: now - 15_000, lastActiveMs: now - 1_000 },
+      { id: 'l2tp-ppp-3-ppp0', isWireGuard: false, connectedAtMs: now - 1_000, lastActiveMs: now - 500 },
+    ],
+    2,
+    now,
+  );
+  assert.equal(dualRes.keepIds.has('wg-1-pubkey'), true);
+  assert.equal(dualRes.keepIds.has('ovpn-2-cid3'), true);
+  assert.deepEqual(dualRes.evictIds, ['l2tp-ppp-3-ppp0']);
 });
 
 test('Updater filters out already-installed commit/semver from cached update state', async () => {

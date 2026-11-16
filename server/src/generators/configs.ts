@@ -29,6 +29,7 @@ export interface PeerEntry {
   tunnelIp: string;
   downloadMbps?: number | null;
   uploadMbps?: number | null;
+  deviceLimit?: number | null;
 }
 
 export interface RenderedConfigFile {

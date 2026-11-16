@@ -130,7 +130,7 @@ export function getEligiblePeersForInbound(inboundId: number, subnet: string): P
     .prepare(
       `SELECT DISTINCT c.id, c.name, c.wg_public_key, c.vpn_password, c.fixed_ip,
               c.enabled, c.expires_at, c.traffic_limit_bytes, c.traffic_used_bytes,
-              c.download_mbps, c.upload_mbps
+              c.download_mbps, c.upload_mbps, c.device_limit
        FROM clients c
        LEFT JOIN client_inbounds ci ON ci.client_id = c.id AND ci.inbound_id = ?
        LEFT JOIN client_groups cg ON cg.client_id = c.id
@@ -152,6 +152,7 @@ export function getEligiblePeersForInbound(inboundId: number, subnet: string): P
     traffic_used_bytes: number;
     download_mbps: number | null;
     upload_mbps: number | null;
+    device_limit: number | null;
   }>;
 
   const groupSpeedRows = db
@@ -192,6 +193,7 @@ export function getEligiblePeersForInbound(inboundId: number, subnet: string): P
       tunnelIp,
       downloadMbps: c.download_mbps ?? minPositive(groupDlMap.get(c.id) || []),
       uploadMbps: c.upload_mbps ?? minPositive(groupUlMap.get(c.id) || []),
+      deviceLimit: c.device_limit,
     });
   }
 

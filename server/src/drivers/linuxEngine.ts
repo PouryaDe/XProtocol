@@ -697,6 +697,14 @@ export async function disconnectLinuxPeer(
   return false;
 }
 
+async function resolveInterfaceByTunnelIp(tunnelIp: string): Promise<string> {
+  if (!tunnelIp || !/^\d{1,3}(?:\.\d{1,3}){3}$/.test(tunnelIp)) return '';
+  const r = await runCmd('ip', ['-4', '-o', 'route', 'get', tunnelIp], 2000);
+  if (!r.ok || !r.stdout) return '';
+  const m = r.stdout.match(/\bdev\s+(\S+)/);
+  return m ? m[1] : '';
+}
+
 export async function collectLinuxLiveTunnels(
   inbounds: InboundRow[],
   clientsByWgPub: Map<string, string>,
@@ -788,7 +796,10 @@ export async function collectLinuxLiveTunnels(
           const clientName = String(u.Username || u.username || '');
           if (!clientName) continue;
           const tunnelIp = String(u.IPv4 || u['Remote IP'] || '');
-          const ifaceName = String(u.Device || u.device || '');
+          let ifaceName = String(u.Device || u.device || '');
+          if (!ifaceName && tunnelIp) {
+            ifaceName = await resolveInterfaceByTunnelIp(tunnelIp);
+          }
           samples.push({
             id: `oc-${ib.id}-${String(u.ID || clientName)}`,
             clientName,
@@ -797,8 +808,8 @@ export async function collectLinuxLiveTunnels(
             tunnelIp,
             device: String(u['User-Agent'] || 'OpenConnect'),
             interfaceName: ifaceName || undefined,
-            bytesIn: Number(u.RX || 0),
-            bytesOut: Number(u.TX || 0),
+            bytesIn: Number(u.RX ?? u.rx ?? 0),
+            bytesOut: Number(u.TX ?? u.tx ?? 0),
           });
         }
       } catch {

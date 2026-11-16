@@ -1,13 +1,61 @@
 import { getDb } from '../db/database.js';
-import { applyDedicatedSessionLimits, collectLinuxLiveTunnels } from '../drivers/linuxEngine.js';
-import type { InboundRow } from '../generators/configs.js';
+import {
+  applyDedicatedSessionLimits,
+  applyInterfaceSpeedLimits,
+  collectLinuxLiveTunnels,
+  disconnectLinuxPeer,
+  type LiveTunnelSample,
+} from '../drivers/linuxEngine.js';
+import { writeLiveClientCounts } from '../drivers/pki.js';
+import type { InboundRow, PeerEntry } from '../generators/configs.js';
 import { isClientActiveQuota } from './peerResolver.js';
-import { kickClientConnections, kickConnectionById, scheduleSyncRunningInbounds } from './syncService.js';
+import { kickClientConnections, scheduleSyncRunningInbounds } from './syncService.js';
 
 let collectorTimer: NodeJS.Timeout | null = null;
 let bootBaselineDone = false;
 const lastTunnelBytes = new Map<string, { in: number; out: number }>();
+const lastActivityAt = new Map<string, number>();
 const appliedDedicatedShape = new Map<string, string>();
+const appliedSharedOvpnShape = new Map<string, string>();
+const wgSuppressedClients = new Set<number>();
+
+export interface SessionCapCandidate {
+  id: string;
+  isWireGuard: boolean;
+  connectedAtMs: number;
+  lastActiveMs: number;
+}
+
+/**
+ * Partition one client's concurrent sessions across all protocols into kept vs excess/evicted IDs.
+ * Stale WireGuard sessions (no RX bytes for >45s despite PersistentKeepalive) yield to new active
+ * connections first; otherwise established connections keep their slot(s) and excess newcomers are cut.
+ */
+export function selectSessionsWithinLimit(
+  sessions: SessionCapCandidate[],
+  deviceLimit: number | null,
+  nowMs: number,
+): { keepIds: Set<string>; evictIds: string[] } {
+  const keepIds = new Set<string>();
+  const evictIds: string[] = [];
+  if (deviceLimit === null || deviceLimit <= 0 || sessions.length <= deviceLimit) {
+    for (const s of sessions) keepIds.add(s.id);
+    return { keepIds, evictIds };
+  }
+
+  const ordered = [...sessions].sort((a, b) => {
+    const aStale = a.isWireGuard && a.lastActiveMs > 0 && nowMs - a.lastActiveMs > 45_000;
+    const bStale = b.isWireGuard && b.lastActiveMs > 0 && nowMs - b.lastActiveMs > 45_000;
+    if (aStale !== bStale) return aStale ? 1 : -1;
+    return a.connectedAtMs - b.connectedAtMs;
+  });
+
+  for (let idx = 0; idx < ordered.length; idx += 1) {
+    if (idx < deviceLimit) keepIds.add(ordered[idx].id);
+    else evictIds.push(ordered[idx].id);
+  }
+  return { keepIds, evictIds };
+}
 
 function computeNextResetIso(period: string, fromMs = Date.now()): string | null {
   const d = new Date(fromMs);
@@ -121,10 +169,12 @@ export async function runCollectorTick(): Promise<void> {
   }
 
   const clientByName = new Map(clients.map((c) => [c.name, c]));
+  const clientByNameLower = new Map(clients.map((c) => [c.name.toLowerCase(), c]));
   const clientNameByPub = new Map(clients.map((c) => [c.wg_public_key, c.name]));
 
-  const nodes = db.prepare('SELECT id, multiplier FROM nodes').all() as { id: number; multiplier: number }[];
+  const nodes = db.prepare('SELECT id, name, multiplier FROM nodes').all() as { id: number; name: string; multiplier: number }[];
   const nodeMult = new Map(nodes.map((n) => [n.id, n.multiplier]));
+  const nodeNameById = new Map(nodes.map((n) => [n.id, n.name]));
 
   const live = await collectLinuxLiveTunnels(inbounds, clientNameByPub);
   const nowMs = Date.now();
@@ -154,24 +204,33 @@ export async function runCollectorTick(): Promise<void> {
   );
 
   const clientsToKick = new Set<number>();
-  const activeCountByClient = new Map<number, number>();
-  const excessConnectionIds: string[] = [];
   const seenLiveIds = new Set<string>();
   const seenDedicatedIfaces = new Set<string>();
+  const seenOvpnIfaces = new Set<string>();
+  let needSyncAfterTick = false;
 
-  // Evaluate established connections first so newer excess sessions are the ones rejected/kicked
-  live.sort((a, b) => {
-    const ta = prevConnectedAt.get(a.id) || nowIso;
-    const tb = prevConnectedAt.get(b.id) || nowIso;
-    return ta.localeCompare(tb);
-  });
+  interface ProcessedSample {
+    sample: LiveTunnelSample;
+    client: (typeof clients)[number];
+    inbound: InboundRow;
+    nodeId: number;
+    connectedAtIso: string;
+    connectedAtMs: number;
+    deltaIn: number;
+    deltaOut: number;
+    effDl: number | null;
+    effUl: number | null;
+  }
+
+  const perClientSessions = new Map<number, ProcessedSample[]>();
 
   for (const s of live) {
     seenLiveIds.add(s.id);
-    const client = clientByName.get(s.clientName);
+    const client = clientByName.get(s.clientName) ?? clientByNameLower.get(s.clientName.toLowerCase());
     if (!client) continue;
     const inbound = inbounds.find((i) => i.id === s.inboundId);
-    const nodeId = inbound?.node_id || 1;
+    if (!inbound) continue;
+    const nodeId = inbound.node_id || 1;
     const mult = nodeMult.get(nodeId) ?? 1.0;
 
     // On first collector pass after startup, baseline persistent WireGuard interface counters so
@@ -182,6 +241,9 @@ export async function runCollectorTick(): Promise<void> {
     const deltaIn = s.bytesIn >= prev.in ? s.bytesIn - prev.in : s.bytesIn;
     const deltaOut = s.bytesOut >= prev.out ? s.bytesOut - prev.out : s.bytesOut;
     lastTunnelBytes.set(s.id, { in: s.bytesIn, out: s.bytesOut });
+    if (deltaIn > 0 || !lastActivityAt.has(s.id)) {
+      lastActivityAt.set(s.id, nowMs);
+    }
 
     const weightedDelta = Math.round((deltaIn + deltaOut) * mult);
     tickDl += deltaOut;
@@ -215,58 +277,203 @@ export async function runCollectorTick(): Promise<void> {
       continue;
     }
 
-    const seenCount = (activeCountByClient.get(client.id) || 0) + 1;
-    activeCountByClient.set(client.id, seenCount);
-
-    insertLive.run(
-      s.id,
-      client.id,
-      s.inboundId,
+    const connectedAtIso = prevConnectedAt.get(s.id) || nowIso;
+    const effDl = client.download_mbps ?? groupDlMin.get(client.id) ?? null;
+    const effUl = client.upload_mbps ?? groupUlMin.get(client.id) ?? null;
+    const list = perClientSessions.get(client.id) || [];
+    list.push({
+      sample: s,
+      client,
+      inbound,
       nodeId,
-      s.remoteIp,
-      s.tunnelIp,
-      s.device,
-      prevConnectedAt.get(s.id) || nowIso,
-      s.bytesIn,
-      s.bytesOut,
-      Math.round(deltaIn / 5),
-      Math.round(deltaOut / 5),
+      connectedAtIso,
+      connectedAtMs: Date.parse(connectedAtIso) || nowMs,
+      deltaIn,
+      deltaOut,
+      effDl,
+      effUl,
+    });
+    perClientSessions.set(client.id, list);
+  }
+
+  const liveCountsByLowerName: Record<string, number> = {};
+  const ovpnPeersByIface = new Map<string, PeerEntry[]>();
+  const excessItems: ProcessedSample[] = [];
+
+  for (const [clientId, items] of perClientSessions) {
+    const client = items[0].client;
+    const { keepIds, evictIds } = selectSessionsWithinLimit(
+      items.map((it) => ({
+        id: it.sample.id,
+        isWireGuard: it.sample.id.startsWith('wg-'),
+        connectedAtMs: it.connectedAtMs,
+        lastActiveMs: lastActivityAt.get(it.sample.id) ?? nowMs,
+      })),
+      client.device_limit,
+      nowMs,
     );
 
-    if (client.device_limit !== null && client.device_limit > 0 && seenCount > client.device_limit) {
-      excessConnectionIds.push(s.id);
-    } else if (
-      s.interfaceName &&
-      (s.interfaceName.startsWith('ppp') || s.interfaceName.startsWith('vc') || s.interfaceName.startsWith('vpns'))
-    ) {
-      seenDedicatedIfaces.add(s.interfaceName);
-      const effDl = client.download_mbps ?? groupDlMin.get(client.id) ?? null;
-      const effUl = client.upload_mbps ?? groupUlMin.get(client.id) ?? null;
-      const shapeKey = `${effDl ?? 0}:${effUl ?? 0}`;
-      const prevKey = appliedDedicatedShape.get(s.interfaceName);
-      if (shapeKey !== prevKey && (effDl || effUl || prevKey !== undefined)) {
-        appliedDedicatedShape.set(s.interfaceName, shapeKey);
-        await applyDedicatedSessionLimits(s.interfaceName, effDl, effUl).catch(() => undefined);
+    const evictSet = new Set(evictIds);
+    for (const it of items) {
+      if (evictSet.has(it.sample.id)) {
+        excessItems.push(it);
+        if (it.sample.id.startsWith('wg-')) {
+          wgSuppressedClients.add(clientId);
+          needSyncAfterTick = true;
+        }
+        continue;
+      }
+      if (!keepIds.has(it.sample.id)) continue;
+
+      const lname = client.name.toLowerCase();
+      liveCountsByLowerName[lname] = (liveCountsByLowerName[lname] || 0) + 1;
+
+      insertLive.run(
+        it.sample.id,
+        client.id,
+        it.sample.inboundId,
+        it.nodeId,
+        it.sample.remoteIp,
+        it.sample.tunnelIp,
+        it.sample.device,
+        it.connectedAtIso,
+        it.sample.bytesIn,
+        it.sample.bytesOut,
+        Math.round(it.deltaIn / 5),
+        Math.round(it.deltaOut / 5),
+      );
+
+      if (it.inbound.protocol === 'openvpn' && it.sample.tunnelIp) {
+        const tunIface = it.sample.interfaceName || `tun-${it.inbound.name}`;
+        seenOvpnIfaces.add(tunIface);
+        const list = ovpnPeersByIface.get(tunIface) || [];
+        list.push({
+          clientId: client.id,
+          name: client.name,
+          wgPublicKey: client.wg_public_key,
+          tunnelIp: it.sample.tunnelIp,
+          downloadMbps: it.effDl,
+          uploadMbps: it.effUl,
+        });
+        ovpnPeersByIface.set(tunIface, list);
+      } else if (
+        it.sample.interfaceName &&
+        (it.sample.interfaceName.startsWith('ppp') ||
+          it.sample.interfaceName.startsWith('vc') ||
+          it.sample.interfaceName.startsWith('vpns'))
+      ) {
+        seenDedicatedIfaces.add(it.sample.interfaceName);
+        const shapeKey = `${it.effDl ?? 0}:${it.effUl ?? 0}`;
+        const prevKey = appliedDedicatedShape.get(it.sample.interfaceName);
+        if (shapeKey !== prevKey && (it.effDl || it.effUl || prevKey !== undefined)) {
+          appliedDedicatedShape.set(it.sample.interfaceName, shapeKey);
+          await applyDedicatedSessionLimits(it.sample.interfaceName, it.effDl, it.effUl).catch(() => undefined);
+        }
       }
     }
+
+    const hasActiveWg = items.some((it) => keepIds.has(it.sample.id) && it.sample.id.startsWith('wg-'));
+    if (
+      !hasActiveWg &&
+      client.device_limit !== null &&
+      client.device_limit > 0 &&
+      keepIds.size >= client.device_limit
+    ) {
+      if (!wgSuppressedClients.has(clientId)) {
+        wgSuppressedClients.add(clientId);
+        needSyncAfterTick = true;
+      }
+    } else if (
+      wgSuppressedClients.has(clientId) &&
+      (client.device_limit === null || client.device_limit <= 0 || keepIds.size < client.device_limit)
+    ) {
+      wgSuppressedClients.delete(clientId);
+      needSyncAfterTick = true;
+    }
+  }
+
+  for (const clientId of [...wgSuppressedClients]) {
+    if (!perClientSessions.has(clientId)) {
+      wgSuppressedClients.delete(clientId);
+      needSyncAfterTick = true;
+    }
+  }
+
+  // Shape OpenVPN virtual client IPs dynamically by live session IP (required for server-assigned pool IPs & duplicate-cn)
+  for (const ib of inbounds) {
+    if (ib.protocol !== 'openvpn' || !ib.running) continue;
+    const tunIface = `tun-${ib.name}`;
+    const ovpnPeers = ovpnPeersByIface.get(tunIface) || [];
+    const sig = ovpnPeers
+      .map((p) => `${p.tunnelIp}:${p.downloadMbps ?? 0}:${p.uploadMbps ?? 0}`)
+      .sort()
+      .join('|');
+    if (sig !== (appliedSharedOvpnShape.get(tunIface) ?? '')) {
+      appliedSharedOvpnShape.set(tunIface, sig);
+      await applyInterfaceSpeedLimits(tunIface, ovpnPeers).catch(() => undefined);
+    }
+  }
+  for (const iface of appliedSharedOvpnShape.keys()) {
+    if (!seenOvpnIfaces.has(iface) && !inbounds.some((ib) => ib.protocol === 'openvpn' && `tun-${ib.name}` === iface)) {
+      appliedSharedOvpnShape.delete(iface);
+    }
+  }
+
+  try {
+    writeLiveClientCounts(liveCountsByLowerName);
+  } catch {
+    // ignore in restricted environments
   }
 
   bootBaselineDone = true;
   for (const id of lastTunnelBytes.keys()) {
-    if (!seenLiveIds.has(id)) lastTunnelBytes.delete(id);
+    if (!seenLiveIds.has(id)) {
+      lastTunnelBytes.delete(id);
+      lastActivityAt.delete(id);
+    }
   }
   for (const iface of appliedDedicatedShape.keys()) {
     if (!seenDedicatedIfaces.has(iface)) appliedDedicatedShape.delete(iface);
   }
 
-  for (const connId of excessConnectionIds) {
-    await kickConnectionById(connId, 'device_limit').catch(() => undefined);
+  for (const ex of excessItems) {
+    await disconnectLinuxPeer(ex.inbound, {
+      clientName: ex.client.name,
+      wgPublicKey: ex.client.wg_public_key,
+      connectionId: ex.sample.id,
+    }).catch(() => undefined);
+    const durSec = Math.max(1, Math.round((nowMs - ex.connectedAtMs) / 1000));
+    db.prepare(
+      `INSERT INTO connections_history (id, client_id, client_name, inbound_id, inbound_name, protocol, node_id, node_name, remote_ip, tunnel_ip, device, connected_at, disconnected_at, duration_sec, bytes_total, reason)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      `hist-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      ex.client.id,
+      ex.client.name,
+      ex.inbound.id,
+      ex.inbound.name,
+      ex.inbound.protocol,
+      ex.nodeId,
+      nodeNameById.get(ex.nodeId) || 'This server',
+      ex.sample.remoteIp,
+      ex.sample.tunnelIp,
+      ex.sample.device,
+      ex.connectedAtIso,
+      nowIso,
+      durSec,
+      ex.sample.bytesIn + ex.sample.bytesOut,
+      'device_limit',
+    );
   }
 
   if (clientsToKick.size > 0) {
     for (const cid of clientsToKick) {
       await kickClientConnections(cid, 'quota_or_expired').catch(() => 0);
     }
+    needSyncAfterTick = true;
+  }
+
+  if (needSyncAfterTick) {
     scheduleSyncRunningInbounds();
   }
 

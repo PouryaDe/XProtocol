@@ -209,15 +209,25 @@ export async function ensureClientCertificate(clientName: string): Promise<{ cer
   };
 }
 
+/** Atomically write current active connection counts per lowercase client name for OpenVPN login enforcement. */
+export function writeLiveClientCounts(countsByClientNameLower: Record<string, number>): void {
+  const authDir = getAuthDir();
+  const target = path.join(authDir, 'live-counts.json');
+  const tmp = path.join(authDir, `live-counts.${process.pid}.tmp`);
+  fs.writeFileSync(tmp, JSON.stringify(countsByClientNameLower), { mode: 0o600 });
+  fs.renameSync(tmp, target);
+}
+
 /** Write per-inbound salted scrypt credentials JSON and OpenVPN auth-user-pass-verify script. */
 export function syncOpenVpnAuthScript(inboundName: string, peers: PeerEntry[]): string {
   const safeName = inboundName.replace(/[^a-zA-Z0-9_-]/g, '_');
   const authDir = getAuthDir();
   const usersFile = path.join(authDir, `${safeName}.users.json`);
+  const liveCountsFile = path.join(authDir, 'live-counts.json');
   const records = peers.map((p) => {
     const salt = crypto.randomBytes(16).toString('hex');
     const derived = crypto.scryptSync(String(p.vpnPassword || ''), salt, 32).toString('hex');
-    return { u: p.name, s: salt, h: derived };
+    return { u: p.name, s: salt, h: derived, l: p.deviceLimit ?? null };
   });
   fs.writeFileSync(usersFile, JSON.stringify(records, null, 2), { mode: 0o600 });
 
@@ -233,12 +243,22 @@ const user = (lines[0] || '').trim();
 const pass = lines[1] || '';
 if (!user) process.exit(1);
 const users = JSON.parse(fs.readFileSync(${JSON.stringify(usersFile)}, 'utf8'));
-const rec = users.find((x) => x.u === user);
+const userLower = user.toLowerCase();
+const rec = users.find((x) => x.u === user) || users.find((x) => String(x.u || '').toLowerCase() === userLower);
 if (!rec || !rec.s || !rec.h) process.exit(1);
 const actual = crypto.scryptSync(pass, String(rec.s), 32);
 const expected = Buffer.from(String(rec.h), 'hex');
-if (actual.length !== expected.length) process.exit(1);
-process.exit(crypto.timingSafeEqual(actual, expected) ? 0 : 1);
+if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) process.exit(1);
+if (rec.l && Number(rec.l) > 0 && fs.existsSync(${JSON.stringify(liveCountsFile)})) {
+  try {
+    const counts = JSON.parse(fs.readFileSync(${JSON.stringify(liveCountsFile)}, 'utf8'));
+    const active = Number(counts[String(rec.u).toLowerCase()] || 0);
+    if (active >= Number(rec.l)) process.exit(1);
+  } catch {
+    // allow login if live-counts file is momentarily unavailable
+  }
+}
+process.exit(0);
 `;
   fs.writeFileSync(scriptPath, script, { mode: 0o755 });
   return scriptPath;
