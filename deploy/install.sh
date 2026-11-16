@@ -280,9 +280,13 @@ info "Installing base Ubuntu packages..."
 run_q apt-get update -qq
 PKGS=(curl ca-certificates gnupg openssl ufw iptables certbot wireguard-tools)
 if (( LOCAL_NODE )); then
-  PKGS+=(openvpn ocserv strongswan xl2tpd)
+  PKGS+=(openvpn ocserv strongswan strongswan-swanctl libcharon-extra-plugins xl2tpd ppp)
 fi
 run_q apt-get install -y -qq "${PKGS[@]}"
+if (( LOCAL_NODE )); then
+  systemctl stop ocserv.socket ocserv.service xl2tpd.service >/dev/null 2>&1 || true
+  systemctl disable ocserv.socket ocserv.service xl2tpd.service >/dev/null 2>&1 || true
+fi
 ok "System packages installed"
 
 info "Configuring kernel IPv4 forwarding and BBR..."
@@ -351,6 +355,8 @@ cat >"$DATA_DIR/config.json" <<EOF
 }
 EOF
 
+PUBLIC_IP="$(curl -fsSL --max-time 4 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')"
+
 cat >"/etc/systemd/system/${SERVICE_NAME}" <<EOF
 [Unit]
 Description=XProtocol Open-Core VPN Panel
@@ -364,6 +370,7 @@ Environment=XPROTOCOL_DATA_DIR=${DATA_DIR}
 Environment=XPROTOCOL_PORT=${PORT}
 Environment=XPROTOCOL_SECRET_PATH=${SECRET_PATH}
 Environment=XPROTOCOL_SUB_PATH=${SUB_PATH}
+Environment=XPROTOCOL_PUBLIC_IP=${DOMAIN:-$PUBLIC_IP}
 Environment=XPROTOCOL_ADMIN_USER=${ADMIN_USER}
 Environment=XPROTOCOL_ADMIN_PASS=${ADMIN_PASS}
 ExecStart=/usr/bin/node ${INSTALL_DIR}/server/dist/index.js
@@ -387,7 +394,6 @@ run_q systemctl daemon-reload
 run_q systemctl enable --now "$SERVICE_NAME"
 ok "Started ${SERVICE_NAME}"
 
-PUBLIC_IP="$(curl -fsSL --max-time 4 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')"
 SCHEME="http"; [[ -n "$TLS_CERT" ]] && SCHEME="https"
 HOST="${DOMAIN:-$PUBLIC_IP}"
 CLEAN_SECRET="${SECRET_PATH#/}"; CLEAN_SECRET="${CLEAN_SECRET%/}"

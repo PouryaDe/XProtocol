@@ -21,6 +21,7 @@ import { createSettingsRouter } from './routes/settingsRoutes.js';
 import { createUpdateRouter } from './routes/updateRoutes.js';
 import { createSubRouter } from './routes/subRoutes.js';
 import { startCollectorLoop } from './services/collector.js';
+import { reconcileRunningInboundsOnBoot } from './services/syncService.js';
 import { startTelegramBackupScheduler } from './services/telegramBackup.js';
 import { startAutoUpdateScheduler } from './services/updater.js';
 
@@ -149,6 +150,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   applyPendingRestore();
   const runtimeConfig = loadRuntimeConfig();
   const { initialPasswordGenerated } = initDatabase();
+  reconcileRunningInboundsOnBoot().catch(() => undefined);
   startCollectorLoop();
   startTelegramBackupScheduler();
   startAutoUpdateScheduler();

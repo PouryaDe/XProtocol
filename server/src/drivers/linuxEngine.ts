@@ -286,6 +286,35 @@ export async function applyInterfaceSpeedLimits(iface: string, peers: PeerEntry[
   }
 }
 
+/** Configure kernel IPv4 forwarding and idempotent iptables NAT/FORWARD rules for a tunnel subnet. */
+export async function ensureSubnetNat(subnet: string, enable: boolean): Promise<void> {
+  if (process.platform !== 'linux' || !subnet) return;
+  await runCmd('sysctl', ['-w', 'net.ipv4.ip_forward=1'], 4000);
+  const route = await runCmd('ip', ['route', 'show', 'default'], 3000);
+  const outIface = route.stdout.match(/\bdev\s+(\S+)/)?.[1] || '';
+  if (!outIface) return;
+
+  const natArgs = ['-t', 'nat', '-s', subnet, '-o', outIface, '-j', 'MASQUERADE'];
+  const fwdOut = ['-s', subnet, '-j', 'ACCEPT'];
+  const fwdIn = ['-d', subnet, '-m', 'conntrack', '--ctstate', 'RELATED,ESTABLISHED', '-j', 'ACCEPT'];
+
+  if (enable) {
+    if (!(await runCmd('iptables', ['-C', 'POSTROUTING', ...natArgs], 3000)).ok) {
+      await runCmd('iptables', ['-A', 'POSTROUTING', ...natArgs], 3000);
+    }
+    if (!(await runCmd('iptables', ['-C', 'FORWARD', ...fwdOut], 3000)).ok) {
+      await runCmd('iptables', ['-A', 'FORWARD', ...fwdOut], 3000);
+    }
+    if (!(await runCmd('iptables', ['-C', 'FORWARD', ...fwdIn], 3000)).ok) {
+      await runCmd('iptables', ['-A', 'FORWARD', ...fwdIn], 3000);
+    }
+  } else {
+    await runCmd('iptables', ['-D', 'POSTROUTING', ...natArgs], 3000);
+    await runCmd('iptables', ['-D', 'FORWARD', ...fwdOut], 3000);
+    await runCmd('iptables', ['-D', 'FORWARD', ...fwdIn], 3000);
+  }
+}
+
 export async function applyLinuxInbound(
   inbound: InboundRow,
   peers: PeerEntry[],
@@ -364,6 +393,7 @@ export async function applyLinuxInbound(
   }
 
   if (inbound.protocol === 'openvpn') {
+    await ensureSubnetNat(inbound.subnet, action !== 'stop' && settings.nat !== false);
     const unit = `openvpn-server@${inbound.name}`;
     const r = await runCmd('systemctl', [action, unit]);
     logs.push(`systemctl ${action} ${unit}: ${r.ok ? 'ok' : r.stderr}`);
@@ -374,6 +404,10 @@ export async function applyLinuxInbound(
   }
 
   if (inbound.protocol === 'openconnect' || inbound.protocol === 'ocserv') {
+    await ensureSubnetNat(inbound.subnet, action !== 'stop' && settings.nat !== false);
+    // Disable stock ocserv unit/socket once so port 443 stays free for per-inbound units
+    await runCmd('systemctl', ['stop', 'ocserv.socket', 'ocserv.service'], 4000);
+    await runCmd('systemctl', ['disable', 'ocserv.socket', 'ocserv.service'], 4000);
     await runCmd('systemctl', ['daemon-reload'], 5000);
     const unit = `xprotocol-ocserv@${inbound.name}`;
     const r = await runCmd('systemctl', [action, unit]);
@@ -382,7 +416,9 @@ export async function applyLinuxInbound(
   }
 
   if (inbound.protocol === 'ikev2') {
+    await ensureSubnetNat(inbound.subnet, action !== 'stop' && settings.nat !== false);
     if (action !== 'stop') {
+      await runCmd('systemctl', ['start', 'strongswan'], 5000);
       const r = await runCmd('swanctl', ['--load-all']);
       logs.push(`swanctl --load-all: ${r.ok ? 'ok' : r.stderr}`);
       return { ok: r.ok, logs };
@@ -393,11 +429,15 @@ export async function applyLinuxInbound(
   }
 
   if (inbound.protocol === 'l2tp') {
+    await ensureSubnetNat(inbound.subnet, action !== 'stop' && settings.nat !== false);
+    await runCmd('systemctl', ['stop', 'xl2tpd.service'], 4000);
+    await runCmd('systemctl', ['disable', 'xl2tpd.service'], 4000);
     await runCmd('systemctl', ['daemon-reload'], 5000);
     const unit = `xprotocol-xl2tpd@${inbound.name}`;
     const r = await runCmd('systemctl', [action, unit]);
     logs.push(`systemctl ${action} ${unit}: ${r.ok ? 'ok' : r.stderr}`);
     if (action !== 'stop') {
+      await runCmd('systemctl', ['start', 'strongswan'], 5000);
       const sw = await runCmd('swanctl', ['--load-all']);
       logs.push(`swanctl --load-all: ${sw.ok ? 'ok' : sw.stderr}`);
     }

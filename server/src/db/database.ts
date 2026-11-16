@@ -68,7 +68,7 @@ export interface SubscriptionPageSettings {
 
 export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   brandName: 'XProtocol',
-  publicAddress: '127.0.0.1',
+  publicAddress: process.env.XPROTOCOL_PUBLIC_IP || '127.0.0.1',
   subscriptionLinkAddress: '',
   supportTelegram: '',
   defaultSubLanguage: 'en',
@@ -483,8 +483,8 @@ export function initDatabase(): { initialPasswordGenerated?: string } {
   if (nodeCount === 0) {
     db.prepare(
       `INSERT INTO nodes (is_local, name, address, port, node_key, multiplier, enabled, status, last_seen_at, cpu_pct, mem_pct, disk_pct, uptime_sec)
-       VALUES (1, 'This server', '127.0.0.1', 62060, ?, 1.0, 1, 'connected', ?, 14.2, 32.8, 24.5, 432100)`,
-    ).run(crypto.randomBytes(16).toString('hex'), now);
+       VALUES (1, 'This server', ?, 62060, ?, 1.0, 1, 'connected', ?, 14.2, 32.8, 24.5, 432100)`,
+    ).run(process.env.XPROTOCOL_PUBLIC_IP || '127.0.0.1', crypto.randomBytes(16).toString('hex'), now);
 
     // Seed internal XProtocol CA certificate
     const caExpiry = new Date(Date.now() + 3650 * 86400_000).toISOString();

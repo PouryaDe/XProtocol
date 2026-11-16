@@ -1,10 +1,27 @@
 import { getDb } from '../db/database.js';
-import { disconnectLinuxPeer, syncL2tpSecrets, syncLinuxInboundPeers } from '../drivers/linuxEngine.js';
+import { applyLinuxInbound, disconnectLinuxPeer, syncL2tpSecrets, syncLinuxInboundPeers } from '../drivers/linuxEngine.js';
 import type { InboundRow } from '../generators/configs.js';
 import { getEligiblePeersForInbound } from './peerResolver.js';
 
 let syncInFlight: Promise<void> | null = null;
 let syncQueued = false;
+
+/** Reconcile and start all enabled/running local inbounds on panel startup (Ubuntu Linux). */
+export async function reconcileRunningInboundsOnBoot(): Promise<void> {
+  if (process.platform !== 'linux') return;
+  const db = getDb();
+  const rows = db
+    .prepare(
+      `SELECT i.* FROM inbounds i
+       JOIN nodes n ON n.id = i.node_id
+       WHERE i.running = 1 AND i.enabled = 1 AND n.is_local = 1`,
+    )
+    .all() as unknown as InboundRow[];
+  for (const ib of rows) {
+    const peers = getEligiblePeersForInbound(ib.id, ib.subnet);
+    await applyLinuxInbound(ib, peers, 'start').catch(() => undefined);
+  }
+}
 
 async function runSyncPass(): Promise<void> {
   const db = getDb();

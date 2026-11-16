@@ -608,7 +608,9 @@ export function createClientRouter(): Router {
     }
     const general = getSetting('general', DEFAULT_GENERAL_SETTINGS);
     const connectAddrs = JSON.parse(inbound.connect_addresses_json || '[]') as string[];
-    const endpointHost = connectAddrs[0] || (inbound.node_address !== '127.0.0.1' ? inbound.node_address : general.publicAddress);
+    const rawHost = connectAddrs[0] || (inbound.node_address !== '127.0.0.1' ? inbound.node_address : general.publicAddress);
+    const reqHost = req.hostname && req.hostname !== 'localhost' && req.hostname !== '127.0.0.1' ? req.hostname : '';
+    const endpointHost = !rawHost || rawHost === '127.0.0.1' ? reqHost || rawHost || '127.0.0.1' : rawHost;
 
     const profile = generateClientProfile({
       clientName: String(client.name),

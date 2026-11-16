@@ -35,7 +35,9 @@ export NEEDRESTART_MODE=a
 export NEEDRESTART_SUSPEND=1
 echo "  Installing WireGuard, OpenVPN, OpenConnect, strongSwan, xl2tpd..."
 apt-get update -qq >/dev/null 2>&1
-apt-get install -y -qq wireguard wireguard-tools openvpn ocserv strongswan strongswan-pki xl2tpd iptables ufw curl >/dev/null 2>&1
+apt-get install -y -qq wireguard wireguard-tools openvpn ocserv strongswan strongswan-swanctl strongswan-pki libcharon-extra-plugins xl2tpd ppp iptables ufw curl >/dev/null 2>&1
+systemctl stop ocserv.socket ocserv.service xl2tpd.service >/dev/null 2>&1 || true
+systemctl disable ocserv.socket ocserv.service xl2tpd.service >/dev/null 2>&1 || true
 
 cat >/etc/sysctl.d/99-xprotocol-node.conf <<'EOF'
 net.ipv4.ip_forward = 1

@@ -277,6 +277,8 @@ export async function ensureInboundTlsCertFiles(
   }
 
   if (!fs.existsSync(certPath) || !fs.existsSync(keyPath)) {
+    const isIpv4 = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(fallbackHost);
+    const san = isIpv4 ? `IP:${fallbackHost},DNS:${fallbackHost}` : `DNS:${fallbackHost}`;
     const ok = await runOpenSsl([
       'req',
       '-x509',
@@ -288,7 +290,7 @@ export async function ensureInboundTlsCertFiles(
       '-subj',
       `/CN=${fallbackHost}`,
       '-addext',
-      `subjectAltName=DNS:${fallbackHost}`,
+      `subjectAltName=${san}`,
       '-keyout',
       keyPath,
       '-out',

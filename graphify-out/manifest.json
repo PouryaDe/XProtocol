@@ -30,15 +30,15 @@
     "semantic_hash": ""
   },
   "server/src/db/database.ts": {
-    "mtime": 1794710456.9302094,
-    "seen": 1794711687.6310897,
-    "ast_hash": "f7c223fe4c85d0e40e97a3981c88d64a",
+    "mtime": 1794827248.694088,
+    "seen": 1794827958.7329183,
+    "ast_hash": "47705a478d770a73041723a04c655ce3",
     "semantic_hash": ""
   },
   "server/src/drivers/linuxEngine.ts": {
-    "mtime": 1794826310.3617735,
-    "seen": 1794826976.9114552,
-    "ast_hash": "3179ee4a11bd7c751a9b558aa737a871",
+    "mtime": 1794827452.844917,
+    "seen": 1794827958.7329192,
+    "ast_hash": "bc39361b30e708fc78ce132fc79f7091",
     "semantic_hash": ""
   },
   "server/src/drivers/runtime.ts": {
@@ -48,15 +48,15 @@
     "semantic_hash": "5345a83af155d4f37ecce2f846642301"
   },
   "server/src/generators/configs.ts": {
-    "mtime": 1794826221.9983573,
-    "seen": 1794826976.9114587,
-    "ast_hash": "e2e6f8d17d549ddabc49d82b4b40ab81",
+    "mtime": 1794827359.872824,
+    "seen": 1794827958.732922,
+    "ast_hash": "7324928b22815a08fffb7e0fc7baf0c2",
     "semantic_hash": ""
   },
   "server/src/generators/profiles.ts": {
-    "mtime": 1794826226.3839705,
-    "seen": 1794826976.9114597,
-    "ast_hash": "f08dd1a9afaad02b4a5647e7daf811bc",
+    "mtime": 1794827363.497784,
+    "seen": 1794827958.7329228,
+    "ast_hash": "5ecb932966701c5f9fd236d17c5817b9",
     "semantic_hash": ""
   },
   "server/src/index.ts": {
@@ -84,9 +84,9 @@
     "semantic_hash": "68d920454e8176cd5e226440417fd236"
   },
   "server/src/routes/clientRoutes.ts": {
-    "mtime": 1794826620.3063757,
-    "seen": 1794826976.9114645,
-    "ast_hash": "00950816316db8e0df84502e223946cf",
+    "mtime": 1794827573.7491152,
+    "seen": 1794827958.732927,
+    "ast_hash": "6ce421f638dcc89bcaa3cd85d1f3d6f5",
     "semantic_hash": ""
   },
   "server/src/routes/connectionRoutes.ts": {
@@ -108,15 +108,15 @@
     "semantic_hash": "c0247b941c1c8619a42124c9a77b8d9b"
   },
   "server/src/routes/groupRoutes.ts": {
-    "mtime": 1794826628.583853,
-    "seen": 1794826976.9114683,
-    "ast_hash": "dfef3b800a97e803a84b1acd9bce2c1d",
+    "mtime": 1794827633.1895208,
+    "seen": 1794827958.7329304,
+    "ast_hash": "546365f29236c82ebe7b29f11942ee5a",
     "semantic_hash": ""
   },
   "server/src/routes/inboundRoutes.ts": {
-    "mtime": 1794826457.0746832,
-    "seen": 1794826976.911469,
-    "ast_hash": "4c70e7e3ba9a527949c4db94cc638934",
+    "mtime": 1794827553.6340005,
+    "seen": 1794827958.732931,
+    "ast_hash": "46a174b7f972ff79d35bc6ce9d12ec72",
     "semantic_hash": ""
   },
   "server/src/routes/nodeRoutes.ts": {
@@ -168,9 +168,9 @@
     "semantic_hash": "153527cd30e6a57cbfef71071fa94a43"
   },
   "server/src/services/collector.ts": {
-    "mtime": 1794826367.511761,
-    "seen": 1794826976.9114783,
-    "ast_hash": "d455e670f97e30297e686ccfe9d56f6e",
+    "mtime": 1794827501.9850543,
+    "seen": 1794827958.7329392,
+    "ast_hash": "615642a2cb3e599940a923ccfbbf0aa2",
     "semantic_hash": ""
   },
   "server/src/services/telegramBackup.ts": {
@@ -180,9 +180,9 @@
     "semantic_hash": ""
   },
   "server/tests/api.test.ts": {
-    "mtime": 1794826820.9042552,
-    "seen": 1794826976.9114828,
-    "ast_hash": "dd8bfe4786623b07cb02d5c1857aac9b",
+    "mtime": 1794827781.071695,
+    "seen": 1794827958.7329435,
+    "ast_hash": "a21fd30734b0530b971b4ac430111b82",
     "semantic_hash": ""
   },
   "server/tsconfig.json": {
@@ -378,9 +378,9 @@
     "semantic_hash": ""
   },
   "AGENTS.md": {
-    "mtime": 1794710319.8114834,
-    "seen": 1794711687.6311429,
-    "ast_hash": "50367b9dac5e6b55ca80442074e56d54",
+    "mtime": 1794827688.9233122,
+    "seen": 1794827958.7329776,
+    "ast_hash": "8a67ae2ee6aea69e501b8e5f5d8eb8ce",
     "semantic_hash": ""
   },
   "deploy/xprotocol-cli.sh": {
@@ -396,9 +396,9 @@
     "semantic_hash": ""
   },
   ".agents/rules/xprotocol-architecture.md": {
-    "mtime": 1794710321.9745045,
-    "seen": 1794711687.631142,
-    "ast_hash": "77ea2ca8a8123dd990bc5f509fdd0bfb",
+    "mtime": 1794827702.014609,
+    "seen": 1794827958.7329772,
+    "ast_hash": "35572eb8a139e85f74aabeb0ac1e1a46",
     "semantic_hash": ""
   },
   "web/src/lib/router.ts": {
@@ -474,21 +474,27 @@
     "semantic_hash": ""
   },
   "server/src/drivers/pki.ts": {
-    "mtime": 1794826135.4580445,
-    "seen": 1794826976.9114566,
-    "ast_hash": "b3dbf4e048062f9788ab1dc848885f5c",
+    "mtime": 1794827292.3748236,
+    "seen": 1794827958.7329204,
+    "ast_hash": "a29db4c2d9ad51690e51f7c840a5457a",
     "semantic_hash": ""
   },
   "server/src/services/peerResolver.ts": {
-    "mtime": 1794826085.486127,
-    "seen": 1794826976.9114788,
-    "ast_hash": "20e9acb11ce06f6d38bcf2dd7c460766",
+    "mtime": 1794827252.223604,
+    "seen": 1794827958.73294,
+    "ast_hash": "bc9cc8906d75cab36325a7ad824bc2ac",
     "semantic_hash": ""
   },
   "server/src/services/syncService.ts": {
-    "mtime": 1794826365.0258627,
-    "seen": 1794826976.9114797,
-    "ast_hash": "1cc90d2dd4613e61b05a08f49c682848",
+    "mtime": 1794827496.5648282,
+    "seen": 1794827958.7329412,
+    "ast_hash": "ef7a98ea8c46dff145fcd3bb991ca425",
+    "semantic_hash": ""
+  },
+  "server/tests/engine.test.ts": {
+    "mtime": 1794827685.9407313,
+    "seen": 1794827958.7329445,
+    "ast_hash": "9375d08f5256cc94ee6bd8b3c8b05015",
     "semantic_hash": ""
   }
 }

@@ -81,9 +81,11 @@ export function createSubRouter(): Router {
       await ensureClientCertificate(String(client.name)).catch(() => null);
     }
 
+    const reqHost = req.hostname && req.hostname !== 'localhost' && req.hostname !== '127.0.0.1' ? req.hostname : '';
     const profiles = assignedInbounds.map((ib) => {
       const connectAddrs = JSON.parse(ib.connect_addresses_json || '[]') as string[];
-      const host = connectAddrs[0] || (ib.node_address !== '127.0.0.1' ? ib.node_address : general.publicAddress);
+      const rawHost = connectAddrs[0] || (ib.node_address !== '127.0.0.1' ? ib.node_address : general.publicAddress);
+      const host = !rawHost || rawHost === '127.0.0.1' ? reqHost || rawHost || '127.0.0.1' : rawHost;
       const gen = generateClientProfile({
         clientName: String(client.name),
         vpnPassword: String(client.vpn_password),
@@ -177,7 +179,9 @@ export function createSubRouter(): Router {
     }
     const general = getSetting('general', DEFAULT_GENERAL_SETTINGS);
     const connectAddrs = JSON.parse(inbound.connect_addresses_json || '[]') as string[];
-    const host = connectAddrs[0] || (inbound.node_address !== '127.0.0.1' ? inbound.node_address : general.publicAddress);
+    const reqHost = req.hostname && req.hostname !== 'localhost' && req.hostname !== '127.0.0.1' ? req.hostname : '';
+    const rawHost = connectAddrs[0] || (inbound.node_address !== '127.0.0.1' ? inbound.node_address : general.publicAddress);
+    const host = !rawHost || rawHost === '127.0.0.1' ? reqHost || rawHost || '127.0.0.1' : rawHost;
 
     const gen = generateClientProfile({
       clientName: String(client.name),
