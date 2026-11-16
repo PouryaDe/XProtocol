@@ -33,10 +33,13 @@ function formatTemplateFilename(
   const resolved = raw
     .replace(/\{inbound\}/g, vars.inbound)
     .replace(/\{client\}/g, vars.client)
+    .replace(/\{username\}/g, vars.client)
+    .replace(/\{device\}/g, 'device')
     .replace(/\{node\}/g, vars.node)
     .replace(/\{kind\}/g, vars.kind)
-    .replace(/[^a-zA-Z0-9._-]+/g, '-');
-  return `${resolved}.${ext}`;
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^[.-]+|[.-]+$/g, '');
+  return `${resolved || `${vars.client}-${vars.inbound}`}.${ext}`;
 }
 
 export function generateClientProfile(p: ClientProfileParams): {

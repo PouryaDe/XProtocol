@@ -888,6 +888,19 @@
       "source_location": "L2"
     },
     {
+      "id": "server_src_services_peerresolver_parsedcidr",
+      "label": "ParsedCidr",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "parsedcidr",
+      "source_file": "server/src/services/peerResolver.ts",
+      "source_location": "L4"
+    },
+    {
       "id": "server_src_services_telegrambackup_telegrambackupsettings",
       "label": "TelegramBackupSettings",
       "_callable": true,
@@ -898,6 +911,71 @@
       "file_type": "code",
       "norm_label": "telegrambackupsettings",
       "source_file": "server/src/services/telegramBackup.ts",
+      "source_location": "L7"
+    },
+    {
+      "id": "server_src_generators_configs_inboundrouteoverride",
+      "label": "InboundRouteOverride",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "configs.ts",
+      "file_type": "code",
+      "norm_label": "inboundrouteoverride",
+      "source_file": "server/src/generators/configs.ts",
+      "source_location": "L491"
+    },
+    {
+      "id": "server_src_generators_configs_inboundrow",
+      "label": "InboundRow",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "configs.ts",
+      "file_type": "code",
+      "norm_label": "inboundrow",
+      "source_file": "server/src/generators/configs.ts",
+      "source_location": "L5"
+    },
+    {
+      "id": "server_src_generators_configs_renderedconfigfile",
+      "label": "RenderedConfigFile",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "configs.ts",
+      "file_type": "code",
+      "norm_label": "renderedconfigfile",
+      "source_file": "server/src/generators/configs.ts",
+      "source_location": "L34"
+    },
+    {
+      "id": "server_src_generators_configs_routingrule",
+      "label": "RoutingRule",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "configs.ts",
+      "file_type": "code",
+      "norm_label": "routingrule",
+      "source_file": "server/src/generators/configs.ts",
+      "source_location": "L476"
+    },
+    {
+      "id": "server_src_generators_profiles_clientprofileparams",
+      "label": "ClientProfileParams",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "configs.ts",
+      "file_type": "code",
+      "norm_label": "clientprofileparams",
+      "source_file": "server/src/generators/profiles.ts",
       "source_location": "L7"
     },
     {
@@ -1083,6 +1161,84 @@
       "source_location": "L111"
     },
     {
+      "id": "server_src_drivers_runtime_hoststats",
+      "label": "HostStats",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 17,
+      "community_name": "runtime.ts",
+      "file_type": "code",
+      "norm_label": "hoststats",
+      "source_file": "server/src/drivers/runtime.ts",
+      "source_location": "L7"
+    },
+    {
+      "id": "server_src_generators_configs_peerentry",
+      "label": "PeerEntry",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 17,
+      "community_name": "runtime.ts",
+      "file_type": "code",
+      "norm_label": "peerentry",
+      "source_file": "server/src/generators/configs.ts",
+      "source_location": "L24"
+    },
+    {
+      "id": "server_src_services_updater_persistedupdatemeta",
+      "label": "PersistedUpdateMeta",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 2,
+      "community_name": "updater.ts",
+      "file_type": "code",
+      "norm_label": "persistedupdatemeta",
+      "source_file": "server/src/services/updater.ts",
+      "source_location": "L78"
+    },
+    {
+      "id": "server_src_services_updater_releaseentry",
+      "label": "ReleaseEntry",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 2,
+      "community_name": "updater.ts",
+      "file_type": "code",
+      "norm_label": "releaseentry",
+      "source_file": "server/src/services/updater.ts",
+      "source_location": "L50"
+    },
+    {
+      "id": "server_src_services_updater_updatestate",
+      "label": "UpdateState",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 2,
+      "community_name": "updater.ts",
+      "file_type": "code",
+      "norm_label": "updatestate",
+      "source_file": "server/src/services/updater.ts",
+      "source_location": "L61"
+    },
+    {
+      "id": "server_src_services_updater_updatestep",
+      "label": "UpdateStep",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 2,
+      "community_name": "updater.ts",
+      "file_type": "code",
+      "norm_label": "updatestep",
+      "source_file": "server/src/services/updater.ts",
+      "source_location": "L59"
+    },
+    {
       "id": "server_src_drivers_linuxengine_livetunnelsample",
       "label": "LiveTunnelSample",
       "_callable": true,
@@ -1122,84 +1278,6 @@
       "source_location": "L25"
     },
     {
-      "id": "server_src_drivers_runtime_hoststats",
-      "label": "HostStats",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "hoststats",
-      "source_file": "server/src/drivers/runtime.ts",
-      "source_location": "L7"
-    },
-    {
-      "id": "server_src_generators_configs_inboundrow",
-      "label": "InboundRow",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "inboundrow",
-      "source_file": "server/src/generators/configs.ts",
-      "source_location": "L5"
-    },
-    {
-      "id": "server_src_generators_configs_peerentry",
-      "label": "PeerEntry",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "peerentry",
-      "source_file": "server/src/generators/configs.ts",
-      "source_location": "L24"
-    },
-    {
-      "id": "server_src_generators_configs_renderedconfigfile",
-      "label": "RenderedConfigFile",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "renderedconfigfile",
-      "source_file": "server/src/generators/configs.ts",
-      "source_location": "L34"
-    },
-    {
-      "id": "server_src_generators_profiles_clientprofileparams",
-      "label": "ClientProfileParams",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "clientprofileparams",
-      "source_file": "server/src/generators/profiles.ts",
-      "source_location": "L7"
-    },
-    {
-      "id": "server_src_services_peerresolver_parsedcidr",
-      "label": "ParsedCidr",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "parsedcidr",
-      "source_file": "server/src/services/peerResolver.ts",
-      "source_location": "L4"
-    },
-    {
       "id": "web_src_components_donutchart_segment",
       "label": "Segment",
       "_callable": true,
@@ -1213,107 +1291,17 @@
       "source_location": "L1"
     },
     {
-      "id": "server_src_generators_configs_inboundrouteoverride",
-      "label": "InboundRouteOverride",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "routingRoutes.ts",
-      "file_type": "code",
-      "norm_label": "inboundrouteoverride",
-      "source_file": "server/src/generators/configs.ts",
-      "source_location": "L491"
-    },
-    {
-      "id": "server_src_generators_configs_routingrule",
-      "label": "RoutingRule",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "routingRoutes.ts",
-      "file_type": "code",
-      "norm_label": "routingrule",
-      "source_file": "server/src/generators/configs.ts",
-      "source_location": "L476"
-    },
-    {
-      "id": "server_src_services_updater_persistedupdatemeta",
-      "label": "PersistedUpdateMeta",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 7,
-      "community_name": "updater.ts",
-      "file_type": "code",
-      "norm_label": "persistedupdatemeta",
-      "source_file": "server/src/services/updater.ts",
-      "source_location": "L58"
-    },
-    {
-      "id": "server_src_services_updater_releaseentry",
-      "label": "ReleaseEntry",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 7,
-      "community_name": "updater.ts",
-      "file_type": "code",
-      "norm_label": "releaseentry",
-      "source_file": "server/src/services/updater.ts",
-      "source_location": "L30"
-    },
-    {
       "id": "server_src_services_updater_updatesettings",
       "label": "UpdateSettings",
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
       "community": 7,
-      "community_name": "updater.ts",
+      "community_name": "updateRoutes.ts",
       "file_type": "code",
       "norm_label": "updatesettings",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L16"
-    },
-    {
-      "id": "server_src_services_updater_updatestate",
-      "label": "UpdateState",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 7,
-      "community_name": "updater.ts",
-      "file_type": "code",
-      "norm_label": "updatestate",
-      "source_file": "server/src/services/updater.ts",
-      "source_location": "L41"
-    },
-    {
-      "id": "server_src_services_updater_updatestep",
-      "label": "UpdateStep",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 7,
-      "community_name": "updater.ts",
-      "file_type": "code",
-      "norm_label": "updatestep",
-      "source_file": "server/src/services/updater.ts",
-      "source_location": "L39"
-    },
-    {
-      "id": "web_src_components_modal_modal",
-      "label": "Modal()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "RoutingPage.tsx",
-      "file_type": "code",
-      "norm_label": "modal()",
-      "source_file": "web/src/components/Modal.tsx",
-      "source_location": "L13"
+      "source_location": "L36"
     },
     {
       "id": "web_src_components_routingmodals_defaultportforproto",
@@ -1328,18 +1316,6 @@
       "source_location": "L96"
     },
     {
-      "id": "web_src_components_routingmodals_nordvpnmodal",
-      "label": "NordVpnModal()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "RoutingPage.tsx",
-      "file_type": "code",
-      "norm_label": "nordvpnmodal()",
-      "source_file": "web/src/components/RoutingModals.tsx",
-      "source_location": "L1527"
-    },
-    {
       "id": "web_src_components_routingmodals_outboundmodal",
       "label": "OutboundModal()",
       "_callable": true,
@@ -1350,18 +1326,6 @@
       "norm_label": "outboundmodal()",
       "source_file": "web/src/components/RoutingModals.tsx",
       "source_location": "L803"
-    },
-    {
-      "id": "web_src_components_routingmodals_psiphonmodal",
-      "label": "PsiphonModal()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "RoutingPage.tsx",
-      "file_type": "code",
-      "norm_label": "psiphonmodal()",
-      "source_file": "web/src/components/RoutingModals.tsx",
-      "source_location": "L1712"
     },
     {
       "id": "web_src_components_routingmodals_rulemodal",
@@ -1424,18 +1388,6 @@
       "source_location": "L247"
     },
     {
-      "id": "web_src_components_routingmodals_testmodal",
-      "label": "TestModal()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "RoutingPage.tsx",
-      "file_type": "code",
-      "norm_label": "testmodal()",
-      "source_file": "web/src/components/RoutingModals.tsx",
-      "source_location": "L637"
-    },
-    {
       "id": "web_src_components_routingmodals_validateports",
       "label": "validatePorts()",
       "_callable": true,
@@ -1446,42 +1398,6 @@
       "norm_label": "validateports()",
       "source_file": "web/src/components/RoutingModals.tsx",
       "source_location": "L122"
-    },
-    {
-      "id": "web_src_components_routingmodals_warpmodal",
-      "label": "WarpModal()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "RoutingPage.tsx",
-      "file_type": "code",
-      "norm_label": "warpmodal()",
-      "source_file": "web/src/components/RoutingModals.tsx",
-      "source_location": "L1310"
-    },
-    {
-      "id": "web_src_components_uiprimitives_actionmenu",
-      "label": "ActionMenu()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "RoutingPage.tsx",
-      "file_type": "code",
-      "norm_label": "actionmenu()",
-      "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L485"
-    },
-    {
-      "id": "web_src_components_uiprimitives_segmented",
-      "label": "Segmented()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "RoutingPage.tsx",
-      "file_type": "code",
-      "norm_label": "segmented()",
-      "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L278"
     },
     {
       "id": "web_src_lib_routingtypes_formatprotocollabel",
@@ -1566,18 +1482,6 @@
       "norm_label": "parseactionencode()",
       "source_file": "web/src/pages/RoutingPage.tsx",
       "source_location": "L70"
-    },
-    {
-      "id": "web_src_pages_routingpage_routingpage",
-      "label": "RoutingPage()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "RoutingPage.tsx",
-      "file_type": "code",
-      "norm_label": "routingpage()",
-      "source_file": "web/src/pages/RoutingPage.tsx",
-      "source_location": "L79"
     },
     {
       "id": "web_src_components_inboundsubforms_deploymentnodespanel",
@@ -1844,6 +1748,162 @@
       "source_location": "L90"
     },
     {
+      "id": "server_src_config_formatmachineid",
+      "label": "formatMachineId()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "pki.ts",
+      "file_type": "code",
+      "norm_label": "formatmachineid()",
+      "source_file": "server/src/config.ts",
+      "source_location": "L21"
+    },
+    {
+      "id": "server_src_config_getdatadir",
+      "label": "getDataDir()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "pki.ts",
+      "file_type": "code",
+      "norm_label": "getdatadir()",
+      "source_file": "server/src/config.ts",
+      "source_location": "L36"
+    },
+    {
+      "id": "server_src_config_loadruntimeconfig",
+      "label": "loadRuntimeConfig()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "pki.ts",
+      "file_type": "code",
+      "norm_label": "loadruntimeconfig()",
+      "source_file": "server/src/config.ts",
+      "source_location": "L45"
+    },
+    {
+      "id": "server_src_config_normalizesecretpath",
+      "label": "normalizeSecretPath()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "pki.ts",
+      "file_type": "code",
+      "norm_label": "normalizesecretpath()",
+      "source_file": "server/src/config.ts",
+      "source_location": "L26"
+    },
+    {
+      "id": "server_src_config_normalizesubpath",
+      "label": "normalizeSubPath()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "pki.ts",
+      "file_type": "code",
+      "norm_label": "normalizesubpath()",
+      "source_file": "server/src/config.ts",
+      "source_location": "L31"
+    },
+    {
+      "id": "server_src_config_saveruntimeconfig",
+      "label": "saveRuntimeConfig()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "pki.ts",
+      "file_type": "code",
+      "norm_label": "saveruntimeconfig()",
+      "source_file": "server/src/config.ts",
+      "source_location": "L80"
+    },
+    {
+      "id": "server_src_drivers_pki_ensureinboundtlscertfiles",
+      "label": "ensureInboundTlsCertFiles()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "pki.ts",
+      "file_type": "code",
+      "norm_label": "ensureinboundtlscertfiles()",
+      "source_file": "server/src/drivers/pki.ts",
+      "source_location": "L247"
+    },
+    {
+      "id": "server_src_drivers_pki_generateopenvpnstatickey",
+      "label": "generateOpenVpnStaticKey()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "pki.ts",
+      "file_type": "code",
+      "norm_label": "generateopenvpnstatickey()",
+      "source_file": "server/src/drivers/pki.ts",
+      "source_location": "L36"
+    },
+    {
+      "id": "server_src_drivers_pki_getauthdir",
+      "label": "getAuthDir()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "pki.ts",
+      "file_type": "code",
+      "norm_label": "getauthdir()",
+      "source_file": "server/src/drivers/pki.ts",
+      "source_location": "L24"
+    },
+    {
+      "id": "server_src_drivers_pki_getbindir",
+      "label": "getBinDir()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "pki.ts",
+      "file_type": "code",
+      "norm_label": "getbindir()",
+      "source_file": "server/src/drivers/pki.ts",
+      "source_location": "L30"
+    },
+    {
+      "id": "server_src_drivers_pki_getcertsdir",
+      "label": "getCertsDir()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "pki.ts",
+      "file_type": "code",
+      "norm_label": "getcertsdir()",
+      "source_file": "server/src/drivers/pki.ts",
+      "source_location": "L18"
+    },
+    {
+      "id": "server_src_drivers_pki_runopenssl",
+      "label": "runOpenSsl()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "pki.ts",
+      "file_type": "code",
+      "norm_label": "runopenssl()",
+      "source_file": "server/src/drivers/pki.ts",
+      "source_location": "L51"
+    },
+    {
+      "id": "server_src_drivers_pki_syncopenvpnauthscript",
+      "label": "syncOpenVpnAuthScript()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "pki.ts",
+      "file_type": "code",
+      "norm_label": "syncopenvpnauthscript()",
+      "source_file": "server/src/drivers/pki.ts",
+      "source_location": "L213"
+    },
+    {
       "id": "web_src_app_app",
       "label": "App()",
       "_callable": true,
@@ -1904,6 +1964,18 @@
       "source_location": "L81"
     },
     {
+      "id": "web_src_components_modal_modal",
+      "label": "Modal()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 13,
+      "community_name": "App.tsx",
+      "file_type": "code",
+      "norm_label": "modal()",
+      "source_file": "web/src/components/Modal.tsx",
+      "source_location": "L13"
+    },
+    {
       "id": "web_src_components_qrcode_qrcode",
       "label": "QrCode()",
       "_callable": true,
@@ -1914,6 +1986,54 @@
       "norm_label": "qrcode()",
       "source_file": "web/src/components/QrCode.tsx",
       "source_location": "L4"
+    },
+    {
+      "id": "web_src_components_routingmodals_nordvpnmodal",
+      "label": "NordVpnModal()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 13,
+      "community_name": "App.tsx",
+      "file_type": "code",
+      "norm_label": "nordvpnmodal()",
+      "source_file": "web/src/components/RoutingModals.tsx",
+      "source_location": "L1527"
+    },
+    {
+      "id": "web_src_components_routingmodals_psiphonmodal",
+      "label": "PsiphonModal()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 13,
+      "community_name": "App.tsx",
+      "file_type": "code",
+      "norm_label": "psiphonmodal()",
+      "source_file": "web/src/components/RoutingModals.tsx",
+      "source_location": "L1712"
+    },
+    {
+      "id": "web_src_components_routingmodals_testmodal",
+      "label": "TestModal()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 13,
+      "community_name": "App.tsx",
+      "file_type": "code",
+      "norm_label": "testmodal()",
+      "source_file": "web/src/components/RoutingModals.tsx",
+      "source_location": "L637"
+    },
+    {
+      "id": "web_src_components_routingmodals_warpmodal",
+      "label": "WarpModal()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 13,
+      "community_name": "App.tsx",
+      "file_type": "code",
+      "norm_label": "warpmodal()",
+      "source_file": "web/src/components/RoutingModals.tsx",
+      "source_location": "L1310"
     },
     {
       "id": "web_src_components_trafficchart_nicescale",
@@ -1938,6 +2058,18 @@
       "norm_label": "trafficchart()",
       "source_file": "web/src/components/TrafficChart.tsx",
       "source_location": "L19"
+    },
+    {
+      "id": "web_src_components_uiprimitives_actionmenu",
+      "label": "ActionMenu()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 13,
+      "community_name": "App.tsx",
+      "file_type": "code",
+      "norm_label": "actionmenu()",
+      "source_file": "web/src/components/UiPrimitives.tsx",
+      "source_location": "L485"
     },
     {
       "id": "web_src_components_uiprimitives_ambient",
@@ -2034,6 +2166,18 @@
       "norm_label": "pagehead()",
       "source_file": "web/src/components/UiPrimitives.tsx",
       "source_location": "L368"
+    },
+    {
+      "id": "web_src_components_uiprimitives_segmented",
+      "label": "Segmented()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 13,
+      "community_name": "App.tsx",
+      "file_type": "code",
+      "norm_label": "segmented()",
+      "source_file": "web/src/components/UiPrimitives.tsx",
+      "source_location": "L278"
     },
     {
       "id": "web_src_components_uiprimitives_select",
@@ -2540,6 +2684,18 @@
       "source_location": "L102"
     },
     {
+      "id": "web_src_pages_routingpage_routingpage",
+      "label": "RoutingPage()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 13,
+      "community_name": "App.tsx",
+      "file_type": "code",
+      "norm_label": "routingpage()",
+      "source_file": "web/src/pages/RoutingPage.tsx",
+      "source_location": "L79"
+    },
+    {
       "id": "web_src_pages_settingspage_settingspage",
       "label": "SettingsPage()",
       "_callable": true,
@@ -2576,30 +2732,6 @@
       "source_location": "L54"
     },
     {
-      "id": "server_src_config_formatmachineid",
-      "label": "formatMachineId()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 14,
-      "community_name": "getDb",
-      "file_type": "code",
-      "norm_label": "formatmachineid()",
-      "source_file": "server/src/config.ts",
-      "source_location": "L21"
-    },
-    {
-      "id": "server_src_config_getdatadir",
-      "label": "getDataDir()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 14,
-      "community_name": "getDb",
-      "file_type": "code",
-      "norm_label": "getdatadir()",
-      "source_file": "server/src/config.ts",
-      "source_location": "L36"
-    },
-    {
       "id": "server_src_config_getdbpath",
       "label": "getDbPath()",
       "_callable": true,
@@ -2610,54 +2742,6 @@
       "norm_label": "getdbpath()",
       "source_file": "server/src/config.ts",
       "source_location": "L41"
-    },
-    {
-      "id": "server_src_config_loadruntimeconfig",
-      "label": "loadRuntimeConfig()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 14,
-      "community_name": "getDb",
-      "file_type": "code",
-      "norm_label": "loadruntimeconfig()",
-      "source_file": "server/src/config.ts",
-      "source_location": "L45"
-    },
-    {
-      "id": "server_src_config_normalizesecretpath",
-      "label": "normalizeSecretPath()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 14,
-      "community_name": "getDb",
-      "file_type": "code",
-      "norm_label": "normalizesecretpath()",
-      "source_file": "server/src/config.ts",
-      "source_location": "L26"
-    },
-    {
-      "id": "server_src_config_normalizesubpath",
-      "label": "normalizeSubPath()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 14,
-      "community_name": "getDb",
-      "file_type": "code",
-      "norm_label": "normalizesubpath()",
-      "source_file": "server/src/config.ts",
-      "source_location": "L31"
-    },
-    {
-      "id": "server_src_config_saveruntimeconfig",
-      "label": "saveRuntimeConfig()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 14,
-      "community_name": "getDb",
-      "file_type": "code",
-      "norm_label": "saveruntimeconfig()",
-      "source_file": "server/src/config.ts",
-      "source_location": "L80"
     },
     {
       "id": "server_src_db_database_getdb",
@@ -2694,6 +2778,54 @@
       "norm_label": "initdatabase()",
       "source_file": "server/src/db/database.ts",
       "source_location": "L161"
+    },
+    {
+      "id": "server_src_db_database_setsetting",
+      "label": "setSetting()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "setsetting()",
+      "source_file": "server/src/db/database.ts",
+      "source_location": "L154"
+    },
+    {
+      "id": "server_src_drivers_pki_ensureclientcertificate",
+      "label": "ensureClientCertificate()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "ensureclientcertificate()",
+      "source_file": "server/src/drivers/pki.ts",
+      "source_location": "L144"
+    },
+    {
+      "id": "server_src_drivers_pki_ensureopenvpnpki",
+      "label": "ensureOpenVpnPki()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "ensureopenvpnpki()",
+      "source_file": "server/src/drivers/pki.ts",
+      "source_location": "L60"
+    },
+    {
+      "id": "server_src_drivers_pki_getpkidir",
+      "label": "getPkiDir()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "getpkidir()",
+      "source_file": "server/src/drivers/pki.ts",
+      "source_location": "L12"
     },
     {
       "id": "server_src_drivers_runtime_applyinboundruntime",
@@ -3200,6 +3332,150 @@
       "source_location": "L3"
     },
     {
+      "id": "server_src_services_collector_computenextresetiso",
+      "label": "computeNextResetIso()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "computenextresetiso()",
+      "source_file": "server/src/services/collector.ts",
+      "source_location": "L10"
+    },
+    {
+      "id": "server_src_services_collector_runcollectortick",
+      "label": "runCollectorTick()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "runcollectortick()",
+      "source_file": "server/src/services/collector.ts",
+      "source_location": "L69"
+    },
+    {
+      "id": "server_src_services_collector_runperiodicresets",
+      "label": "runPeriodicResets()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "runperiodicresets()",
+      "source_file": "server/src/services/collector.ts",
+      "source_location": "L30"
+    },
+    {
+      "id": "server_src_services_collector_startcollectorloop",
+      "label": "startCollectorLoop()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "startcollectorloop()",
+      "source_file": "server/src/services/collector.ts",
+      "source_location": "L232"
+    },
+    {
+      "id": "server_src_services_collector_stopcollectorloop",
+      "label": "stopCollectorLoop()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "stopcollectorloop()",
+      "source_file": "server/src/services/collector.ts",
+      "source_location": "L239"
+    },
+    {
+      "id": "server_src_services_peerresolver_allocatetunnelip",
+      "label": "allocateTunnelIp()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "allocatetunnelip()",
+      "source_file": "server/src/services/peerResolver.ts",
+      "source_location": "L60"
+    },
+    {
+      "id": "server_src_services_peerresolver_geteligiblepeersforinbound",
+      "label": "getEligiblePeersForInbound()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "geteligiblepeersforinbound()",
+      "source_file": "server/src/services/peerResolver.ts",
+      "source_location": "L125"
+    },
+    {
+      "id": "server_src_services_peerresolver_inttoip",
+      "label": "intToIp()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "inttoip()",
+      "source_file": "server/src/services/peerResolver.ts",
+      "source_location": "L30"
+    },
+    {
+      "id": "server_src_services_peerresolver_iptoint",
+      "label": "ipToInt()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "iptoint()",
+      "source_file": "server/src/services/peerResolver.ts",
+      "source_location": "L23"
+    },
+    {
+      "id": "server_src_services_peerresolver_isclientactivequota",
+      "label": "isClientActiveQuota()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "isclientactivequota()",
+      "source_file": "server/src/services/peerResolver.ts",
+      "source_location": "L95"
+    },
+    {
+      "id": "server_src_services_peerresolver_minpositive",
+      "label": "minPositive()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "minpositive()",
+      "source_file": "server/src/services/peerResolver.ts",
+      "source_location": "L110"
+    },
+    {
+      "id": "server_src_services_peerresolver_parsecidr",
+      "label": "parseCidr()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "parsecidr()",
+      "source_file": "server/src/services/peerResolver.ts",
+      "source_location": "L35"
+    },
+    {
       "id": "server_src_services_peerresolver_parseoptionalmbps",
       "label": "parseOptionalMbps()",
       "_callable": true,
@@ -3210,6 +3486,78 @@
       "norm_label": "parseoptionalmbps()",
       "source_file": "server/src/services/peerResolver.ts",
       "source_location": "L16"
+    },
+    {
+      "id": "server_src_services_syncservice_kickclientconnections",
+      "label": "kickClientConnections()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "kickclientconnections()",
+      "source_file": "server/src/services/syncService.ts",
+      "source_location": "L127"
+    },
+    {
+      "id": "server_src_services_syncservice_kickconnectionbyid",
+      "label": "kickConnectionById()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "kickconnectionbyid()",
+      "source_file": "server/src/services/syncService.ts",
+      "source_location": "L73"
+    },
+    {
+      "id": "server_src_services_syncservice_reconcilerunninginboundsonboot",
+      "label": "reconcileRunningInboundsOnBoot()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "reconcilerunninginboundsonboot()",
+      "source_file": "server/src/services/syncService.ts",
+      "source_location": "L10"
+    },
+    {
+      "id": "server_src_services_syncservice_runsyncpass",
+      "label": "runSyncPass()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "runsyncpass()",
+      "source_file": "server/src/services/syncService.ts",
+      "source_location": "L26"
+    },
+    {
+      "id": "server_src_services_syncservice_schedulesyncrunninginbounds",
+      "label": "scheduleSyncRunningInbounds()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "schedulesyncrunninginbounds()",
+      "source_file": "server/src/services/syncService.ts",
+      "source_location": "L69"
+    },
+    {
+      "id": "server_src_services_syncservice_syncrunninginbounds",
+      "label": "syncRunningInbounds()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "syncrunninginbounds()",
+      "source_file": "server/src/services/syncService.ts",
+      "source_location": "L50"
     },
     {
       "id": "server_src_services_telegrambackup_findtelegramchatid",
@@ -3246,6 +3594,138 @@
       "norm_label": "starttelegrambackupscheduler()",
       "source_file": "server/src/services/telegramBackup.ts",
       "source_location": "L68"
+    },
+    {
+      "id": "server_src_generators_configs_escapequoted",
+      "label": "escapeQuoted()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "configs.ts",
+      "file_type": "code",
+      "norm_label": "escapequoted()",
+      "source_file": "server/src/generators/configs.ts",
+      "source_location": "L76"
+    },
+    {
+      "id": "server_src_generators_configs_extractamneziaparams",
+      "label": "extractAmneziaParams()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "configs.ts",
+      "file_type": "code",
+      "norm_label": "extractamneziaparams()",
+      "source_file": "server/src/generators/configs.ts",
+      "source_location": "L44"
+    },
+    {
+      "id": "server_src_generators_configs_isamneziainbound",
+      "label": "isAmneziaInbound()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "configs.ts",
+      "file_type": "code",
+      "norm_label": "isamneziainbound()",
+      "source_file": "server/src/generators/configs.ts",
+      "source_location": "L40"
+    },
+    {
+      "id": "server_src_generators_configs_parselistsetting",
+      "label": "parseListSetting()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "configs.ts",
+      "file_type": "code",
+      "norm_label": "parselistsetting()",
+      "source_file": "server/src/generators/configs.ts",
+      "source_location": "L80"
+    },
+    {
+      "id": "server_src_generators_configs_renderinboundextrafiles",
+      "label": "renderInboundExtraFiles()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "configs.ts",
+      "file_type": "code",
+      "norm_label": "renderinboundextrafiles()",
+      "source_file": "server/src/generators/configs.ts",
+      "source_location": "L401"
+    },
+    {
+      "id": "server_src_generators_configs_renderinboundserverconfig",
+      "label": "renderInboundServerConfig()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "configs.ts",
+      "file_type": "code",
+      "norm_label": "renderinboundserverconfig()",
+      "source_file": "server/src/generators/configs.ts",
+      "source_location": "L96"
+    },
+    {
+      "id": "server_src_generators_configs_sanitizeline",
+      "label": "sanitizeLine()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "configs.ts",
+      "file_type": "code",
+      "norm_label": "sanitizeline()",
+      "source_file": "server/src/generators/configs.ts",
+      "source_location": "L72"
+    },
+    {
+      "id": "server_src_generators_profiles_formattemplatefilename",
+      "label": "formatTemplateFilename()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "configs.ts",
+      "file_type": "code",
+      "norm_label": "formattemplatefilename()",
+      "source_file": "server/src/generators/profiles.ts",
+      "source_location": "L27"
+    },
+    {
+      "id": "server_src_generators_profiles_generateclientprofile",
+      "label": "generateClientProfile()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "configs.ts",
+      "file_type": "code",
+      "norm_label": "generateclientprofile()",
+      "source_file": "server/src/generators/profiles.ts",
+      "source_location": "L42"
+    },
+    {
+      "id": "server_src_generators_profiles_readoptionalfile",
+      "label": "readOptionalFile()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "configs.ts",
+      "file_type": "code",
+      "norm_label": "readoptionalfile()",
+      "source_file": "server/src/generators/profiles.ts",
+      "source_location": "L18"
+    },
+    {
+      "id": "server_src_services_peerresolver_resolveclienttunnelip",
+      "label": "resolveClientTunnelIp()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "configs.ts",
+      "file_type": "code",
+      "norm_label": "resolveclienttunnelip()",
+      "source_file": "server/src/services/peerResolver.ts",
+      "source_location": "L204"
     },
     {
       "id": "web_src_components_uiprimitives_brandmark",
@@ -3756,12 +4236,36 @@
       "label": "closeDb()",
       "_callable": true,
       "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
+      "community": 2,
+      "community_name": "updater.ts",
       "file_type": "code",
       "norm_label": "closedb()",
       "source_file": "server/src/db/database.ts",
       "source_location": "L24"
+    },
+    {
+      "id": "server_src_services_updater_fetchgithubjson",
+      "label": "fetchGithubJson()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 2,
+      "community_name": "updater.ts",
+      "file_type": "code",
+      "norm_label": "fetchgithubjson()",
+      "source_file": "server/src/services/updater.ts",
+      "source_location": "L264"
+    },
+    {
+      "id": "server_src_services_updater_resolveprojectroot",
+      "label": "resolveProjectRoot()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 2,
+      "community_name": "updater.ts",
+      "file_type": "code",
+      "norm_label": "resolveprojectroot()",
+      "source_file": "server/src/services/updater.ts",
+      "source_location": "L12"
     },
     {
       "id": "server_src_drivers_linuxengine_applyinterfacespeedlimits",
@@ -4016,474 +4520,6 @@
       "source_location": "L134"
     },
     {
-      "id": "server_src_drivers_pki_ensureclientcertificate",
-      "label": "ensureClientCertificate()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "ensureclientcertificate()",
-      "source_file": "server/src/drivers/pki.ts",
-      "source_location": "L144"
-    },
-    {
-      "id": "server_src_drivers_pki_ensureinboundtlscertfiles",
-      "label": "ensureInboundTlsCertFiles()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "ensureinboundtlscertfiles()",
-      "source_file": "server/src/drivers/pki.ts",
-      "source_location": "L247"
-    },
-    {
-      "id": "server_src_drivers_pki_ensureopenvpnpki",
-      "label": "ensureOpenVpnPki()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "ensureopenvpnpki()",
-      "source_file": "server/src/drivers/pki.ts",
-      "source_location": "L60"
-    },
-    {
-      "id": "server_src_drivers_pki_generateopenvpnstatickey",
-      "label": "generateOpenVpnStaticKey()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "generateopenvpnstatickey()",
-      "source_file": "server/src/drivers/pki.ts",
-      "source_location": "L36"
-    },
-    {
-      "id": "server_src_drivers_pki_getauthdir",
-      "label": "getAuthDir()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "getauthdir()",
-      "source_file": "server/src/drivers/pki.ts",
-      "source_location": "L24"
-    },
-    {
-      "id": "server_src_drivers_pki_getbindir",
-      "label": "getBinDir()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "getbindir()",
-      "source_file": "server/src/drivers/pki.ts",
-      "source_location": "L30"
-    },
-    {
-      "id": "server_src_drivers_pki_getcertsdir",
-      "label": "getCertsDir()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "getcertsdir()",
-      "source_file": "server/src/drivers/pki.ts",
-      "source_location": "L18"
-    },
-    {
-      "id": "server_src_drivers_pki_getpkidir",
-      "label": "getPkiDir()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "getpkidir()",
-      "source_file": "server/src/drivers/pki.ts",
-      "source_location": "L12"
-    },
-    {
-      "id": "server_src_drivers_pki_runopenssl",
-      "label": "runOpenSsl()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "runopenssl()",
-      "source_file": "server/src/drivers/pki.ts",
-      "source_location": "L51"
-    },
-    {
-      "id": "server_src_drivers_pki_syncopenvpnauthscript",
-      "label": "syncOpenVpnAuthScript()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "syncopenvpnauthscript()",
-      "source_file": "server/src/drivers/pki.ts",
-      "source_location": "L213"
-    },
-    {
-      "id": "server_src_generators_configs_escapequoted",
-      "label": "escapeQuoted()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "escapequoted()",
-      "source_file": "server/src/generators/configs.ts",
-      "source_location": "L76"
-    },
-    {
-      "id": "server_src_generators_configs_extractamneziaparams",
-      "label": "extractAmneziaParams()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "extractamneziaparams()",
-      "source_file": "server/src/generators/configs.ts",
-      "source_location": "L44"
-    },
-    {
-      "id": "server_src_generators_configs_isamneziainbound",
-      "label": "isAmneziaInbound()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "isamneziainbound()",
-      "source_file": "server/src/generators/configs.ts",
-      "source_location": "L40"
-    },
-    {
-      "id": "server_src_generators_configs_parselistsetting",
-      "label": "parseListSetting()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "parselistsetting()",
-      "source_file": "server/src/generators/configs.ts",
-      "source_location": "L80"
-    },
-    {
-      "id": "server_src_generators_configs_renderinboundextrafiles",
-      "label": "renderInboundExtraFiles()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "renderinboundextrafiles()",
-      "source_file": "server/src/generators/configs.ts",
-      "source_location": "L401"
-    },
-    {
-      "id": "server_src_generators_configs_renderinboundserverconfig",
-      "label": "renderInboundServerConfig()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "renderinboundserverconfig()",
-      "source_file": "server/src/generators/configs.ts",
-      "source_location": "L96"
-    },
-    {
-      "id": "server_src_generators_configs_sanitizeline",
-      "label": "sanitizeLine()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "sanitizeline()",
-      "source_file": "server/src/generators/configs.ts",
-      "source_location": "L72"
-    },
-    {
-      "id": "server_src_generators_profiles_formattemplatefilename",
-      "label": "formatTemplateFilename()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "formattemplatefilename()",
-      "source_file": "server/src/generators/profiles.ts",
-      "source_location": "L27"
-    },
-    {
-      "id": "server_src_generators_profiles_generateclientprofile",
-      "label": "generateClientProfile()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "generateclientprofile()",
-      "source_file": "server/src/generators/profiles.ts",
-      "source_location": "L42"
-    },
-    {
-      "id": "server_src_generators_profiles_readoptionalfile",
-      "label": "readOptionalFile()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "readoptionalfile()",
-      "source_file": "server/src/generators/profiles.ts",
-      "source_location": "L18"
-    },
-    {
-      "id": "server_src_services_collector_computenextresetiso",
-      "label": "computeNextResetIso()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "computenextresetiso()",
-      "source_file": "server/src/services/collector.ts",
-      "source_location": "L10"
-    },
-    {
-      "id": "server_src_services_collector_runcollectortick",
-      "label": "runCollectorTick()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "runcollectortick()",
-      "source_file": "server/src/services/collector.ts",
-      "source_location": "L69"
-    },
-    {
-      "id": "server_src_services_collector_runperiodicresets",
-      "label": "runPeriodicResets()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "runperiodicresets()",
-      "source_file": "server/src/services/collector.ts",
-      "source_location": "L30"
-    },
-    {
-      "id": "server_src_services_collector_startcollectorloop",
-      "label": "startCollectorLoop()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "startcollectorloop()",
-      "source_file": "server/src/services/collector.ts",
-      "source_location": "L232"
-    },
-    {
-      "id": "server_src_services_collector_stopcollectorloop",
-      "label": "stopCollectorLoop()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "stopcollectorloop()",
-      "source_file": "server/src/services/collector.ts",
-      "source_location": "L239"
-    },
-    {
-      "id": "server_src_services_peerresolver_allocatetunnelip",
-      "label": "allocateTunnelIp()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "allocatetunnelip()",
-      "source_file": "server/src/services/peerResolver.ts",
-      "source_location": "L60"
-    },
-    {
-      "id": "server_src_services_peerresolver_geteligiblepeersforinbound",
-      "label": "getEligiblePeersForInbound()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "geteligiblepeersforinbound()",
-      "source_file": "server/src/services/peerResolver.ts",
-      "source_location": "L125"
-    },
-    {
-      "id": "server_src_services_peerresolver_inttoip",
-      "label": "intToIp()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "inttoip()",
-      "source_file": "server/src/services/peerResolver.ts",
-      "source_location": "L30"
-    },
-    {
-      "id": "server_src_services_peerresolver_iptoint",
-      "label": "ipToInt()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "iptoint()",
-      "source_file": "server/src/services/peerResolver.ts",
-      "source_location": "L23"
-    },
-    {
-      "id": "server_src_services_peerresolver_isclientactivequota",
-      "label": "isClientActiveQuota()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "isclientactivequota()",
-      "source_file": "server/src/services/peerResolver.ts",
-      "source_location": "L95"
-    },
-    {
-      "id": "server_src_services_peerresolver_minpositive",
-      "label": "minPositive()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "minpositive()",
-      "source_file": "server/src/services/peerResolver.ts",
-      "source_location": "L110"
-    },
-    {
-      "id": "server_src_services_peerresolver_parsecidr",
-      "label": "parseCidr()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "parsecidr()",
-      "source_file": "server/src/services/peerResolver.ts",
-      "source_location": "L35"
-    },
-    {
-      "id": "server_src_services_peerresolver_resolveclienttunnelip",
-      "label": "resolveClientTunnelIp()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "resolveclienttunnelip()",
-      "source_file": "server/src/services/peerResolver.ts",
-      "source_location": "L204"
-    },
-    {
-      "id": "server_src_services_syncservice_kickclientconnections",
-      "label": "kickClientConnections()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "kickclientconnections()",
-      "source_file": "server/src/services/syncService.ts",
-      "source_location": "L127"
-    },
-    {
-      "id": "server_src_services_syncservice_kickconnectionbyid",
-      "label": "kickConnectionById()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "kickconnectionbyid()",
-      "source_file": "server/src/services/syncService.ts",
-      "source_location": "L73"
-    },
-    {
-      "id": "server_src_services_syncservice_reconcilerunninginboundsonboot",
-      "label": "reconcileRunningInboundsOnBoot()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "reconcilerunninginboundsonboot()",
-      "source_file": "server/src/services/syncService.ts",
-      "source_location": "L10"
-    },
-    {
-      "id": "server_src_services_syncservice_runsyncpass",
-      "label": "runSyncPass()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "runsyncpass()",
-      "source_file": "server/src/services/syncService.ts",
-      "source_location": "L26"
-    },
-    {
-      "id": "server_src_services_syncservice_schedulesyncrunninginbounds",
-      "label": "scheduleSyncRunningInbounds()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "schedulesyncrunninginbounds()",
-      "source_file": "server/src/services/syncService.ts",
-      "source_location": "L69"
-    },
-    {
-      "id": "server_src_services_syncservice_syncrunninginbounds",
-      "label": "syncRunningInbounds()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "syncrunninginbounds()",
-      "source_file": "server/src/services/syncService.ts",
-      "source_location": "L50"
-    },
-    {
       "id": "web_src_components_donutchart_donutchart",
       "label": "DonutChart()",
       "_callable": true,
@@ -4640,24 +4676,12 @@
       "source_location": "L309"
     },
     {
-      "id": "server_src_db_database_setsetting",
-      "label": "setSetting()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 7,
-      "community_name": "updater.ts",
-      "file_type": "code",
-      "norm_label": "setsetting()",
-      "source_file": "server/src/db/database.ts",
-      "source_location": "L154"
-    },
-    {
       "id": "server_src_routes_updateroutes_createupdaterouter",
       "label": "createUpdateRouter()",
       "_callable": true,
       "_origin": "ast",
       "community": 7,
-      "community_name": "updater.ts",
+      "community_name": "updateRoutes.ts",
       "file_type": "code",
       "norm_label": "createupdaterouter()",
       "source_file": "server/src/routes/updateRoutes.ts",
@@ -4669,11 +4693,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 7,
-      "community_name": "updater.ts",
+      "community_name": "updateRoutes.ts",
       "file_type": "code",
       "norm_label": "checkforupdates()",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L243"
+      "source_location": "L278"
     },
     {
       "id": "server_src_services_updater_comparesemver",
@@ -4681,23 +4705,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 7,
-      "community_name": "updater.ts",
+      "community_name": "updateRoutes.ts",
       "file_type": "code",
       "norm_label": "comparesemver()",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L123"
-    },
-    {
-      "id": "server_src_services_updater_fetchgithubjson",
-      "label": "fetchGithubJson()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 7,
-      "community_name": "updater.ts",
-      "file_type": "code",
-      "norm_label": "fetchgithubjson()",
-      "source_file": "server/src/services/updater.ts",
-      "source_location": "L229"
+      "source_location": "L143"
     },
     {
       "id": "server_src_services_updater_getcurrentcommit",
@@ -4705,11 +4717,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 7,
-      "community_name": "updater.ts",
+      "community_name": "updateRoutes.ts",
       "file_type": "code",
       "norm_label": "getcurrentcommit()",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L98"
+      "source_location": "L118"
     },
     {
       "id": "server_src_services_updater_getinstalledversion",
@@ -4717,11 +4729,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 7,
-      "community_name": "updater.ts",
+      "community_name": "updateRoutes.ts",
       "file_type": "code",
       "norm_label": "getinstalledversion()",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L83"
+      "source_location": "L103"
     },
     {
       "id": "server_src_services_updater_getmeta",
@@ -4729,11 +4741,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 7,
-      "community_name": "updater.ts",
+      "community_name": "updateRoutes.ts",
       "file_type": "code",
       "norm_label": "getmeta()",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L167"
+      "source_location": "L187"
     },
     {
       "id": "server_src_services_updater_getupdatesettings",
@@ -4741,11 +4753,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 7,
-      "community_name": "updater.ts",
+      "community_name": "updateRoutes.ts",
       "file_type": "code",
       "norm_label": "getupdatesettings()",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L133"
+      "source_location": "L153"
     },
     {
       "id": "server_src_services_updater_getupdatestate",
@@ -4753,11 +4765,23 @@
       "_callable": true,
       "_origin": "ast",
       "community": 7,
-      "community_name": "updater.ts",
+      "community_name": "updateRoutes.ts",
       "file_type": "code",
       "norm_label": "getupdatestate()",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L185"
+      "source_location": "L215"
+    },
+    {
+      "id": "server_src_services_updater_isreleasestillnewer",
+      "label": "isReleaseStillNewer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "updateRoutes.ts",
+      "file_type": "code",
+      "norm_label": "isreleasestillnewer()",
+      "source_file": "server/src/services/updater.ts",
+      "source_location": "L205"
     },
     {
       "id": "server_src_services_updater_parsesemver",
@@ -4765,11 +4789,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 7,
-      "community_name": "updater.ts",
+      "community_name": "updateRoutes.ts",
       "file_type": "code",
       "norm_label": "parsesemver()",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L117"
+      "source_location": "L137"
     },
     {
       "id": "server_src_services_updater_savemeta",
@@ -4777,11 +4801,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 7,
-      "community_name": "updater.ts",
+      "community_name": "updateRoutes.ts",
       "file_type": "code",
       "norm_label": "savemeta()",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L175"
+      "source_location": "L195"
     },
     {
       "id": "server_src_services_updater_saveupdatesettings",
@@ -4789,11 +4813,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 7,
-      "community_name": "updater.ts",
+      "community_name": "updateRoutes.ts",
       "file_type": "code",
       "norm_label": "saveupdatesettings()",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L149"
+      "source_location": "L169"
     },
     {
       "id": "server_src_services_updater_startautoupdatescheduler",
@@ -4801,11 +4825,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 7,
-      "community_name": "updater.ts",
+      "community_name": "updateRoutes.ts",
       "file_type": "code",
       "norm_label": "startautoupdatescheduler()",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L414"
+      "source_location": "L451"
     },
     {
       "id": "server_src_services_updater_startupdateinstall",
@@ -4813,11 +4837,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 7,
-      "community_name": "updater.ts",
+      "community_name": "updateRoutes.ts",
       "file_type": "code",
       "norm_label": "startupdateinstall()",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L344"
+      "source_location": "L379"
     },
     {
       "id": "server_src_services_updater_triggerbackgroundupdatecheckifstale",
@@ -4825,11 +4849,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 7,
-      "community_name": "updater.ts",
+      "community_name": "updateRoutes.ts",
       "file_type": "code",
       "norm_label": "triggerbackgroundupdatecheckifstale()",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L211"
+      "source_location": "L246"
     },
     {
       "id": "web_src_components_routingmodals",
@@ -4973,6 +4997,61 @@
       "norm_label": "protocol_cards",
       "source_file": "web/src/pages/InboundDetailPage.tsx",
       "source_location": "L40"
+    },
+    {
+      "id": "server_src_config",
+      "label": "config.ts",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "pki.ts",
+      "file_type": "code",
+      "norm_label": "config.ts",
+      "source_file": "server/src/config.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "server_src_config_config_path",
+      "label": "CONFIG_PATH",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "pki.ts",
+      "file_type": "code",
+      "norm_label": "config_path",
+      "source_file": "server/src/config.ts",
+      "source_location": "L19"
+    },
+    {
+      "id": "server_src_config_data_dir",
+      "label": "DATA_DIR",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "pki.ts",
+      "file_type": "code",
+      "norm_label": "data_dir",
+      "source_file": "server/src/config.ts",
+      "source_location": "L18"
+    },
+    {
+      "id": "server_src_drivers_pki",
+      "label": "pki.ts",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "pki.ts",
+      "file_type": "code",
+      "norm_label": "pki.ts",
+      "source_file": "server/src/drivers/pki.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "server_src_drivers_pki_execfileasync",
+      "label": "execFileAsync",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "pki.ts",
+      "file_type": "code",
+      "norm_label": "execfileasync",
+      "source_file": "server/src/drivers/pki.ts",
+      "source_location": "L10"
     },
     {
       "id": "deploy_install",
@@ -5674,39 +5753,6 @@
       "source_location": "L16"
     },
     {
-      "id": "server_src_config",
-      "label": "config.ts",
-      "_origin": "ast",
-      "community": 14,
-      "community_name": "getDb",
-      "file_type": "code",
-      "norm_label": "config.ts",
-      "source_file": "server/src/config.ts",
-      "source_location": "L1"
-    },
-    {
-      "id": "server_src_config_config_path",
-      "label": "CONFIG_PATH",
-      "_origin": "ast",
-      "community": 14,
-      "community_name": "getDb",
-      "file_type": "code",
-      "norm_label": "config_path",
-      "source_file": "server/src/config.ts",
-      "source_location": "L19"
-    },
-    {
-      "id": "server_src_config_data_dir",
-      "label": "DATA_DIR",
-      "_origin": "ast",
-      "community": 14,
-      "community_name": "getDb",
-      "file_type": "code",
-      "norm_label": "data_dir",
-      "source_file": "server/src/config.ts",
-      "source_location": "L18"
-    },
-    {
       "id": "server_src_db_database",
       "label": "database.ts",
       "_origin": "ast",
@@ -5982,6 +6028,50 @@
       "source_location": "L1"
     },
     {
+      "id": "server_src_services_collector",
+      "label": "collector.ts",
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "collector.ts",
+      "source_file": "server/src/services/collector.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "server_src_services_collector_lasttunnelbytes",
+      "label": "lastTunnelBytes",
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "lasttunnelbytes",
+      "source_file": "server/src/services/collector.ts",
+      "source_location": "L8"
+    },
+    {
+      "id": "server_src_services_peerresolver",
+      "label": "peerResolver.ts",
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "peerresolver.ts",
+      "source_file": "server/src/services/peerResolver.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "server_src_services_syncservice",
+      "label": "syncService.ts",
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "syncservice.ts",
+      "source_file": "server/src/services/syncService.ts",
+      "source_location": "L1"
+    },
+    {
       "id": "server_src_services_telegrambackup",
       "label": "telegramBackup.ts",
       "_origin": "ast",
@@ -6013,6 +6103,28 @@
       "norm_label": "express",
       "source_file": "server/package.json",
       "source_location": "L14"
+    },
+    {
+      "id": "server_src_generators_configs",
+      "label": "configs.ts",
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "configs.ts",
+      "file_type": "code",
+      "norm_label": "configs.ts",
+      "source_file": "server/src/generators/configs.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "server_src_generators_profiles",
+      "label": "profiles.ts",
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "configs.ts",
+      "file_type": "code",
+      "norm_label": "profiles.ts",
+      "source_file": "server/src/generators/profiles.ts",
+      "source_location": "L1"
     },
     {
       "id": "web_src_lib_subtheme",
@@ -6197,6 +6309,127 @@
       "source_location": "L1"
     },
     {
+      "id": "server_src_drivers_runtime",
+      "label": "runtime.ts",
+      "_origin": "ast",
+      "community": 17,
+      "community_name": "runtime.ts",
+      "file_type": "code",
+      "norm_label": "runtime.ts",
+      "source_file": "server/src/drivers/runtime.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "server_src_services_updater",
+      "label": "updater.ts",
+      "_origin": "ast",
+      "community": 2,
+      "community_name": "updater.ts",
+      "file_type": "code",
+      "norm_label": "updater.ts",
+      "source_file": "server/src/services/updater.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "server_src_services_updater_default_meta",
+      "label": "DEFAULT_META",
+      "_origin": "ast",
+      "community": 2,
+      "community_name": "updater.ts",
+      "file_type": "code",
+      "norm_label": "default_meta",
+      "source_file": "server/src/services/updater.ts",
+      "source_location": "L89"
+    },
+    {
+      "id": "server_src_services_updater_default_update_settings",
+      "label": "DEFAULT_UPDATE_SETTINGS",
+      "_origin": "ast",
+      "community": 2,
+      "community_name": "updater.ts",
+      "file_type": "code",
+      "norm_label": "default_update_settings",
+      "source_file": "server/src/services/updater.ts",
+      "source_location": "L43"
+    },
+    {
+      "id": "server_src_services_updater_dirname",
+      "label": "__dirname",
+      "_origin": "ast",
+      "community": 2,
+      "community_name": "updater.ts",
+      "file_type": "code",
+      "norm_label": "__dirname",
+      "source_file": "server/src/services/updater.ts",
+      "source_location": "L10"
+    },
+    {
+      "id": "server_src_services_updater_project_root",
+      "label": "PROJECT_ROOT",
+      "_origin": "ast",
+      "community": 2,
+      "community_name": "updater.ts",
+      "file_type": "code",
+      "norm_label": "project_root",
+      "source_file": "server/src/services/updater.ts",
+      "source_location": "L31"
+    },
+    {
+      "id": "server_tests_api_test",
+      "label": "api.test.ts",
+      "_origin": "ast",
+      "community": 2,
+      "community_name": "updater.ts",
+      "file_type": "code",
+      "norm_label": "api.test.ts",
+      "source_file": "server/tests/api.test.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "server_tests_api_test_tempdir",
+      "label": "tempDir",
+      "_origin": "ast",
+      "community": 2,
+      "community_name": "updater.ts",
+      "file_type": "code",
+      "norm_label": "tempdir",
+      "source_file": "server/tests/api.test.ts",
+      "source_location": "L8"
+    },
+    {
+      "id": "server_tests_engine_test",
+      "label": "engine.test.ts",
+      "_origin": "ast",
+      "community": 2,
+      "community_name": "updater.ts",
+      "file_type": "code",
+      "norm_label": "engine.test.ts",
+      "source_file": "server/tests/engine.test.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "server_tests_engine_test_execfileasync",
+      "label": "execFileAsync",
+      "_origin": "ast",
+      "community": 2,
+      "community_name": "updater.ts",
+      "file_type": "code",
+      "norm_label": "execfileasync",
+      "source_file": "server/tests/engine.test.ts",
+      "source_location": "L9"
+    },
+    {
+      "id": "server_tests_engine_test_tempdir",
+      "label": "tempDir",
+      "_origin": "ast",
+      "community": 2,
+      "community_name": "updater.ts",
+      "file_type": "code",
+      "norm_label": "tempdir",
+      "source_file": "server/tests/engine.test.ts",
+      "source_location": "L11"
+    },
+    {
       "id": "server_src_drivers_linuxengine",
       "label": "linuxEngine.ts",
       "_origin": "ast",
@@ -6228,160 +6461,6 @@
       "norm_label": "protocol_binaries",
       "source_file": "server/src/drivers/linuxEngine.ts",
       "source_location": "L42"
-    },
-    {
-      "id": "server_src_drivers_pki",
-      "label": "pki.ts",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "pki.ts",
-      "source_file": "server/src/drivers/pki.ts",
-      "source_location": "L1"
-    },
-    {
-      "id": "server_src_drivers_pki_execfileasync",
-      "label": "execFileAsync",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "execfileasync",
-      "source_file": "server/src/drivers/pki.ts",
-      "source_location": "L10"
-    },
-    {
-      "id": "server_src_drivers_runtime",
-      "label": "runtime.ts",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "runtime.ts",
-      "source_file": "server/src/drivers/runtime.ts",
-      "source_location": "L1"
-    },
-    {
-      "id": "server_src_generators_configs",
-      "label": "configs.ts",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "configs.ts",
-      "source_file": "server/src/generators/configs.ts",
-      "source_location": "L1"
-    },
-    {
-      "id": "server_src_generators_profiles",
-      "label": "profiles.ts",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "profiles.ts",
-      "source_file": "server/src/generators/profiles.ts",
-      "source_location": "L1"
-    },
-    {
-      "id": "server_src_services_collector",
-      "label": "collector.ts",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "collector.ts",
-      "source_file": "server/src/services/collector.ts",
-      "source_location": "L1"
-    },
-    {
-      "id": "server_src_services_collector_lasttunnelbytes",
-      "label": "lastTunnelBytes",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "lasttunnelbytes",
-      "source_file": "server/src/services/collector.ts",
-      "source_location": "L8"
-    },
-    {
-      "id": "server_src_services_peerresolver",
-      "label": "peerResolver.ts",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "peerresolver.ts",
-      "source_file": "server/src/services/peerResolver.ts",
-      "source_location": "L1"
-    },
-    {
-      "id": "server_src_services_syncservice",
-      "label": "syncService.ts",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "syncservice.ts",
-      "source_file": "server/src/services/syncService.ts",
-      "source_location": "L1"
-    },
-    {
-      "id": "server_tests_api_test",
-      "label": "api.test.ts",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "api.test.ts",
-      "source_file": "server/tests/api.test.ts",
-      "source_location": "L1"
-    },
-    {
-      "id": "server_tests_api_test_tempdir",
-      "label": "tempDir",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "tempdir",
-      "source_file": "server/tests/api.test.ts",
-      "source_location": "L8"
-    },
-    {
-      "id": "server_tests_engine_test",
-      "label": "engine.test.ts",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "engine.test.ts",
-      "source_file": "server/tests/engine.test.ts",
-      "source_location": "L1"
-    },
-    {
-      "id": "server_tests_engine_test_execfileasync",
-      "label": "execFileAsync",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "execfileasync",
-      "source_file": "server/tests/engine.test.ts",
-      "source_location": "L9"
-    },
-    {
-      "id": "server_tests_engine_test_tempdir",
-      "label": "tempDir",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "tempdir",
-      "source_file": "server/tests/engine.test.ts",
-      "source_location": "L11"
     },
     {
       "id": "deploy_xprotocol_cli",
@@ -6501,7 +6580,7 @@
       },
       "norm_label": "cmd_uninstall()",
       "source_file": "deploy/xprotocol-cli.sh",
-      "source_location": "L224"
+      "source_location": "L228"
     },
     {
       "id": "deploy_xprotocol_cli_cmd_update",
@@ -6561,7 +6640,7 @@
       },
       "norm_label": "show_menu()",
       "source_file": "deploy/xprotocol-cli.sh",
-      "source_location": "L242"
+      "source_location": "L246"
     },
     {
       "id": "web_src_components_donutchart",
@@ -7470,77 +7549,22 @@
       "label": "updateRoutes.ts",
       "_origin": "ast",
       "community": 7,
-      "community_name": "updater.ts",
+      "community_name": "updateRoutes.ts",
       "file_type": "code",
       "norm_label": "updateroutes.ts",
       "source_file": "server/src/routes/updateRoutes.ts",
       "source_location": "L1"
     },
     {
-      "id": "server_src_services_updater",
-      "label": "updater.ts",
-      "_origin": "ast",
-      "community": 7,
-      "community_name": "updater.ts",
-      "file_type": "code",
-      "norm_label": "updater.ts",
-      "source_file": "server/src/services/updater.ts",
-      "source_location": "L1"
-    },
-    {
-      "id": "server_src_services_updater_default_meta",
-      "label": "DEFAULT_META",
-      "_origin": "ast",
-      "community": 7,
-      "community_name": "updater.ts",
-      "file_type": "code",
-      "norm_label": "default_meta",
-      "source_file": "server/src/services/updater.ts",
-      "source_location": "L69"
-    },
-    {
-      "id": "server_src_services_updater_default_update_settings",
-      "label": "DEFAULT_UPDATE_SETTINGS",
-      "_origin": "ast",
-      "community": 7,
-      "community_name": "updater.ts",
-      "file_type": "code",
-      "norm_label": "default_update_settings",
-      "source_file": "server/src/services/updater.ts",
-      "source_location": "L23"
-    },
-    {
-      "id": "server_src_services_updater_dirname",
-      "label": "__dirname",
-      "_origin": "ast",
-      "community": 7,
-      "community_name": "updater.ts",
-      "file_type": "code",
-      "norm_label": "__dirname",
-      "source_file": "server/src/services/updater.ts",
-      "source_location": "L10"
-    },
-    {
       "id": "server_src_services_updater_execfileasync",
       "label": "execFileAsync",
       "_origin": "ast",
       "community": 7,
-      "community_name": "updater.ts",
+      "community_name": "updateRoutes.ts",
       "file_type": "code",
       "norm_label": "execfileasync",
       "source_file": "server/src/services/updater.ts",
       "source_location": "L9"
-    },
-    {
-      "id": "server_src_services_updater_project_root",
-      "label": "PROJECT_ROOT",
-      "_origin": "ast",
-      "community": 7,
-      "community_name": "updater.ts",
-      "file_type": "code",
-      "norm_label": "project_root",
-      "source_file": "server/src/services/updater.ts",
-      "source_location": "L11"
     },
     {
       "id": "package",
@@ -7966,30 +7990,6 @@
       "type": "external"
     },
     {
-      "id": "ref_node_fs",
-      "label": "ref_node_fs",
-      "_origin": "semantic",
-      "community": 14,
-      "community_name": "getDb",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "ref_node_fs",
-      "source_file": "",
-      "type": "external"
-    },
-    {
-      "id": "ref_node_path",
-      "label": "ref_node_path",
-      "_origin": "semantic",
-      "community": 14,
-      "community_name": "getDb",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "ref_node_path",
-      "source_file": "",
-      "type": "external"
-    },
-    {
       "id": "ref_node_sqlite",
       "label": "ref_node_sqlite",
       "_origin": "semantic",
@@ -8014,47 +8014,11 @@
       "type": "external"
     },
     {
-      "id": "ref_node_assert",
-      "label": "ref_node_assert",
-      "_origin": "semantic",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "ref_node_assert",
-      "source_file": "",
-      "type": "external"
-    },
-    {
-      "id": "ref_node_child_process",
-      "label": "ref_node_child_process",
-      "_origin": "semantic",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "ref_node_child_process",
-      "source_file": "",
-      "type": "external"
-    },
-    {
-      "id": "ref_node_http",
-      "label": "ref_node_http",
-      "_origin": "semantic",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "ref_node_http",
-      "source_file": "",
-      "type": "external"
-    },
-    {
       "id": "ref_node_net",
       "label": "ref_node_net",
       "_origin": "semantic",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
+      "community": 17,
+      "community_name": "runtime.ts",
       "external": true,
       "file_type": "concept",
       "norm_label": "ref_node_net",
@@ -8065,8 +8029,8 @@
       "id": "ref_node_os",
       "label": "ref_node_os",
       "_origin": "semantic",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
+      "community": 17,
+      "community_name": "runtime.ts",
       "external": true,
       "file_type": "concept",
       "norm_label": "ref_node_os",
@@ -8074,11 +8038,71 @@
       "type": "external"
     },
     {
+      "id": "ref_node_assert",
+      "label": "ref_node_assert",
+      "_origin": "semantic",
+      "community": 2,
+      "community_name": "updater.ts",
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "ref_node_assert",
+      "source_file": "",
+      "type": "external"
+    },
+    {
+      "id": "ref_node_child_process",
+      "label": "ref_node_child_process",
+      "_origin": "semantic",
+      "community": 2,
+      "community_name": "updater.ts",
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "ref_node_child_process",
+      "source_file": "",
+      "type": "external"
+    },
+    {
+      "id": "ref_node_fs",
+      "label": "ref_node_fs",
+      "_origin": "semantic",
+      "community": 2,
+      "community_name": "updater.ts",
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "ref_node_fs",
+      "source_file": "",
+      "type": "external"
+    },
+    {
+      "id": "ref_node_http",
+      "label": "ref_node_http",
+      "_origin": "semantic",
+      "community": 2,
+      "community_name": "updater.ts",
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "ref_node_http",
+      "source_file": "",
+      "type": "external"
+    },
+    {
+      "id": "ref_node_path",
+      "label": "ref_node_path",
+      "_origin": "semantic",
+      "community": 2,
+      "community_name": "updater.ts",
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "ref_node_path",
+      "source_file": "",
+      "type": "external"
+    },
+    {
       "id": "ref_node_test",
       "label": "ref_node_test",
       "_origin": "semantic",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
+      "community": 2,
+      "community_name": "updater.ts",
       "external": true,
       "file_type": "concept",
       "norm_label": "ref_node_test",
@@ -8086,26 +8110,26 @@
       "type": "external"
     },
     {
-      "id": "ref_node_util",
-      "label": "ref_node_util",
-      "_origin": "semantic",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "ref_node_util",
-      "source_file": "",
-      "type": "external"
-    },
-    {
       "id": "ref_node_url",
       "label": "ref_node_url",
       "_origin": "semantic",
-      "community": 7,
+      "community": 2,
       "community_name": "updater.ts",
       "external": true,
       "file_type": "concept",
       "norm_label": "ref_node_url",
+      "source_file": "",
+      "type": "external"
+    },
+    {
+      "id": "ref_node_util",
+      "label": "ref_node_util",
+      "_origin": "semantic",
+      "community": 2,
+      "community_name": "updater.ts",
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "ref_node_util",
       "source_file": "",
       "type": "external"
     }
@@ -8240,7 +8264,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "deploy/xprotocol-cli.sh",
-      "source_location": "L225",
+      "source_location": "L229",
       "weight": 1.0
     },
     {
@@ -8264,60 +8288,12 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "deploy/xprotocol-cli.sh",
-      "source_location": "L288",
-      "weight": 1.0
-    },
-    {
-      "source": "deploy_xprotocol_cli_sh__entry",
-      "target": "deploy_xprotocol_cli_cmd_password",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "deploy/xprotocol-cli.sh",
-      "source_location": "L289",
-      "weight": 1.0
-    },
-    {
-      "source": "deploy_xprotocol_cli_sh__entry",
-      "target": "deploy_xprotocol_cli_cmd_ssl",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "deploy/xprotocol-cli.sh",
-      "source_location": "L290",
-      "weight": 1.0
-    },
-    {
-      "source": "deploy_xprotocol_cli_sh__entry",
-      "target": "deploy_xprotocol_cli_cmd_ocserv",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "deploy/xprotocol-cli.sh",
-      "source_location": "L291",
-      "weight": 1.0
-    },
-    {
-      "source": "deploy_xprotocol_cli_sh__entry",
-      "target": "deploy_xprotocol_cli_cmd_backup",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "deploy/xprotocol-cli.sh",
       "source_location": "L292",
       "weight": 1.0
     },
     {
       "source": "deploy_xprotocol_cli_sh__entry",
-      "target": "deploy_xprotocol_cli_cmd_logs",
+      "target": "deploy_xprotocol_cli_cmd_password",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -8329,7 +8305,7 @@
     },
     {
       "source": "deploy_xprotocol_cli_sh__entry",
-      "target": "deploy_xprotocol_cli_cmd_update",
+      "target": "deploy_xprotocol_cli_cmd_ssl",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -8341,7 +8317,7 @@
     },
     {
       "source": "deploy_xprotocol_cli_sh__entry",
-      "target": "deploy_xprotocol_cli_require_root",
+      "target": "deploy_xprotocol_cli_cmd_ocserv",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -8353,7 +8329,7 @@
     },
     {
       "source": "deploy_xprotocol_cli_sh__entry",
-      "target": "deploy_xprotocol_cli_cmd_uninstall",
+      "target": "deploy_xprotocol_cli_cmd_backup",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -8365,7 +8341,7 @@
     },
     {
       "source": "deploy_xprotocol_cli_sh__entry",
-      "target": "deploy_xprotocol_cli_show_menu",
+      "target": "deploy_xprotocol_cli_cmd_logs",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -8373,6 +8349,54 @@
       "context": "call",
       "source_file": "deploy/xprotocol-cli.sh",
       "source_location": "L297",
+      "weight": 1.0
+    },
+    {
+      "source": "deploy_xprotocol_cli_sh__entry",
+      "target": "deploy_xprotocol_cli_cmd_update",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "deploy/xprotocol-cli.sh",
+      "source_location": "L298",
+      "weight": 1.0
+    },
+    {
+      "source": "deploy_xprotocol_cli_sh__entry",
+      "target": "deploy_xprotocol_cli_require_root",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "deploy/xprotocol-cli.sh",
+      "source_location": "L299",
+      "weight": 1.0
+    },
+    {
+      "source": "deploy_xprotocol_cli_sh__entry",
+      "target": "deploy_xprotocol_cli_cmd_uninstall",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "deploy/xprotocol-cli.sh",
+      "source_location": "L300",
+      "weight": 1.0
+    },
+    {
+      "source": "deploy_xprotocol_cli_sh__entry",
+      "target": "deploy_xprotocol_cli_show_menu",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "deploy/xprotocol-cli.sh",
+      "source_location": "L301",
       "weight": 1.0
     },
     {
@@ -8384,7 +8408,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "deploy/xprotocol-cli.sh",
-      "source_location": "L243",
+      "source_location": "L247",
       "weight": 1.0
     },
     {
@@ -8396,7 +8420,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "deploy/xprotocol-cli.sh",
-      "source_location": "L266",
+      "source_location": "L270",
       "weight": 1.0
     },
     {
@@ -8408,7 +8432,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "deploy/xprotocol-cli.sh",
-      "source_location": "L267",
+      "source_location": "L271",
       "weight": 1.0
     },
     {
@@ -8420,7 +8444,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "deploy/xprotocol-cli.sh",
-      "source_location": "L268",
+      "source_location": "L272",
       "weight": 1.0
     },
     {
@@ -8432,7 +8456,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "deploy/xprotocol-cli.sh",
-      "source_location": "L269",
+      "source_location": "L273",
       "weight": 1.0
     },
     {
@@ -8444,7 +8468,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "deploy/xprotocol-cli.sh",
-      "source_location": "L270",
+      "source_location": "L274",
       "weight": 1.0
     },
     {
@@ -8456,7 +8480,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "deploy/xprotocol-cli.sh",
-      "source_location": "L271",
+      "source_location": "L275",
       "weight": 1.0
     },
     {
@@ -8468,7 +8492,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "deploy/xprotocol-cli.sh",
-      "source_location": "L272",
+      "source_location": "L276",
       "weight": 1.0
     },
     {
@@ -8480,7 +8504,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "deploy/xprotocol-cli.sh",
-      "source_location": "L274",
+      "source_location": "L278",
       "weight": 1.0
     },
     {
@@ -11732,7 +11756,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L244",
+      "source_location": "L279",
       "weight": 1.0
     },
     {
@@ -11744,7 +11768,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L246",
+      "source_location": "L281",
       "weight": 1.0
     },
     {
@@ -11756,7 +11780,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L250",
+      "source_location": "L285",
       "weight": 1.0
     },
     {
@@ -11768,7 +11792,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L251",
+      "source_location": "L286",
       "weight": 1.0
     },
     {
@@ -11780,7 +11804,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L252",
+      "source_location": "L287",
       "weight": 1.0
     },
     {
@@ -11792,7 +11816,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L284",
+      "source_location": "L319",
       "weight": 1.0
     },
     {
@@ -11804,7 +11828,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L124",
+      "source_location": "L144",
       "weight": 1.0
     },
     {
@@ -11816,7 +11840,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L102",
+      "source_location": "L122",
       "weight": 1.0
     },
     {
@@ -11828,7 +11852,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L169",
+      "source_location": "L189",
       "weight": 1.0
     },
     {
@@ -11840,7 +11864,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L134",
+      "source_location": "L154",
       "weight": 1.0
     },
     {
@@ -11852,7 +11876,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L186",
+      "source_location": "L216",
       "weight": 1.0
     },
     {
@@ -11864,7 +11888,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L187",
+      "source_location": "L217",
       "weight": 1.0
     },
     {
@@ -11876,7 +11900,19 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L188",
+      "source_location": "L218",
+      "weight": 1.0
+    },
+    {
+      "source": "server_src_services_updater_getupdatestate",
+      "target": "server_src_services_updater_isreleasestillnewer",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "server/src/services/updater.ts",
+      "source_location": "L219",
       "weight": 1.0
     },
     {
@@ -11888,7 +11924,19 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L192",
+      "source_location": "L227",
+      "weight": 1.0
+    },
+    {
+      "source": "server_src_services_updater_isreleasestillnewer",
+      "target": "server_src_services_updater_comparesemver",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "server/src/services/updater.ts",
+      "source_location": "L211",
       "weight": 1.0
     },
     {
@@ -11900,7 +11948,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L176",
+      "source_location": "L196",
       "weight": 1.0
     },
     {
@@ -11912,7 +11960,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L178",
+      "source_location": "L198",
       "weight": 1.0
     },
     {
@@ -11924,7 +11972,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L150",
+      "source_location": "L170",
       "weight": 1.0
     },
     {
@@ -11936,7 +11984,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L163",
+      "source_location": "L183",
       "weight": 1.0
     },
     {
@@ -11948,7 +11996,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L417",
+      "source_location": "L454",
       "weight": 1.0
     },
     {
@@ -11960,7 +12008,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L419",
+      "source_location": "L456",
       "weight": 1.0
     },
     {
@@ -11972,7 +12020,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L423",
+      "source_location": "L460",
       "weight": 1.0
     },
     {
@@ -11984,7 +12032,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L425",
+      "source_location": "L462",
       "weight": 1.0
     },
     {
@@ -11996,7 +12044,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L426",
+      "source_location": "L463",
       "weight": 1.0
     },
     {
@@ -12008,7 +12056,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L348",
+      "source_location": "L383",
       "weight": 1.0
     },
     {
@@ -12020,7 +12068,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L352",
+      "source_location": "L387",
       "weight": 1.0
     },
     {
@@ -12032,7 +12080,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L354",
+      "source_location": "L389",
       "weight": 1.0
     },
     {
@@ -12044,7 +12092,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L365",
+      "source_location": "L400",
       "weight": 1.0
     },
     {
@@ -12056,7 +12104,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L373",
+      "source_location": "L408",
       "weight": 1.0
     },
     {
@@ -12068,7 +12116,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L377",
+      "source_location": "L412",
       "weight": 1.0
     },
     {
@@ -12080,7 +12128,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L378",
+      "source_location": "L413",
       "weight": 1.0
     },
     {
@@ -12092,7 +12140,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L214",
+      "source_location": "L249",
       "weight": 1.0
     },
     {
@@ -12104,7 +12152,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L217",
+      "source_location": "L252",
       "weight": 1.0
     },
     {
@@ -12116,7 +12164,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L224",
+      "source_location": "L259",
       "weight": 1.0
     },
     {
@@ -12225,6 +12273,42 @@
       "context": "call",
       "source_file": "server/tests/api.test.ts",
       "source_location": "L318",
+      "weight": 1.0
+    },
+    {
+      "source": "server_tests_engine_test",
+      "target": "server_src_db_database_setsetting",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "server/tests/engine.test.ts",
+      "source_location": "L263",
+      "weight": 1.0
+    },
+    {
+      "source": "server_tests_engine_test",
+      "target": "server_src_db_database_closedb",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "server/tests/engine.test.ts",
+      "source_location": "L27",
+      "weight": 1.0
+    },
+    {
+      "source": "server_tests_engine_test",
+      "target": "server_src_db_database_getdb",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "server/tests/engine.test.ts",
+      "source_location": "L77",
       "weight": 1.0
     },
     {
@@ -17432,7 +17516,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "web/src/pages/UpdatesPage.tsx",
-      "source_location": "L232",
+      "source_location": "L238",
       "weight": 1.0
     },
     {
@@ -17444,7 +17528,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "web/src/pages/UpdatesPage.tsx",
-      "source_location": "L250",
+      "source_location": "L256",
       "weight": 1.0
     },
     {
@@ -17456,7 +17540,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "web/src/pages/UpdatesPage.tsx",
-      "source_location": "L257",
+      "source_location": "L263",
       "weight": 1.0
     },
     {
@@ -17468,7 +17552,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "web/src/pages/UpdatesPage.tsx",
-      "source_location": "L303",
+      "source_location": "L309",
       "weight": 1.0
     },
     {
@@ -17480,7 +17564,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "web/src/pages/UpdatesPage.tsx",
-      "source_location": "L318",
+      "source_location": "L324",
       "weight": 1.0
     },
     {
@@ -17492,7 +17576,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "web/src/pages/UpdatesPage.tsx",
-      "source_location": "L339",
+      "source_location": "L345",
       "weight": 1.0
     },
     {
@@ -17504,7 +17588,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "web/src/pages/UpdatesPage.tsx",
-      "source_location": "L416",
+      "source_location": "L422",
       "weight": 1.0
     },
     {
@@ -17516,7 +17600,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "web/src/pages/UpdatesPage.tsx",
-      "source_location": "L497",
+      "source_location": "L503",
       "weight": 1.0
     },
     {
@@ -17752,6 +17836,19 @@
       "deferred": true,
       "source_file": "server/tests/api.test.ts",
       "source_location": "L237",
+      "weight": 1.0
+    },
+    {
+      "source": "server_tests_engine_test",
+      "target": "server_src_db_database",
+      "relation": "imports_from",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "deferred": true,
+      "source_file": "server/tests/engine.test.ts",
+      "source_location": "L259",
       "weight": 1.0
     },
     {
@@ -31239,13 +31336,35 @@
     },
     {
       "source": "server_src_services_updater",
-      "target": "server_src_services_updater_project_root",
+      "target": "server_src_services_updater_getinstalledversion",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L11",
+      "source_location": "L103",
+      "weight": 1.0
+    },
+    {
+      "source": "server_src_services_updater",
+      "target": "server_src_services_updater_getcurrentcommit",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "server/src/services/updater.ts",
+      "source_location": "L118",
+      "weight": 1.0
+    },
+    {
+      "source": "server_src_services_updater",
+      "target": "server_src_services_updater_resolveprojectroot",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "server/src/services/updater.ts",
+      "source_location": "L12",
       "weight": 1.0
     },
     {
@@ -31256,7 +31375,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L117",
+      "source_location": "L137",
       "weight": 1.0
     },
     {
@@ -31267,7 +31386,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L123",
+      "source_location": "L143",
       "weight": 1.0
     },
     {
@@ -31278,7 +31397,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L133",
+      "source_location": "L153",
       "weight": 1.0
     },
     {
@@ -31289,18 +31408,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L149",
-      "weight": 1.0
-    },
-    {
-      "source": "server_src_services_updater",
-      "target": "server_src_services_updater_updatesettings",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "server/src/services/updater.ts",
-      "source_location": "L16",
+      "source_location": "L169",
       "weight": 1.0
     },
     {
@@ -31311,7 +31419,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L167",
+      "source_location": "L187",
       "weight": 1.0
     },
     {
@@ -31322,7 +31430,18 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L175",
+      "source_location": "L195",
+      "weight": 1.0
+    },
+    {
+      "source": "server_src_services_updater",
+      "target": "server_src_services_updater_isreleasestillnewer",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "server/src/services/updater.ts",
+      "source_location": "L205",
       "weight": 1.0
     },
     {
@@ -31333,7 +31452,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L185",
+      "source_location": "L215",
       "weight": 1.0
     },
     {
@@ -31344,7 +31463,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L211",
+      "source_location": "L246",
       "weight": 1.0
     },
     {
@@ -31355,18 +31474,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L229",
-      "weight": 1.0
-    },
-    {
-      "source": "server_src_services_updater",
-      "target": "server_src_services_updater_default_update_settings",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "server/src/services/updater.ts",
-      "source_location": "L23",
+      "source_location": "L264",
       "weight": 1.0
     },
     {
@@ -31377,18 +31485,29 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L243",
+      "source_location": "L278",
       "weight": 1.0
     },
     {
       "source": "server_src_services_updater",
-      "target": "server_src_services_updater_releaseentry",
+      "target": "server_src_services_updater_project_root",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L30",
+      "source_location": "L31",
+      "weight": 1.0
+    },
+    {
+      "source": "server_src_services_updater",
+      "target": "server_src_services_updater_updatesettings",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "server/src/services/updater.ts",
+      "source_location": "L36",
       "weight": 1.0
     },
     {
@@ -31399,29 +31518,18 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L344",
+      "source_location": "L379",
       "weight": 1.0
     },
     {
       "source": "server_src_services_updater",
-      "target": "server_src_services_updater_updatestep",
+      "target": "server_src_services_updater_default_update_settings",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L39",
-      "weight": 1.0
-    },
-    {
-      "source": "server_src_services_updater",
-      "target": "server_src_services_updater_updatestate",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "server/src/services/updater.ts",
-      "source_location": "L41",
+      "source_location": "L43",
       "weight": 1.0
     },
     {
@@ -31432,7 +31540,40 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L414",
+      "source_location": "L451",
+      "weight": 1.0
+    },
+    {
+      "source": "server_src_services_updater",
+      "target": "server_src_services_updater_releaseentry",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "server/src/services/updater.ts",
+      "source_location": "L50",
+      "weight": 1.0
+    },
+    {
+      "source": "server_src_services_updater",
+      "target": "server_src_services_updater_updatestep",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "server/src/services/updater.ts",
+      "source_location": "L59",
+      "weight": 1.0
+    },
+    {
+      "source": "server_src_services_updater",
+      "target": "server_src_services_updater_updatestate",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "server/src/services/updater.ts",
+      "source_location": "L61",
       "weight": 1.0
     },
     {
@@ -31443,7 +31584,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L58",
+      "source_location": "L78",
       "weight": 1.0
     },
     {
@@ -31454,18 +31595,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/services/updater.ts",
-      "source_location": "L69",
-      "weight": 1.0
-    },
-    {
-      "source": "server_src_services_updater",
-      "target": "server_src_services_updater_getinstalledversion",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "server/src/services/updater.ts",
-      "source_location": "L83",
+      "source_location": "L89",
       "weight": 1.0
     },
     {
@@ -31477,17 +31607,6 @@
       "confidence_score": 1.0,
       "source_file": "server/src/services/updater.ts",
       "source_location": "L9",
-      "weight": 1.0
-    },
-    {
-      "source": "server_src_services_updater",
-      "target": "server_src_services_updater_getcurrentcommit",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "server/src/services/updater.ts",
-      "source_location": "L98",
       "weight": 1.0
     },
     {
@@ -34996,7 +35115,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "deploy/xprotocol-cli.sh",
-      "source_location": "L224",
+      "source_location": "L228",
       "weight": 1.0
     },
     {
@@ -35007,7 +35126,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "deploy/xprotocol-cli.sh",
-      "source_location": "L242",
+      "source_location": "L246",
       "weight": 1.0
     },
     {
@@ -35061,15 +35180,6 @@
     },
     {
       "source": "server_tests_engine_test",
-      "target": "server_src_db_database",
-      "relation": "dynamic_import",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "server/tests/engine.test.ts"
-    },
-    {
-      "source": "server_tests_engine_test",
       "target": "server_src_drivers_pki",
       "relation": "dynamic_import",
       "_origin": "ast",
@@ -35098,6 +35208,15 @@
     {
       "source": "server_tests_engine_test",
       "target": "server_src_services_peerresolver",
+      "relation": "dynamic_import",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "server/tests/engine.test.ts"
+    },
+    {
+      "source": "server_tests_engine_test",
+      "target": "server_src_services_updater",
       "relation": "dynamic_import",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -35304,5 +35423,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "529dd6425e960320c1cd4692d386531f5d57c4db"
+  "built_at_commit": "714f8db948fc1b2e20c79026fbbedeac84224ca3"
 }

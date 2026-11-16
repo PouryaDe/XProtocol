@@ -100,12 +100,11 @@ export function InboundsPage() {
           <EmptySonar
             text={L(
               lang,
-              'No inbounds yet. Define a protocol once and choose which nodes should run it.',
-              'هنوز اینباندی تعریف نشده است. یک پروتکل بسازید و مشخص کنید روی کدام نودها اجرا شود.',
+              'Create an inbound and choose the nodes where it should run.',
+              'یک اینباند بسازید و مشخص کنید روی کدام نودها اجرا شود.',
             )}
             action={
               <Button variant="primary" onClick={() => navigate('/inbounds/new')}>
-                <Plus className="h-4 w-4" />
                 {L(lang, 'New inbound', 'اینباند جدید')}
               </Button>
             }
@@ -191,7 +190,7 @@ export function InboundsPage() {
                   <div key={ib.id} className="panel inb-service">
                     <header>
                       <div className="inb-service-identity">
-                        <span className="rounded-md border border-(--border-strong) bg-(--bg-elevated) px-2 py-0.5 font-mono text-[11px] font-semibold tracking-wider text-(--text-secondary)">
+                        <span className="rounded-md border border-(--border-strong) bg-(--bg-elevated) px-2 py-0.5 text-xs font-medium text-(--text-secondary)">
                           {formatKindBadge(ib.protocol, ib.settings?.obfuscation)}
                         </span>
                         <a
@@ -200,7 +199,6 @@ export function InboundsPage() {
                             e.preventDefault();
                             navigate(`/inbounds/${ib.id}`);
                           }}
-                          className="text-[16px] font-semibold text-(--text-primary) hover:text-(--accent-text) transition"
                         >
                           {displayTitle}
                         </a>
@@ -209,17 +207,17 @@ export function InboundsPage() {
                       <div className={`inb-health ${healthClass}`}>
                         {active ? (
                           <>
-                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            <CheckCircle2 />
                             <span>{L(lang, 'Active nodes: 1', 'نودهای فعال: ۱')}</span>
                           </>
                         ) : attention ? (
                           <>
-                            <AlertTriangle className="h-3.5 w-3.5" />
+                            <AlertTriangle />
                             <span>{L(lang, 'Nodes needing attention: 1', 'نودهای نیازمند بررسی: ۱')}</span>
                           </>
                         ) : draft ? (
                           <>
-                            <Clock className="h-3.5 w-3.5" />
+                            <Clock />
                             <span>
                               {L(
                                 lang,
@@ -230,30 +228,24 @@ export function InboundsPage() {
                           </>
                         ) : (
                           <>
-                            <Clock className="h-3.5 w-3.5" />
+                            <Clock />
                             <span>{L(lang, 'Stopped', 'متوقف')}</span>
                           </>
                         )}
                       </div>
                     </header>
 
-                    {ib.description && <p className="text-[13px] text-(--text-secondary)">{ib.description}</p>}
+                    {ib.description && <p className="hint">{ib.description}</p>}
 
                     <div className="inb-service-meta">
                       <span>
-                        <strong className="font-semibold text-(--text-primary)">{ib.onlineCount ?? 0}</strong>{' '}
-                        {L(lang, 'Online clients', 'کلاینت آنلاین')}
+                        <strong>{ib.onlineCount ?? 0}</strong> {L(lang, 'Online clients', 'کلاینت آنلاین')}
                       </span>
                       <span>
-                        {lang === 'fa'
-                          ? `${allowedCount} کلاینت مجاز`
-                          : `${allowedCount} ${allowedCount === 1 ? 'client allowed' : 'clients allowed'}`}
+                        {lang === 'fa' ? `${allowedCount} کلاینت مجاز` : `${allowedCount} clients allowed`}
                       </span>
                       <span className="font-mono" dir="ltr">
                         {ib.transport.toUpperCase()} · {ib.port}
-                      </span>
-                      <span className="font-mono" dir="ltr">
-                        {ib.subnet}
                       </span>
                     </div>
 
@@ -264,18 +256,16 @@ export function InboundsPage() {
                             {L(lang, 'No deployment nodes yet', 'هنوز نود اجرایی انتخاب نشده')}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 rounded-full border border-(--border-subtle) bg-(--bg-elevated) px-2.5 py-0.5 text-xs text-(--text-secondary)">
-                            <span className={`dot ${ib.running ? 'live' : ''}`} />
-                            <span>
-                              {ib.nodeIsLocal
-                                ? L(lang, 'This server', 'همین سرور')
-                                : ib.nodeName || `#${ib.nodeId}`}
-                            </span>
+                          <span>
+                            <i className={ib.running ? 'good' : 'bad'} />
+                            {ib.nodeIsLocal
+                              ? L(lang, 'This server', 'همین سرور')
+                              : ib.nodeName || `#${ib.nodeId}`}
                           </span>
                         )}
                       </div>
 
-                      <Button size="sm" variant="ghost" onClick={() => navigate(`/inbounds/${ib.id}`)}>
+                      <Button size="sm" variant="secondary" onClick={() => navigate(`/inbounds/${ib.id}`)}>
                         <span>{L(lang, 'Manage inbound', 'مدیریت اینباند')}</span>
                         <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" />
                       </Button>

@@ -1,5 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, RefreshCw, Server, Trash2 } from 'lucide-react';
+import {
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  Clock,
+  RefreshCw,
+  Search,
+  Server,
+  SlidersHorizontal,
+  Trash2,
+} from 'lucide-react';
 import { useUi } from '../i18n/context';
 import { apiFetch } from '../lib/api';
 import { Button } from './UiPrimitives';
@@ -26,7 +36,7 @@ export function L(lang: string, enText: string, faText: string): string {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  FoldSection                                                                */
+/*  FoldSection (2-column .ed-section + .fold-main matching Ovira CSS)         */
 /* -------------------------------------------------------------------------- */
 
 export function FoldSection({
@@ -52,27 +62,27 @@ export function FoldSection({
 
   return (
     <div className={`ed-section ${className}`.trim()}>
-      <div className="fold-main">
+      <div>
         <h2>{title}</h2>
+      </div>
+      <div className="fold-main">
         <button
           type="button"
           className="fold-toggle"
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
         >
-          {open ? (
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" />
-          ) : (
-            <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-70" />
-          )}
-          <span className="text-(--text-secondary)">
+          <span>
             {summaryPrefix}
             {summary}
           </span>
-          <span className="fold-act">{open ? L(lang, 'Hide', 'بستن') : actLabel}</span>
+          <span className="fold-act">
+            <span>{open ? L(lang, 'Hide', 'بستن') : actLabel}</span>
+            <ChevronDown />
+          </span>
         </button>
+        {open && <div className="ed-fields">{children}</div>}
       </div>
-      {open && <div className="ed-fields mt-4">{children}</div>}
     </div>
   );
 }
@@ -95,60 +105,47 @@ export function TunnelNetworkPicker({
   const { lang } = useUi();
   const presets = useMemo(() => getPresetRanges(kind), [kind]);
   const info = useMemo(() => validateCidr(value, kind), [value, kind]);
-  const isCustom = !presets.some((p) => p.cidr === value);
-  const [customMode, setCustomMode] = useState(isCustom);
+  const isPresetMatch = value === '' || presets.some((p) => p.cidr === value);
+  const [customMode, setCustomMode] = useState(!isPresetMatch);
 
   useEffect(() => {
-    setCustomMode(!presets.some((p) => p.cidr === value));
+    setCustomMode(value !== '' && !presets.some((p) => p.cidr === value));
   }, [value, presets]);
 
   useEffect(() => {
     onValidityChange?.(info.ok);
   }, [info.ok, onValidityChange]);
 
-  const roleLabel = (role: 'default' | 'small' | 'large') => {
-    if (role === 'default') return L(lang, 'Recommended default', 'پیش‌فرض پیشنهادی');
-    if (role === 'small') return L(lang, 'Smaller range', 'بازه کوچک‌تر');
-    return L(lang, 'Larger range', 'بازه بزرگ‌تر');
-  };
-
   const errorText = () => {
     if (info.ok) return null;
-    if (info.reason === 'empty') {
-      return L(lang, 'Enter an address range such as 10.8.0.0/24.', 'یک بازه آدرس مانند 10.8.0.0/24 وارد کنید.');
-    }
     if (info.reason === 'format') {
       return L(
         lang,
-        'Enter an address range in CIDR form, such as 10.8.0.0/24.',
-        'بازه آدرس را به شکل CIDR وارد کنید، مثلا 10.8.0.0/24.',
+        'Enter an address range in CIDR form, such as 10.40.0.0/24.',
+        'بازه آدرس را به شکل CIDR وارد کنید، مثلا 10.40.0.0/24.',
       );
     }
     if (info.reason === 'unmasked') {
       return L(
         lang,
-        'End the address in zero for the mask (for example 10.8.0.0/24, not 10.8.0.1/24).',
-        'آدرس باید با توجه به ماسک با صفر تمام شود (مثلا 10.8.0.0/24، نه 10.8.0.1/24).',
+        'End the address in zero for the mask (for example 10.40.0.0/24, not 10.40.0.1/24).',
+        'آدرس باید با توجه به ماسک با صفر تمام شود (مثلا 10.40.0.0/24).',
       );
     }
     if (info.reason === 'range') {
-      return L(
-        lang,
-        'Mask must be between /16 and /29.',
-        'ماسک باید بین /16 تا /29 باشد.',
-      );
+      return L(lang, 'Mask must be between /8 and /28.', 'ماسک باید بین /8 تا /28 باشد.');
     }
     return L(
       lang,
-      'Use a private address range (10.x, 172.16-31.x, or 192.168.x).',
-      'از یک بازه آدرس خصوصی استفاده کنید (10.x، 172.16-31.x یا 192.168.x).',
+      'Use a private address range (10.x, 172.16-31.x, 192.168.x, or 100.64.x).',
+      'از یک بازه آدرس خصوصی استفاده کنید (10.x، 172.16-31.x، 192.168.x یا 100.64.x).',
     );
   };
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-(--text-secondary)">
+      <label className="block">
+        <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
           {L(lang, 'Ready-made ranges', 'بازه‌های آماده')}
         </span>
         <select
@@ -164,37 +161,53 @@ export function TunnelNetworkPicker({
             }
           }}
         >
+          <option value="">{L(lang, 'Automatic (free range on the node)', 'خودکار (انتخاب بازه آزاد روی نود)')}</option>
           {presets.map((p) => (
             <option key={p.cidr} value={p.cidr}>
-              {p.cidr} — {roleLabel(p.role)} (~{p.usable} {L(lang, 'addresses', 'آدرس')})
+              {p.cidr === '10.0.0.0/8' ? `${L(lang, 'Large', 'بزرگ')} · ` : ''}
+              {p.cidr} · {p.usable.toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US')}{' '}
+              {L(lang, 'client IPs', 'IP کلاینت')}
             </option>
           ))}
-          <option value="__custom__">{L(lang, 'Custom CIDR range…', 'بازه CIDR سفارشی…')}</option>
+          <option value="__custom__">{L(lang, 'Custom range (type below)', 'بازه سفارشی (در زیر بنویسید)')}</option>
         </select>
-      </div>
+      </label>
 
-      {customMode && (
-        <label className="block">
-          <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
-            {L(lang, 'Custom subnet (CIDR)', 'زیرشبکه سفارشی (CIDR)')}
-          </span>
-          <input
-            type="text"
-            dir="ltr"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="10.8.0.0/24"
-            className="w-full rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-3 py-2 font-mono text-sm text-(--text-primary) transition focus:border-(--accent) focus:outline-none"
-          />
-        </label>
-      )}
+      <label className="block">
+        <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
+          {L(lang, 'Tunnel network', 'شبکه تونل')}
+        </span>
+        <input
+          type="text"
+          dir="ltr"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={L(lang, 'Leave empty for a free range', 'برای انتخاب خودکار بازه آزاد خالی بگذارید')}
+          className="w-full rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-3 py-2 font-mono text-sm text-(--text-primary) placeholder:font-sans placeholder:text-(--text-muted) transition focus:border-(--accent) focus:outline-none"
+        />
+      </label>
 
       {info.ok ? (
-        <p className="text-xs text-(--text-muted)">
-          {lang === 'fa'
-            ? `حدود ${info.usable} آدرس قابل استفاده در بازه ${value} برای کلاینت‌های همزمان`
-            : `About ${info.usable} usable client addresses inside ${value}.`}
-        </p>
+        <div className="flex flex-col gap-1 text-xs text-(--text-muted)">
+          <p>
+            {value.trim()
+              ? lang === 'fa'
+                ? `${value} تا ${(info.usable || 0).toLocaleString('fa-IR')} IP کلاینت در اختیار می‌گذارد.`
+                : `${value} holds up to ${(info.usable || 0).toLocaleString('en-US')} client IPs.`
+              : L(
+                  lang,
+                  'A free range is chosen on the node when this server is attached.',
+                  'هنگام اتصال به نود، یک بازه آزاد به‌طور خودکار انتخاب می‌شود.',
+                )}
+          </p>
+          <p>
+            {L(
+              lang,
+              'This is how many addresses the range holds; it is separate from the maximum connections and license limits.',
+              'این مقدار صرفاً ظرفیت آدرس‌های رنج است و از سقف اتصالات همزمان و محدودیت لایسنس جداست.',
+            )}
+          </p>
+        </div>
       ) : (
         <p className="text-xs text-red-400">{errorText()}</p>
       )}
@@ -233,24 +246,24 @@ export function NodePickerGrid({
 
   return (
     <div className="inb-node-picker">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs text-(--text-secondary)">
-          {L(
-            lang,
-            'Selected nodes will be set up immediately after creation.',
-            'نودهای انتخاب‌شده بلافاصله پس از ساخت راه‌اندازی می‌شوند.',
-          )}
-        </span>
-        {nodes.length > 4 && (
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={L(lang, 'Filter nodes…', 'فیلتر نودها…')}
-            className="w-52 rounded-lg border border-(--border-strong) bg-(--bg-elevated) px-2.5 py-1.5 text-xs text-(--text-primary) focus:border-(--accent) focus:outline-none"
-          />
+      <p className="hint text-xs text-(--text-secondary)">
+        {L(
+          lang,
+          'Select one or more nodes. Missing protocol software is installed automatically.',
+          'یک یا چند نود انتخاب کنید. پیش‌نیازهای پروتکل به‌طور خودکار نصب می‌شوند.',
         )}
-      </div>
+      </p>
+
+      <label className="inb-search">
+        <Search className="h-4 w-4 shrink-0 text-(--text-muted)" />
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={L(lang, 'Search name or address…', 'جستجوی نام یا آدرس…')}
+          className="w-full bg-transparent text-sm text-(--text-primary) placeholder:text-(--text-muted) focus:outline-none"
+        />
+      </label>
 
       {visibleNodes.length === 0 ? (
         <div className="inb-empty">
@@ -263,48 +276,38 @@ export function NodePickerGrid({
             const err = errors[n.id];
             const offline = n.status && n.status !== 'online' && n.status !== 'connected';
             return (
-              <button
+              <label
                 key={n.id}
-                type="button"
                 className={`inb-node-option${selected ? ' selected' : ''}${err ? ' has-error' : ''}`}
-                onClick={() => onToggle(n.id)}
               >
-                <span className="inb-node-main">
-                  <span className="flex items-center gap-2 font-medium text-sm text-(--text-primary)">
-                    <Server className="h-3.5 w-3.5 text-(--accent-text)" />
-                    <span>{n.isLocal ? L(lang, 'This server', 'همین سرور') : n.name}</span>
-                    {n.isLocal && (
-                      <span className="rounded-md bg-(--accent-wash) px-1.5 py-0.5 text-[10px] font-semibold text-(--accent-text)">
-                        {L(lang, 'Panel + node', 'پنل + نود')}
-                      </span>
+                <input
+                  type="checkbox"
+                  checked={selected}
+                  onChange={() => onToggle(n.id)}
+                />
+                <Server />
+                <span>
+                  <strong>{n.isLocal ? L(lang, 'This server', 'همین سرور') : n.name}</strong>
+                  <small>
+                    {err ? (
+                      <span className="text-red-400">{err}</span>
+                    ) : offline ? (
+                      n.status
+                    ) : (
+                      L(lang, 'Ready to set up', 'آماده راه‌اندازی')
                     )}
-                  </span>
-                  <span className="text-xs text-(--text-muted) font-mono" dir="ltr">
-                    {n.address || '127.0.0.1'}
-                    {offline ? ` · ${n.status}` : ''}
-                  </span>
-                  {err && <span className="text-xs text-red-400 mt-0.5">{err}</span>}
+                  </small>
                 </span>
-                <span className="inb-selected-mark">
-                  {selected ? L(lang, 'Selected', 'انتخاب شده') : L(lang, 'Select', 'انتخاب')}
-                </span>
-              </button>
+                {selected && <Check className="inb-selected-mark h-4 w-4 shrink-0" />}
+              </label>
             );
           })}
         </div>
       )}
 
-      {selectedIds.length === 0 && (
-        <div className="callout mt-1">
-          <div className="text-xs text-(--text-secondary)">
-            {L(
-              lang,
-              'Leave empty to save as a draft — you can attach nodes later without losing settings.',
-              'برای ذخیره به‌عنوان پیش‌نویس خالی بگذارید — بعدا بدون از دست رفتن تنظیمات می‌توانید نود اضافه کنید.',
-            )}
-          </div>
-        </div>
-      )}
+      <p className="hint text-xs text-(--text-secondary)">
+        {lang === 'fa' ? `نودهای انتخاب‌شده: ${selectedIds.length}` : `Selected nodes: ${selectedIds.length}`}
+      </p>
     </div>
   );
 }
@@ -335,11 +338,13 @@ export function DeploymentNodesPanel({
 
   const [overrideNodeOpen, setOverrideNodeOpen] = useState(false);
   const [ovPort, setOvPort] = useState(String(inbound.port));
+  const [ovSubnet, setOvSubnet] = useState(inbound.subnet || '');
   const [ovHost, setOvHost] = useState(inbound.publicAddressOverride || '');
   const [savingOv, setSavingOv] = useState(false);
 
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [prepOpen, setPrepOpen] = useState(false);
 
   const attachedNode = useMemo(() => {
     if (inbound.nodeId != null) {
@@ -383,14 +388,15 @@ export function DeploymentNodesPanel({
     }
   };
 
-  const handleSaveOverride = async () => {
+  const handleSaveOverride = async (useShared = false) => {
     setSavingOv(true);
     try {
       await apiFetch(`/inbounds/${inbound.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
-          port: Number(ovPort) || inbound.port,
-          publicAddressOverride: ovHost.trim(),
+          port: useShared ? inbound.port : Number(ovPort) || inbound.port,
+          subnet: useShared ? inbound.subnet : ovSubnet.trim() || inbound.subnet,
+          publicAddressOverride: useShared ? '' : ovHost.trim(),
         }),
       });
       setOverrideNodeOpen(false);
@@ -420,10 +426,27 @@ export function DeploymentNodesPanel({
       : attachedNode.name
     : inbound.nodeName || L(lang, 'This server', 'همین سرور');
 
+  const prepStamp = inbound.createdAt || new Date().toISOString();
+  const prepLines = [
+    `${prepStamp} · checking`,
+    `${prepStamp} · configuring (${inbound.protocol} ${inbound.transport.toUpperCase()} :${inbound.port})`,
+    `${prepStamp} · ${inbound.running ? 'starting' : 'stopped'}`,
+    `${prepStamp} · ${inbound.running ? 'ready' : 'idle'}`,
+  ].join('\n');
+
   return (
     <div className="panel inb-deployments">
-      <div className="panel-h">
-        <h2>{L(lang, 'Deployment nodes', 'نودهای اجرا')}</h2>
+      <div className="panel-head">
+        <div>
+          <h2>{L(lang, 'Deployment nodes', 'نودهای اجرا')}</h2>
+          <p className="text-xs text-(--text-secondary)">
+            {L(
+              lang,
+              'Preparation continues when you leave this page.',
+              'حتی اگر این صفحه را ببندید فرآیند آماده‌سازی در پس‌زمینه ادامه می‌یابد.',
+            )}
+          </p>
+        </div>
         {unattachedNodes.length > 0 && (
           <Button size="sm" variant="secondary" onClick={openAddNodes}>
             + {L(lang, 'Add nodes', 'افزودن نود')}
@@ -442,91 +465,112 @@ export function DeploymentNodesPanel({
           </p>
           {unattachedNodes.length > 0 && (
             <Button size="sm" variant="primary" onClick={openAddNodes}>
-              + {L(lang, 'Choose node & run', 'انتخاب نود و اجرا')}
+              + {L(lang, 'Add nodes', 'افزودن نود')}
             </Button>
           )}
         </div>
       ) : (
-        <div className="flex flex-col">
-          <div className="inb-deployment">
-            <div className="inb-deployment-main">
-              <div className="inb-deployment-name">
-                <span className={`dot ${inbound.running ? 'live' : ''}`} />
-                <span>{nodeDisplayName}</span>
-                <span className="inb-endpoint">
-                  {inbound.transport.toUpperCase()} · {inbound.port}
-                  {inbound.publicAddressOverride ? ` · ${inbound.publicAddressOverride}` : ''}
-                </span>
-                <span className="text-xs text-(--text-muted)">
-                  {inbound.running
-                    ? L(lang, 'Running', 'در حال اجرا')
-                    : L(lang, 'Stopped', 'متوقف')}
-                </span>
-              </div>
-              <div className="text-xs text-(--text-muted)" dir="ltr">
-                {attachedNode?.address || '127.0.0.1'} · {inbound.subnet}
-              </div>
+        <div className="inb-deployment">
+          <header>
+            <div className="inb-deployment-name">
+              <Server />
+              <strong>{nodeDisplayName}</strong>
             </div>
 
             <div className="inb-deployment-actions">
-              <div className="inb-run-actions">
-                {inbound.running ? (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      disabled={!!busyAction}
-                      onClick={() => void onAction('restart')}
-                    >
-                      {busyAction === 'restart'
-                        ? L(lang, 'Restarting…', 'در حال ری‌استارت…')
-                        : L(lang, 'Restart', 'ری‌استارت')}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      disabled={!!busyAction}
-                      onClick={() => void onAction('stop')}
-                    >
-                      {busyAction === 'stop'
-                        ? L(lang, 'Stopping…', 'در حال توقف…')
-                        : L(lang, 'Stop', 'توقف')}
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    disabled={!!busyAction}
-                    onClick={() => void onAction('start')}
-                  >
-                    {busyAction === 'start'
-                      ? L(lang, 'Starting…', 'در حال شروع…')
-                      : L(lang, 'Start', 'شروع')}
-                  </Button>
-                )}
-              </div>
-
+              <span className="inb-endpoint">
+                {inbound.transport.toUpperCase()} · {inbound.port}
+                {inbound.publicAddressOverride ? ` · ${inbound.publicAddressOverride}` : ''}
+              </span>
               <Button
                 size="sm"
                 variant="secondary"
                 onClick={() => {
                   setOvPort(String(inbound.port));
+                  setOvSubnet(inbound.subnet || '');
                   setOvHost(inbound.publicAddressOverride || '');
                   setOverrideNodeOpen(true);
                 }}
+                title={`${L(lang, 'Node-specific settings', 'تنظیمات این نود')} · ${nodeDisplayName}`}
               >
-                {L(lang, 'Node-specific settings', 'تنظیمات این نود')}
+                <SlidersHorizontal className="h-3.5 w-3.5" />
               </Button>
-
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={() => setRemoveConfirmOpen(true)}
-                title={L(lang, 'Remove from this node', 'حذف از این نود')}
+                title={`${L(lang, 'Remove from this node', 'حذف از این نود')} · ${nodeDisplayName}`}
               >
                 <Trash2 className="h-3.5 w-3.5 text-red-400" />
               </Button>
+            </div>
+          </header>
+
+          <div className="inb-progress">
+            <div className="inb-progress-title">
+              {inbound.running ? (
+                <CheckCircle2 className="text-emerald-400" />
+              ) : (
+                <Clock className="text-amber-400" />
+              )}
+              <strong>
+                {inbound.running ? L(lang, 'Running', 'در حال اجرا') : L(lang, 'Stopped', 'متوقف')}
+              </strong>
+            </div>
+
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={() => setPrepOpen((v) => !v)}
+                className="text-xs font-medium text-(--text-secondary) hover:text-(--text-primary) transition"
+              >
+                {prepOpen ? '− ' : '+ '}
+                {L(lang, 'Preparation report', 'گزارش آماده‌سازی')}
+              </button>
+              {prepOpen && (
+                <pre className="code-block mt-2 rounded-lg border border-(--border-subtle)" dir="ltr">
+                  {prepLines}
+                </pre>
+              )}
+            </div>
+
+            <div className="inb-run-actions">
+              {inbound.running ? (
+                <>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={!!busyAction}
+                    onClick={() => void onAction('restart')}
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${busyAction === 'restart' ? 'animate-spin' : ''}`} />
+                    {busyAction === 'restart'
+                      ? L(lang, 'Restarting…', 'در حال ری‌استارت…')
+                      : L(lang, 'Restart', 'ری‌استارت')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={!!busyAction}
+                    onClick={() => void onAction('stop')}
+                  >
+                    {busyAction === 'stop'
+                      ? L(lang, 'Stopping…', 'در حال توقف…')
+                      : L(lang, 'Stop', 'توقف')}
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="primary"
+                  disabled={!!busyAction}
+                  onClick={() => void onAction('start')}
+                >
+                  {busyAction === 'start'
+                    ? L(lang, 'Starting…', 'در حال شروع…')
+                    : L(lang, 'Start', 'شروع')}
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -536,7 +580,7 @@ export function DeploymentNodesPanel({
       <Modal
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        title={L(lang, 'Attach node', 'اتصال نود')}
+        title={L(lang, 'Add nodes', 'افزودن نود')}
         subtitle={L(
           lang,
           'Select a server node to run this inbound on.',
@@ -558,7 +602,7 @@ export function DeploymentNodesPanel({
                 return (
                   <label key={nid} className="block">
                     <span className="mb-1 block text-xs text-(--text-secondary)">
-                      {L(lang, 'Port on', 'پورت روی')} {n?.name || `#${nid}`}
+                      {L(lang, 'Custom port ·', 'پورت سفارشی ·')} {n?.isLocal ? L(lang, 'This server', 'همین سرور') : n?.name || `#${nid}`}
                     </span>
                     <input
                       type="number"
@@ -580,23 +624,27 @@ export function DeploymentNodesPanel({
               {L(lang, 'Cancel', 'لغو')}
             </Button>
             <Button variant="primary" disabled={adding || pickedIds.length === 0} onClick={() => void handleDeploy()}>
-              {adding ? L(lang, 'Attaching…', 'در حال اتصال…') : L(lang, 'Attach & apply', 'اتصال و اعمال')}
+              {adding ? L(lang, 'Adding…', 'در حال اتصال…') : L(lang, 'Apply', 'اعمال')}
             </Button>
           </div>
         </div>
       </Modal>
 
-      {/* Node-specific settings Modal */}
+      {/* Node-specific settings Modal (Ovira style) */}
       <Modal
         open={overrideNodeOpen}
         onClose={() => setOverrideNodeOpen(false)}
-        title={L(lang, 'Node-specific settings', 'تنظیمات اختصاصی نود')}
-        subtitle={nodeDisplayName}
+        title={`${L(lang, 'Node-specific settings', 'تنظیمات اختصاصی نود')} · ${nodeDisplayName}`}
+        subtitle={L(
+          lang,
+          'Leave a field empty to inherit the shared setting. A changed field only affects this node.',
+          'برای استفاده از تنظیمات مشترک فیلد را خالی بگذارید. تغییر هر فیلد فقط روی این نود اعمال می‌شود.',
+        )}
       >
         <div className="flex flex-col gap-4">
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
-              {L(lang, 'Listen port', 'پورت شنود')}
+              {L(lang, 'Custom port', 'پورت سفارشی')}
             </span>
             <input
               type="number"
@@ -605,12 +653,26 @@ export function DeploymentNodesPanel({
               max={65535}
               value={ovPort}
               onChange={(e) => setOvPort(e.target.value)}
+              placeholder={String(inbound.port)}
               className="w-full rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-3 py-2 font-mono text-sm text-(--text-primary)"
             />
           </label>
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
-              {L(lang, 'Public address override (optional)', 'بازنویسی آدرس عمومی (اختیاری)')}
+              {L(lang, 'Custom tunnel network', 'شبکه تونل سفارشی')}
+            </span>
+            <input
+              type="text"
+              dir="ltr"
+              value={ovSubnet}
+              onChange={(e) => setOvSubnet(e.target.value)}
+              placeholder={inbound.subnet}
+              className="w-full rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-3 py-2 font-mono text-sm text-(--text-primary)"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
+              {L(lang, 'Custom public address', 'آدرس عمومی سفارشی')}
             </span>
             <input
               type="text"
@@ -621,13 +683,18 @@ export function DeploymentNodesPanel({
               className="w-full rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-3 py-2 font-mono text-sm text-(--text-primary)"
             />
           </label>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="secondary" onClick={() => setOverrideNodeOpen(false)}>
-              {L(lang, 'Cancel', 'لغو')}
+          <div className="flex flex-wrap justify-between gap-2 pt-2">
+            <Button variant="secondary" disabled={savingOv} onClick={() => void handleSaveOverride(true)}>
+              {L(lang, 'Use shared settings', 'استفاده از تنظیمات مشترک')}
             </Button>
-            <Button variant="primary" disabled={savingOv} onClick={() => void handleSaveOverride()}>
-              {savingOv ? L(lang, 'Saving…', 'در حال ذخیره…') : L(lang, 'Save', 'ذخیره')}
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => setOverrideNodeOpen(false)}>
+                {L(lang, 'Cancel', 'لغو')}
+              </Button>
+              <Button variant="primary" disabled={savingOv} onClick={() => void handleSaveOverride(false)}>
+                {savingOv ? L(lang, 'Applying…', 'در حال اعمال…') : L(lang, 'Apply to this node', 'اعمال روی این نود')}
+              </Button>
+            </div>
           </div>
         </div>
       </Modal>
@@ -636,8 +703,7 @@ export function DeploymentNodesPanel({
       <Modal
         open={removeConfirmOpen}
         onClose={() => setRemoveConfirmOpen(false)}
-        title={L(lang, 'Remove from this node', 'حذف از این نود')}
-        subtitle={nodeDisplayName}
+        title={`${L(lang, 'Remove from this node', 'حذف از این نود')} · ${nodeDisplayName}`}
       >
         <div className="flex flex-col gap-4">
           <p className="text-sm text-(--text-secondary)">
@@ -678,7 +744,7 @@ export function OpenConnectSection({
 
   return (
     <FoldSection
-      title={L(lang, 'OpenConnect / AnyConnect', 'تنظیمات OpenConnect / AnyConnect')}
+      title="OpenConnect"
       summaryPrefix={L(lang, 'Recommended defaults are in use. ', 'تنظیمات پیش‌فرض پیشنهادی فعال است. ')}
       summary={`${settings.dtls !== false ? 'DTLS On' : 'TCP only'}${settings.camouflage ? ' · Camouflage' : ''}`}
     >
@@ -895,7 +961,7 @@ export function OpenConnectSection({
 }
 
 /* -------------------------------------------------------------------------- */
-/*  WireGuardSection                                                           */
+/*  WireGuardSection (collapsed + Advanced inside .inb-advanced-basics)        */
 /* -------------------------------------------------------------------------- */
 
 export function WireGuardSection({
@@ -909,17 +975,27 @@ export function WireGuardSection({
 }) {
   const { lang } = useUi();
   const isAmnezia = settings.obfuscation === 'amnezia';
-
-  const insertToken = (token: string) => {
-    const cur = settings.filenameTemplate || '{inbound}-{client}';
-    onPatch({ filenameTemplate: `${cur}${cur.endsWith('-') ? '' : '-'}${token}` });
+  const rawAmz = settings.amnezia || randomAmneziaParams();
+  const displayAmz = {
+    jc: rawAmz.Jc,
+    jmin: rawAmz.Jmin,
+    jmax: rawAmz.Jmax,
+    s1: rawAmz.S1,
+    s2: rawAmz.S2,
+    h1: rawAmz.H1,
+    h2: rawAmz.H2,
+    h3: rawAmz.H3,
+    h4: rawAmz.H4,
   };
 
   return (
-    <>
+    <details className="inb-advanced-basics mx-[22px] my-[18px]">
+      <summary>{L(lang, 'Advanced', 'تنظیمات پیشرفته')}</summary>
       <div className="ed-section">
-        <h2>{L(lang, 'WireGuard & AmneziaWG', 'تنظیمات WireGuard و AmneziaWG')}</h2>
-        <div className="ed-fields mt-4">
+        <div>
+          <h2>WireGuard</h2>
+        </div>
+        <div className="ed-fields">
           {serverPublicKey && (
             <label className="block">
               <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
@@ -935,7 +1011,7 @@ export function WireGuardSection({
             </label>
           )}
 
-          <div className="checks-inline">
+          <div className="flex flex-col gap-1.5">
             <label className="switch">
               <input
                 type="checkbox"
@@ -949,32 +1025,30 @@ export function WireGuardSection({
               />
               <span className="track" />
               <span className="sw-text">
-                {L(
-                  lang,
-                  'AmneziaWG obfuscation (bypass DPI blocking)',
-                  'مبهم‌سازی AmneziaWG (عبور از فیلترینگ DPI)',
-                )}
+                {L(lang, 'Amnezia obfuscation', 'مبهم‌سازی Amnezia')}
               </span>
             </label>
+            <span className="hint text-xs text-(--text-muted)">
+              {L(
+                lang,
+                'For networks that block WireGuard. Requires the AmneziaVPN app.',
+                'برای شبکه‌هایی که WireGuard را مسدود می‌کنند. نیازمند اپلیکیشن AmneziaVPN است.',
+              )}
+            </span>
           </div>
 
           {isAmnezia && (
-            <div className="wg-params flex flex-col gap-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-medium text-(--text-secondary)">
-                  {L(lang, 'AmneziaWG handshake parameters', 'پارامترهای AmneziaWG')}
-                </span>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => onPatch({ amnezia: randomAmneziaParams() })}
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  {L(lang, 'Regenerate parameters', 'تولید مجدد پارامترها')}
-                </Button>
-              </div>
-              <pre className="code-block" dir="ltr">
-                {JSON.stringify(settings.amnezia || randomAmneziaParams(), null, 2)}
+            <div className="flex flex-col gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                className="w-full"
+                onClick={() => onPatch({ amnezia: randomAmneziaParams() })}
+              >
+                {L(lang, 'Regenerate Amnezia parameters', 'تولید مجدد پارامترهای Amnezia')}
+              </Button>
+              <pre className="wg-params font-mono" dir="ltr">
+                {JSON.stringify(displayAmz, null, 2)}
               </pre>
             </div>
           )}
@@ -996,7 +1070,7 @@ export function WireGuardSection({
             </label>
             <label className="block">
               <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
-                {L(lang, 'Persistent keepalive (s)', 'بازه ارسال Keepalive (ثانیه)')}
+                {L(lang, 'Persistent keepalive (seconds)', 'بازه ارسال Keepalive (ثانیه)')}
               </span>
               <input
                 type="number"
@@ -1007,44 +1081,18 @@ export function WireGuardSection({
                 onChange={(e) => onPatch({ keepalive: Number(e.target.value) || 0 })}
                 className="w-full rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-3 py-2 font-mono text-sm text-(--text-primary)"
               />
+              <span className="mt-1 block text-xs text-(--text-muted)">
+                {L(
+                  lang,
+                  '0 turns keepalive off. Default: 25 seconds.',
+                  'مقدار 0 این قابلیت را خاموش می‌کند. پیش‌فرض: 25 ثانیه.',
+                )}
+              </span>
             </label>
-          </div>
-
-          <div className="wg-filename-group">
-            <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
-              {L(lang, 'Client config filename template', 'الگوی نام فایل کانفیگ کلاینت')}
-            </span>
-            <div className="wg-filename-row">
-              <div className="input-group flex-1">
-                <input
-                  type="text"
-                  dir="ltr"
-                  className="input font-mono text-sm"
-                  value={settings.filenameTemplate || '{inbound}-{client}'}
-                  onChange={(e) => onPatch({ filenameTemplate: e.target.value })}
-                />
-                <span className="suffix" dir="ltr">
-                  .conf
-                </span>
-              </div>
-            </div>
-            <div className="wg-filename-help mt-1">
-              <span>{L(lang, 'Tokens:', 'متغیرها:')}</span>
-              {['{inbound}', '{client}', '{node}', '{kind}'].map((tok) => (
-                <button
-                  key={tok}
-                  type="button"
-                  className="rounded border border-(--border-subtle) px-1.5 py-0.5 font-mono text-[11px] hover:border-(--accent)"
-                  onClick={() => insertToken(tok)}
-                >
-                  {tok}
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       </div>
-    </>
+    </details>
   );
 }
 
@@ -1090,15 +1138,17 @@ export function IpsecSection({
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <>
       <div className="ed-section">
-        <h2>
-          {kind === 'ikev2'
-            ? L(lang, 'IKEv2 identity & certificate', 'هویت و گواهینامه IKEv2')
-            : L(lang, 'L2TP/IPsec pre-shared key', 'کلید مشترک L2TP/IPsec')}
-        </h2>
+        <div>
+          <h2>
+            {kind === 'ikev2'
+              ? L(lang, 'IKEv2 identity & certificate', 'هویت و گواهینامه IKEv2')
+              : L(lang, 'L2TP/IPsec pre-shared key', 'کلید مشترک L2TP/IPsec')}
+          </h2>
+        </div>
 
-        <div className="ed-fields mt-4">
+        <div className="ed-fields">
           {kind === 'ikev2' ? (
             <>
               <div className="form-row">
@@ -1375,6 +1425,6 @@ export function IpsecSection({
           </div>
         )}
       </FoldSection>
-    </div>
+    </>
   );
 }

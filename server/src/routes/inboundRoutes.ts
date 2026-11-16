@@ -222,6 +222,21 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       ...(body.displayName ? { displayName: body.displayName.trim() } : {}),
     };
 
+    const existingSubnets = new Set(
+      (db.prepare('SELECT subnet FROM inbounds').all() as { subnet: string }[]).map((r) => r.subnet),
+    );
+    let resolvedSubnet = (body.subnet || '').trim();
+    if (!resolvedSubnet) {
+      for (let oct = 40; oct < 250; oct++) {
+        const cand = `10.${oct}.0.0/24`;
+        if (!existingSubnets.has(cand)) {
+          resolvedSubnet = cand;
+          break;
+        }
+      }
+      if (!resolvedSubnet) resolvedSubnet = '10.69.0.0/24';
+    }
+
     const createdIds: number[] = [];
     try {
       for (let i = 0; i < targetNodeIds.length; i++) {
@@ -240,7 +255,7 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
             instanceName,
             transport,
             nodePort,
-            body.subnet || '10.69.0.0/24',
+            resolvedSubnet,
             body.authMode || (protocol === 'wireguard' || protocol === 'amneziawg' ? 'device_keys' : 'certificate_password'),
             body.description || '',
             body.publicAddressOverride || '',

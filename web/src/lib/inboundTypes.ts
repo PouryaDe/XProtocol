@@ -141,12 +141,12 @@ export function normalizeKind(raw: string): 'openvpn' | 'ocserv' | 'wireguard' |
 
 export function formatKindBadge(kind: string, obfuscation?: string): string {
   const k = kind.toLowerCase();
-  if (k === 'amneziawg' || (k === 'wireguard' && obfuscation === 'amnezia')) return 'AMNEZIAWG';
-  if (k === 'ocserv' || k === 'openconnect') return 'OPENCONNECT';
-  if (k === 'ikev2') return 'IKEV2';
-  if (k === 'l2tp') return 'L2TP/IPSEC';
-  if (k === 'wireguard') return 'WIREGUARD';
-  return 'OPENVPN';
+  if (k === 'amneziawg' || (k === 'wireguard' && obfuscation === 'amnezia')) return 'AmneziaWG';
+  if (k === 'ocserv' || k === 'openconnect') return 'OpenConnect';
+  if (k === 'ikev2') return 'IKEv2';
+  if (k === 'l2tp') return 'L2TP/IPsec';
+  if (k === 'wireguard') return 'WireGuard';
+  return 'OpenVPN';
 }
 
 export function defaultPortForKind(kind: 'openvpn' | 'ocserv' | 'wireguard' | 'ikev2' | 'l2tp'): number {
@@ -195,7 +195,7 @@ export function pickFreeCidr(existingSubnets: string[], startOctet: number): str
 
 export function validateCidr(raw: string, kind: string): CidrInfo {
   const s = raw.trim();
-  if (!s) return { ok: false, reason: 'empty' };
+  if (!s) return { ok: true, total: 256, usable: 253 };
   const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/(\d{1,2})$/.exec(s);
   if (!m) return { ok: false, reason: 'format' };
   const octets = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])];
@@ -204,7 +204,7 @@ export function validateCidr(raw: string, kind: string): CidrInfo {
 
   const nk = normalizeKind(kind);
   const minP = nk === 'wireguard' ? 8 : 16;
-  const maxP = nk === 'wireguard' ? 24 : 28;
+  const maxP = nk === 'wireguard' ? 28 : 28;
   if (prefix < minP || prefix > maxP) return { ok: false, reason: 'range' };
 
   const ipInt = ((octets[0] << 24) | (octets[1] << 16) | (octets[2] << 8) | octets[3]) >>> 0;
@@ -223,33 +223,16 @@ export function validateCidr(raw: string, kind: string): CidrInfo {
   return { ok: true, total, usable };
 }
 
-export function getPresetRanges(kind: string): Array<{ cidr: string; role: 'default' | 'small' | 'large'; usable: number }> {
-  const nk = normalizeKind(kind);
-  if (nk === 'wireguard') {
-    return [
-      { cidr: '10.66.0.0/24', role: 'default', usable: 253 },
-      { cidr: '10.67.0.0/24', role: 'small', usable: 253 },
-      { cidr: '10.68.0.0/20', role: 'large', usable: 4093 },
-    ];
-  }
-  if (nk === 'ocserv') {
-    return [
-      { cidr: '10.30.0.0/24', role: 'default', usable: 253 },
-      { cidr: '10.31.0.0/26', role: 'small', usable: 61 },
-      { cidr: '10.32.0.0/22', role: 'large', usable: 1021 },
-    ];
-  }
-  if (nk === 'ikev2' || nk === 'l2tp') {
-    return [
-      { cidr: '10.40.0.0/24', role: 'default', usable: 253 },
-      { cidr: '10.41.0.0/26', role: 'small', usable: 61 },
-      { cidr: '10.42.0.0/22', role: 'large', usable: 1021 },
-    ];
-  }
+export function getPresetRanges(_kind: string): Array<{ cidr: string; role: 'default' | 'small' | 'large'; usable: number }> {
   return [
-    { cidr: '10.20.0.0/24', role: 'default', usable: 253 },
-    { cidr: '10.21.0.0/26', role: 'small', usable: 61 },
-    { cidr: '10.22.0.0/22', role: 'large', usable: 1021 },
+    { cidr: '10.40.0.0/24', role: 'default', usable: 253 },
+    { cidr: '10.40.0.0/22', role: 'small', usable: 1021 },
+    { cidr: '10.40.0.0/20', role: 'small', usable: 4093 },
+    { cidr: '10.40.0.0/16', role: 'large', usable: 65533 },
+    { cidr: '10.0.0.0/8', role: 'large', usable: 16777213 },
+    { cidr: '172.16.40.0/24', role: 'small', usable: 253 },
+    { cidr: '192.168.40.0/24', role: 'small', usable: 253 },
+    { cidr: '100.64.40.0/24', role: 'small', usable: 253 },
   ];
 }
 
@@ -263,7 +246,7 @@ export function buildDefaultSettings(kind: 'openvpn' | 'ocserv' | 'wireguard' | 
     clientToClient: false,
     ipv6: false,
     network6: '',
-    maxClients: 253,
+    maxClients: kind === 'wireguard' ? 1024 : 253,
     searchDomain: '',
     blockOutsideDns: false,
     authMode: 'cert+pass',

@@ -236,7 +236,8 @@ test('Config rendering sanitizes CRLF/quotes across OpenConnect, IKEv2, L2TP, an
     endpointHost: '1.2.3.4',
     nodeName: 'Node1',
   });
-  assert.match(wgProfile.filename, /^[^/\\]+-alice-wg\.conf$/);
+  assert.equal(wgProfile.filename.includes('..') || wgProfile.filename.includes('/'), false);
+  assert.match(wgProfile.filename, /^[^/\\]*alice-wg\.conf$/);
   assert.match(wgProfile.content, /Address = 10\.66\.0\.\d+\/32/);
 });
 
