@@ -208,6 +208,88 @@ test('Config rendering sanitizes CRLF/quotes across OpenConnect, IKEv2, L2TP, an
   assert.ok(pppOpts);
   assert.match(pppOpts.content, /mtu 1390/);
   assert.match(pppOpts.content, /ipparam l2tp500/);
+  assert.match(pppOpts.content, /noipv6/);
+  assert.match(pppOpts.content, /lcp-echo-interval 10/);
+
+  const l2tpSwan = l2tpFiles.find((f) => f.path.includes('l2tp-l2tp500.conf'));
+  assert.ok(l2tpSwan);
+  assert.match(l2tpSwan.content, /unique = no/);
+  assert.match(l2tpSwan.content, /dpd_action = clear/);
+
+  const xl2tpdCfg = renderInboundServerConfig(
+    {
+      id: 204,
+      node_id: 1,
+      protocol: 'l2tp',
+      name: 'l2tp23',
+      transport: 'udp',
+      port: 1701,
+      subnet: '10.90.0.0/23',
+      auth_mode: 'userpass',
+      description: '',
+      public_address_override: '',
+      enabled: 1,
+      running: 1,
+      cert_id: null,
+      server_public_key: '',
+      server_private_key: '',
+      settings_json: '{}',
+    },
+    [],
+  );
+  assert.match(xl2tpdCfg.content, /force userspace = yes/);
+  assert.match(xl2tpdCfg.content, /ip range = 10\.90\.0\.2-10\.90\.1\.253/);
+
+  const ocLiteCfg = renderInboundServerConfig(
+    {
+      id: 205,
+      node_id: 1,
+      protocol: 'openconnect',
+      name: 'oc443',
+      transport: 'tcp',
+      port: 443,
+      subnet: '10.91.0.0/24',
+      auth_mode: 'userpass',
+      description: '',
+      public_address_override: '',
+      enabled: 1,
+      running: 1,
+      cert_id: null,
+      server_public_key: '',
+      server_private_key: '',
+      settings_json: '{}',
+    },
+    [],
+  );
+  assert.match(ocLiteCfg.content, /device = vc205-/);
+  assert.match(ocLiteCfg.content, /max-ban-score = 0/);
+  assert.match(ocLiteCfg.content, /max-same-clients = 0/);
+  assert.match(ocLiteCfg.content, /try-mtu-discovery = false/);
+
+  const ovpnLiteCfg = renderInboundServerConfig(
+    {
+      id: 206,
+      node_id: 1,
+      protocol: 'openvpn',
+      name: 'ovpn1194',
+      transport: 'udp',
+      port: 1194,
+      subnet: '10.92.0.0/24',
+      auth_mode: 'password',
+      description: '',
+      public_address_override: '',
+      enabled: 1,
+      running: 1,
+      cert_id: null,
+      server_public_key: '',
+      server_private_key: '',
+      settings_json: '{}',
+    },
+    [],
+  );
+  assert.match(ovpnLiteCfg.content, /duplicate-cn/);
+  assert.match(ovpnLiteCfg.content, /status-version 3/);
+  assert.match(ovpnLiteCfg.content, /push "block-ipv6"/);
 
   const wgProfile = generateClientProfile({
     clientName: 'alice',

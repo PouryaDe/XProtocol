@@ -1,11 +1,13 @@
 import { getDb } from '../db/database.js';
-import { collectLinuxLiveTunnels } from '../drivers/linuxEngine.js';
+import { applyDedicatedSessionLimits, collectLinuxLiveTunnels } from '../drivers/linuxEngine.js';
 import type { InboundRow } from '../generators/configs.js';
 import { isClientActiveQuota } from './peerResolver.js';
 import { kickClientConnections, kickConnectionById, scheduleSyncRunningInbounds } from './syncService.js';
 
 let collectorTimer: NodeJS.Timeout | null = null;
+let bootBaselineDone = false;
 const lastTunnelBytes = new Map<string, { in: number; out: number }>();
+const appliedDedicatedShape = new Map<string, string>();
 
 function computeNextResetIso(period: string, fromMs = Date.now()): string | null {
   const d = new Date(fromMs);
@@ -77,7 +79,8 @@ export async function runCollectorTick(): Promise<void> {
   const clients = db
     .prepare(
       `SELECT id, name, owner_id, wg_public_key, traffic_limit_bytes, traffic_used_bytes,
-              expires_at, first_connect_days, first_connected_at, enabled, device_limit
+              expires_at, first_connect_days, first_connected_at, enabled, device_limit,
+              download_mbps, upload_mbps
        FROM clients`,
     )
     .all() as Array<{
@@ -92,7 +95,30 @@ export async function runCollectorTick(): Promise<void> {
     first_connected_at: string | null;
     enabled: number;
     device_limit: number | null;
+    download_mbps: number | null;
+    upload_mbps: number | null;
   }>;
+
+  const groupSpeedRows = db
+    .prepare(
+      `SELECT cg.client_id, g.download_mbps, g.upload_mbps
+       FROM client_groups cg
+       JOIN groups g ON g.id = cg.group_id
+       WHERE g.enabled = 1 AND (g.download_mbps IS NOT NULL OR g.upload_mbps IS NOT NULL)`,
+    )
+    .all() as Array<{ client_id: number; download_mbps: number | null; upload_mbps: number | null }>;
+  const groupDlMin = new Map<number, number>();
+  const groupUlMin = new Map<number, number>();
+  for (const gs of groupSpeedRows) {
+    if (gs.download_mbps && gs.download_mbps > 0) {
+      const cur = groupDlMin.get(gs.client_id);
+      if (cur === undefined || gs.download_mbps < cur) groupDlMin.set(gs.client_id, gs.download_mbps);
+    }
+    if (gs.upload_mbps && gs.upload_mbps > 0) {
+      const cur = groupUlMin.get(gs.client_id);
+      if (cur === undefined || gs.upload_mbps < cur) groupUlMin.set(gs.client_id, gs.upload_mbps);
+    }
+  }
 
   const clientByName = new Map(clients.map((c) => [c.name, c]));
   const clientNameByPub = new Map(clients.map((c) => [c.wg_public_key, c.name]));
@@ -130,15 +156,28 @@ export async function runCollectorTick(): Promise<void> {
   const clientsToKick = new Set<number>();
   const activeCountByClient = new Map<number, number>();
   const excessConnectionIds: string[] = [];
+  const seenLiveIds = new Set<string>();
+  const seenDedicatedIfaces = new Set<string>();
+
+  // Evaluate established connections first so newer excess sessions are the ones rejected/kicked
+  live.sort((a, b) => {
+    const ta = prevConnectedAt.get(a.id) || nowIso;
+    const tb = prevConnectedAt.get(b.id) || nowIso;
+    return ta.localeCompare(tb);
+  });
 
   for (const s of live) {
+    seenLiveIds.add(s.id);
     const client = clientByName.get(s.clientName);
     if (!client) continue;
     const inbound = inbounds.find((i) => i.id === s.inboundId);
     const nodeId = inbound?.node_id || 1;
     const mult = nodeMult.get(nodeId) ?? 1.0;
 
-    const prev = lastTunnelBytes.get(s.id) || { in: s.bytesIn, out: s.bytesOut };
+    // On first collector pass after startup, baseline persistent WireGuard interface counters so
+    // bytes transferred prior to restart are not double-counted; per-session counters start at 0.
+    const defaultPrev = !bootBaselineDone && s.id.startsWith('wg-') ? { in: s.bytesIn, out: s.bytesOut } : { in: 0, out: 0 };
+    const prev = lastTunnelBytes.get(s.id) ?? defaultPrev;
     // Counter reset (tunnel restart): treat full current reading as new traffic delta
     const deltaIn = s.bytesIn >= prev.in ? s.bytesIn - prev.in : s.bytesIn;
     const deltaOut = s.bytesOut >= prev.out ? s.bytesOut - prev.out : s.bytesOut;
@@ -196,7 +235,28 @@ export async function runCollectorTick(): Promise<void> {
 
     if (client.device_limit !== null && client.device_limit > 0 && seenCount > client.device_limit) {
       excessConnectionIds.push(s.id);
+    } else if (
+      s.interfaceName &&
+      (s.interfaceName.startsWith('ppp') || s.interfaceName.startsWith('vc') || s.interfaceName.startsWith('vpns'))
+    ) {
+      seenDedicatedIfaces.add(s.interfaceName);
+      const effDl = client.download_mbps ?? groupDlMin.get(client.id) ?? null;
+      const effUl = client.upload_mbps ?? groupUlMin.get(client.id) ?? null;
+      const shapeKey = `${effDl ?? 0}:${effUl ?? 0}`;
+      const prevKey = appliedDedicatedShape.get(s.interfaceName);
+      if (shapeKey !== prevKey && (effDl || effUl || prevKey !== undefined)) {
+        appliedDedicatedShape.set(s.interfaceName, shapeKey);
+        await applyDedicatedSessionLimits(s.interfaceName, effDl, effUl).catch(() => undefined);
+      }
     }
+  }
+
+  bootBaselineDone = true;
+  for (const id of lastTunnelBytes.keys()) {
+    if (!seenLiveIds.has(id)) lastTunnelBytes.delete(id);
+  }
+  for (const iface of appliedDedicatedShape.keys()) {
+    if (!seenDedicatedIfaces.has(iface)) appliedDedicatedShape.delete(iface);
   }
 
   for (const connId of excessConnectionIds) {

@@ -320,6 +320,7 @@ test('VPN backend engine: peer eligibility, NAT/AmneziaWG config, OpenVPN static
   assert.match(awgRendered.path, /\/etc\/amnezia\/amneziawg\/awg-test\.conf/);
   assert.match(awgRendered.content, /Address = 10\.88\.0\.1\/23/);
   assert.match(awgRendered.content, /PostUp = .*MASQUERADE/);
+  assert.match(awgRendered.content, /TCPMSS --set-mss 1240/);
   assert.match(awgRendered.content, /Jc = 7/);
 
   // Verify OpenVPN PKI static ta.key + management socket + L2TP extra files

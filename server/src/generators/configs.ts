@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { getDataDir } from '../config.js';
-import { parseCidr } from '../services/peerResolver.js';
+import { intToIp, parseCidr } from '../services/peerResolver.js';
 
 export interface InboundRow {
   id: number;
@@ -122,8 +122,8 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
       if (natOn) {
         const netCidr = `${cidr.networkIp}/${cidr.prefix}`;
         lines.push(
-          `PostUp = iptables -C FORWARD -i %i -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -i %i -j ACCEPT; iptables -C FORWARD -o %i -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -o %i -j ACCEPT; iptables -t nat -C POSTROUTING -s ${netCidr} ! -o %i -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s ${netCidr} ! -o %i -j MASQUERADE`,
-          `PostDown = iptables -D FORWARD -i %i -j ACCEPT 2>/dev/null || true; iptables -D FORWARD -o %i -j ACCEPT 2>/dev/null || true; iptables -t nat -D POSTROUTING -s ${netCidr} ! -o %i -j MASQUERADE 2>/dev/null || true`,
+          `PostUp = iptables -C FORWARD -i %i -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -i %i -j ACCEPT; iptables -C FORWARD -o %i -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -o %i -j ACCEPT; iptables -t nat -C POSTROUTING -s ${netCidr} ! -o %i -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s ${netCidr} ! -o %i -j MASQUERADE; iptables -t mangle -C FORWARD -s ${netCidr} -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1240 2>/dev/null || iptables -t mangle -I FORWARD 1 -s ${netCidr} -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1240; iptables -t mangle -C FORWARD -d ${netCidr} -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1240 2>/dev/null || iptables -t mangle -I FORWARD 1 -d ${netCidr} -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1240`,
+          `PostDown = iptables -D FORWARD -i %i -j ACCEPT 2>/dev/null || true; iptables -D FORWARD -o %i -j ACCEPT 2>/dev/null || true; iptables -t nat -D POSTROUTING -s ${netCidr} ! -o %i -j MASQUERADE 2>/dev/null || true; iptables -t mangle -D FORWARD -s ${netCidr} -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1240 2>/dev/null || true; iptables -t mangle -D FORWARD -d ${netCidr} -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1240 2>/dev/null || true`,
         );
       }
       if (amneziaOn) {
@@ -171,10 +171,10 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
       const tlsMin = sanitizeLine(settings.tlsMinVersion || '1.2');
       const tlsMode = String(settings.tlsMode || 'tls-crypt');
       const authMode = String(settings.authMode || inbound.auth_mode || 'cert');
-      const keepInterval = Number(settings.keepaliveInterval ?? 10);
-      const keepTimeout = Number(settings.keepaliveTimeout ?? 60);
-      const tunMtu = Number(settings.tunMtu ?? 1500);
-      const mssFix = Number(settings.mssFix ?? 1450);
+      const keepInterval = Number(settings.keepaliveInterval ?? 5);
+      const keepTimeout = Number(settings.keepaliveTimeout ?? 20);
+      const tunMtu = Number(settings.tunMtu ?? 1350);
+      const mssFix = Number(settings.mssFix ?? 1350);
       const maxClients = Number(settings.maxClients ?? 100);
       const renegSec = Number(settings.renegSec ?? 3600);
       const verb = Number(settings.verb ?? 3);
@@ -211,6 +211,9 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
       if (settings.blockOutsideDns !== false) {
         lines.push(`push "block-outside-dns"`);
       }
+      if (!settings.ipv6) {
+        lines.push(`push "block-ipv6"`);
+      }
       if (settings.clientToClient) {
         lines.push(`client-to-client`);
       }
@@ -222,16 +225,21 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
         `keepalive ${keepInterval} ${keepTimeout}`,
         `tun-mtu ${tunMtu}`,
         ...(proto === 'udp' && mssFix > 0 ? [`mssfix ${mssFix}`] : []),
+        `sndbuf 524288`,
+        `rcvbuf 524288`,
         `max-clients ${maxClients}`,
         `reneg-sec ${renegSec}`,
         `persist-key`,
         `persist-tun`,
         `management /var/run/xprotocol-${inbound.name}.sock unix`,
         `status /var/run/xprotocol-${inbound.name}.status 5`,
-        `status-version 2`,
+        `status-version 3`,
         `verb ${verb}`,
       );
 
+      if (proto === 'tcp-server') {
+        lines.push(`tcp-nodelay`);
+      }
       if (proto === 'udp' && settings.exitNotify !== false) {
         lines.push(`explicit-exit-notify 1`);
       }
@@ -241,6 +249,7 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
 
       if (authMode === 'pass' || authMode === 'password') {
         lines.push(
+          `duplicate-cn`,
           `verify-client-cert none`,
           `username-as-common-name`,
           `script-security 2`,
@@ -248,6 +257,7 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
         );
       } else if (authMode === 'cert+pass' || authMode === 'certificate_password') {
         lines.push(
+          `duplicate-cn`,
           `script-security 2`,
           `auth-user-pass-verify ${authScript} via-file`,
         );
@@ -275,7 +285,7 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
         `run-as-user = nobody`,
         `run-as-group = nogroup`,
         `isolate-workers = false`,
-        `device = vpns`,
+        `device = vc${inbound.id}-`,
         `socket-file = /var/run/ocserv-${inbound.name}.socket`,
         `occtl-socket-file = /var/run/occtl-${inbound.name}.sock`,
         `server-cert = ${certsDir}/cert-${certTag}.pem`,
@@ -284,15 +294,23 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
         `ipv4-netmask = ${cidr.netmask}`,
         `dns = ${dnsList[0] || '1.1.1.1'}`,
         ...(dnsList[1] ? [`dns = ${dnsList[1]}`] : []),
-        `try-mtu-discovery = true`,
+        `try-mtu-discovery = false`,
+        `mtu = ${Number(settings.mtu ?? 1420)}`,
         `cisco-client-compat = ${settings.ciscoCompat !== false ? 'true' : 'false'}`,
         `dtls-legacy = true`,
+        `keepalive = ${Number(settings.keepalive ?? 10)}`,
         `idle-timeout = ${Number(settings.idleTimeout ?? 1200)}`,
-        `dpd = ${Number(settings.dpd ?? 90)}`,
-        `mobile-dpd = ${Number(settings.mobileDpd ?? 1800)}`,
+        `dpd = ${Number(settings.dpd ?? 30)}`,
+        `mobile-dpd = ${Number(settings.mobileDpd ?? 30)}`,
+        `switch-to-tcp-timeout = 25`,
+        `auth-timeout = 240`,
+        `stats-report-time = 60`,
         `cookie-timeout = ${Number(settings.cookieTimeout ?? 300)}`,
         `tls-priorities = "${escapeQuoted(settings.tlsPriorities || 'NORMAL:%SERVER_PRECEDENCE:%COMPAT:-VERS-SSL3.0')}"`,
-        `max-same-clients = 10`,
+        `max-clients = 0`,
+        `max-same-clients = 0`,
+        `max-ban-score = 0`,
+        `ban-reset-time = 60`,
       ];
       if (settings.redirectGateway !== false) {
         lines.push(`route = default`);
@@ -376,16 +394,17 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
     }
 
     default: {
+      const rangeStart = intToIp((cidr.baseInt + 2) >>> 0);
+      const rangeEnd = intToIp(Math.max(cidr.baseInt + 2, cidr.broadcastInt - 2) >>> 0);
       const lines = [
         `# Managed by XProtocol Open-Core (${inbound.name})`,
         `[global]`,
-        `port = 1701`,
-        `auth file = /etc/ppp/chap-secrets`,
+        `port = ${inbound.port || 1701}`,
+        ...(settings.kernelMode ? [] : [`force userspace = yes`]),
         `[lns default]`,
-        `ip range = ${cidr.gatewayIp.replace(/\.\d+$/, '.10')}-${cidr.gatewayIp.replace(/\.\d+$/, '.250')}`,
+        `ip range = ${rangeStart}-${rangeEnd}`,
         `local ip = ${cidr.gatewayIp}`,
-        `require chap = yes`,
-        `refuse pap = yes`,
+        ...(settings.strictMschapV2 ? [`require chap = yes`, `refuse pap = yes`] : []),
         `require authentication = yes`,
         `name = xprotocol-l2tp`,
         `pppoptfile = /etc/ppp/options.xl2tpd.${inbound.name}`,
@@ -410,17 +429,19 @@ export function renderInboundExtraFiles(inbound: InboundRow, peers: PeerEntry[])
   const files: RenderedConfigFile[] = [];
 
   if (inbound.protocol === 'l2tp') {
-    const mtu = Number(settings.pppMtu ?? 1400);
-    const mru = Number(settings.pppMru ?? 1400);
-    const lcpInt = Number(settings.lcpEchoInterval ?? 30);
-    const lcpFail = Number(settings.lcpEchoFailure ?? 4);
+    const mtu = Number(settings.pppMtu ?? 1280);
+    const mru = Number(settings.pppMru ?? 1280);
+    const lcpInt = Number(settings.lcpEchoInterval ?? 10);
+    const lcpFail = Number(settings.lcpEchoFailure ?? 6);
     const idleSec = Number(settings.idleSeconds ?? 0);
     const pppLines = [
       `ipcp-accept-local`,
       `ipcp-accept-remote`,
       `noccp`,
+      `noipv6`,
       `auth`,
-      `require-mschap-v2`,
+      `refuse-eap`,
+      ...(settings.strictMschapV2 ? [`require-mschap-v2`] : []),
       `mtu ${mtu}`,
       `mru ${mru}`,
       `lcp-echo-interval ${lcpInt}`,
@@ -439,8 +460,11 @@ export function renderInboundExtraFiles(inbound: InboundRow, peers: PeerEntry[])
     });
 
     const psk = escapeQuoted(settings.psk || 'xprotocol-l2tp-psk');
-    const ikeProps = sanitizeLine(settings.ikeProposals || 'aes256-sha256-modp2048,aes128-sha1-modp1024');
-    const espProps = sanitizeLine(settings.espProposals || 'aes256-sha256,aes128-sha1');
+    const ikeProps = sanitizeLine(
+      settings.ikeProposals ||
+        'aes256-sha1-modp2048,aes128-sha1-modp2048,aes256-sha256-modp2048,aes256-sha1-modp1024,aes128-sha1-modp1024,3des-sha1-modp1024',
+    );
+    const espProps = sanitizeLine(settings.espProposals || 'aes256-sha1,aes128-sha1,aes256-sha256,aes128-sha256,3des-sha1');
     files.push({
       path: `/etc/swanctl/conf.d/l2tp-${inbound.name}.conf`,
       content: [
@@ -448,7 +472,12 @@ export function renderInboundExtraFiles(inbound: InboundRow, peers: PeerEntry[])
         `connections {`,
         `  l2tp-${inbound.name} {`,
         `    version = 1`,
+        `    local_addrs = %any`,
+        `    remote_addrs = %any`,
         `    proposals = ${ikeProps}`,
+        `    fragmentation = yes`,
+        `    dpd_delay = 30s`,
+        `    unique = no`,
         `    encap = ${settings.forceEncap !== false ? 'yes' : 'no'}`,
         `    local { auth = psk }`,
         `    remote { auth = psk }`,
@@ -458,6 +487,8 @@ export function renderInboundExtraFiles(inbound: InboundRow, peers: PeerEntry[])
         `        local_ts = dynamic[udp/1701]`,
         `        remote_ts = dynamic[udp]`,
         `        esp_proposals = ${espProps}`,
+        `        rekey_time = 1h`,
+        `        dpd_action = clear`,
         `      }`,
         `    }`,
         `  }`,

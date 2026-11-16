@@ -35,6 +35,7 @@ export interface LiveTunnelSample {
   remoteIp: string;
   tunnelIp: string;
   device: string;
+  interfaceName?: string;
   bytesIn: number;
   bytesOut: number;
 }
@@ -148,7 +149,7 @@ export async function syncOpenConnectPasswd(inbound: InboundRow, clients: { name
   fs.writeFileSync(passwdPath, lines.join('\n') + '\n', { mode: 0o600 });
 }
 
-/** Sync `/etc/ppp/chap-secrets` safely with escaped credentials for L2TP/PPP clients. */
+/** Sync `/etc/ppp/chap-secrets` and `/etc/ppp/pap-secrets` safely with escaped credentials for L2TP/PPP clients. */
 export async function syncL2tpSecrets(clients: { name: string; vpnPassword: string }[]): Promise<void> {
   if (process.platform !== 'linux') return;
   fs.mkdirSync('/etc/ppp', { recursive: true });
@@ -156,7 +157,9 @@ export async function syncL2tpSecrets(clients: { name: string; vpnPassword: stri
     '# Managed by XProtocol Open-Core',
     ...clients.map((c) => `"${escapeSecretField(c.name)}" * "${escapeSecretField(c.vpnPassword)}" *`),
   ];
-  fs.writeFileSync('/etc/ppp/chap-secrets', lines.join('\n') + '\n', { mode: 0o600 });
+  const body = lines.join('\n') + '\n';
+  fs.writeFileSync('/etc/ppp/chap-secrets', body, { mode: 0o600 });
+  fs.writeFileSync('/etc/ppp/pap-secrets', body, { mode: 0o600 });
 }
 
 function ensurePppSessionHooks(): void {
@@ -233,29 +236,23 @@ WantedBy=multi-user.target
   }
 }
 
-async function applyTcIpClasses(
-  dev: string,
-  handlePrefix: string,
-  entries: Array<{ ip: string; mbps: number }>,
-  direction: 'dst' | 'src',
-): Promise<void> {
-  if (entries.length === 0) return;
-  await runCmd('tc', ['qdisc', 'add', 'dev', dev, 'root', 'handle', `${handlePrefix}:`, 'htb', 'default', '999'], 3000);
-  await runCmd('tc', ['class', 'add', 'dev', dev, 'parent', `${handlePrefix}:`, 'classid', `${handlePrefix}:999`, 'htb', 'rate', '10gbit'], 3000);
-  let idx = 10;
-  for (const item of entries) {
-    const rate = `${Math.max(0.1, item.mbps).toFixed(2)}mbit`;
-    const cls = `${handlePrefix}:${idx++}`;
-    await runCmd('tc', ['class', 'add', 'dev', dev, 'parent', `${handlePrefix}:`, 'classid', cls, 'htb', 'rate', rate, 'ceil', rate], 3000);
-    await runCmd(
-      'tc',
-      ['filter', 'add', 'dev', dev, 'protocol', 'ip', 'parent', `${handlePrefix}:`, 'prio', '1', 'u32', 'match', 'ip', direction, `${item.ip}/32`, 'flowid', cls],
-      3000,
-    );
-  }
+function calcTcRateAndBurst(mbps: number): { rate: string; burst: string } {
+  const kbps = Math.max(100, Math.round(mbps * 1000));
+  const burst = Math.max(16384, Math.round((kbps * 1024) / 8));
+  return { rate: `${kbps}kbit`, burst: String(burst) };
 }
 
-/** Apply per-client download and (when IFB is supported) upload bandwidth shaping via Linux `tc`. */
+function minorOfIp(ip: string): number {
+  const parts = ip.trim().split('.').map(Number);
+  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return 0;
+  const minor = (parts[2] << 8) | parts[3];
+  return minor === 0 || minor === 0xffff ? 0 : minor;
+}
+
+/**
+ * Apply per-client download (HTB) and upload (native kernel ingress policer — no IFB required)
+ * traffic shaping on shared tunnel interfaces such as `wg*` and `tun-*`.
+ */
 export async function applyInterfaceSpeedLimits(iface: string, peers: PeerEntry[]): Promise<void> {
   if (process.platform !== 'linux' || !iface) return;
   const check = await runCmd('ip', ['link', 'show', iface], 3000);
@@ -263,55 +260,154 @@ export async function applyInterfaceSpeedLimits(iface: string, peers: PeerEntry[
 
   await runCmd('tc', ['qdisc', 'del', 'dev', iface, 'root'], 3000);
   const dlEntries = peers
-    .filter((p) => p.downloadMbps && p.downloadMbps > 0)
+    .filter((p) => p.downloadMbps && p.downloadMbps > 0 && p.tunnelIp)
     .map((p) => ({ ip: p.tunnelIp, mbps: Number(p.downloadMbps) }));
-  await applyTcIpClasses(iface, '1', dlEntries, 'dst');
 
-  const ifbDev = `ifb-${iface}`.slice(0, 15);
+  if (dlEntries.length > 0) {
+    await runCmd('tc', ['qdisc', 'replace', 'dev', iface, 'root', 'handle', '1:', 'htb', 'default', 'fff'], 3000);
+    await runCmd('tc', ['class', 'replace', 'dev', iface, 'parent', '1:', 'classid', '1:fff', 'htb', 'rate', '10gbit'], 3000);
+    for (const item of dlEntries) {
+      const m = minorOfIp(item.ip);
+      if (!m) continue;
+      const cid = `1:${m.toString(16)}`;
+      const { rate, burst } = calcTcRateAndBurst(item.mbps);
+      await runCmd('tc', ['class', 'replace', 'dev', iface, 'parent', '1:', 'classid', cid, 'htb', 'rate', rate, 'ceil', rate, 'burst', burst], 3000);
+      await runCmd(
+        'tc',
+        ['filter', 'replace', 'dev', iface, 'protocol', 'ip', 'parent', '1:', 'prio', String(m), 'u32', 'match', 'ip', 'dst', `${item.ip}/32`, 'flowid', cid],
+        3000,
+      );
+    }
+  }
+
   await runCmd('tc', ['qdisc', 'del', 'dev', iface, 'ingress'], 3000);
-  await runCmd('ip', ['link', 'del', ifbDev], 3000);
   const ulEntries = peers
-    .filter((p) => p.uploadMbps && p.uploadMbps > 0)
+    .filter((p) => p.uploadMbps && p.uploadMbps > 0 && p.tunnelIp)
     .map((p) => ({ ip: p.tunnelIp, mbps: Number(p.uploadMbps) }));
-  if (ulEntries.length > 0 && (await runCmd('modprobe', ['ifb'], 3000)).ok) {
-    await runCmd('ip', ['link', 'add', ifbDev, 'type', 'ifb'], 3000);
-    await runCmd('ip', ['link', 'set', ifbDev, 'up'], 3000);
+  if (ulEntries.length > 0) {
     await runCmd('tc', ['qdisc', 'add', 'dev', iface, 'handle', 'ffff:', 'ingress'], 3000);
-    await runCmd(
-      'tc',
-      ['filter', 'add', 'dev', iface, 'parent', 'ffff:', 'protocol', 'ip', 'u32', 'match', 'u32', '0', '0', 'action', 'mirred', 'egress', 'redirect', 'dev', ifbDev],
-      3000,
-    );
-    await applyTcIpClasses(ifbDev, '2', ulEntries, 'src');
+    for (const item of ulEntries) {
+      const m = minorOfIp(item.ip);
+      if (!m) continue;
+      const { rate, burst } = calcTcRateAndBurst(item.mbps);
+      await runCmd(
+        'tc',
+        [
+          'filter',
+          'replace',
+          'dev',
+          iface,
+          'parent',
+          'ffff:',
+          'protocol',
+          'ip',
+          'prio',
+          String(m),
+          'u32',
+          'match',
+          'ip',
+          'src',
+          `${item.ip}/32`,
+          'police',
+          'rate',
+          rate,
+          'burst',
+          burst,
+          'drop',
+          'flowid',
+          ':1',
+        ],
+        3000,
+      );
+    }
   }
 }
 
-/** Configure kernel IPv4 forwarding and idempotent iptables NAT/FORWARD rules for a tunnel subnet. */
+/**
+ * Apply dedicated TBF egress (download) + ingress policer (upload) directly on per-session
+ * interfaces such as L2TP (`pppN`) or OpenConnect (`vcN` / `vpnsN`).
+ */
+export async function applyDedicatedSessionLimits(
+  dev: string,
+  downloadMbps: number | null,
+  uploadMbps: number | null,
+): Promise<void> {
+  if (process.platform !== 'linux' || !dev) return;
+  const check = await runCmd('ip', ['link', 'show', dev], 3000);
+  if (!check.ok) return;
+
+  if (downloadMbps && downloadMbps > 0) {
+    const { rate, burst } = calcTcRateAndBurst(downloadMbps);
+    await runCmd('tc', ['qdisc', 'replace', 'dev', dev, 'root', 'tbf', 'rate', rate, 'burst', burst, 'latency', '100ms'], 3000);
+  } else {
+    await runCmd('tc', ['qdisc', 'del', 'dev', dev, 'root'], 3000);
+  }
+
+  await runCmd('tc', ['qdisc', 'del', 'dev', dev, 'ingress'], 3000);
+  if (uploadMbps && uploadMbps > 0) {
+    const { rate, burst } = calcTcRateAndBurst(uploadMbps);
+    await runCmd('tc', ['qdisc', 'add', 'dev', dev, 'handle', 'ffff:', 'ingress'], 3000);
+    await runCmd(
+      'tc',
+      [
+        'filter',
+        'replace',
+        'dev',
+        dev,
+        'parent',
+        'ffff:',
+        'protocol',
+        'all',
+        'prio',
+        '1',
+        'u32',
+        'match',
+        'u32',
+        '0',
+        '0',
+        'police',
+        'rate',
+        rate,
+        'burst',
+        burst,
+        'drop',
+        'flowid',
+        ':1',
+      ],
+      3000,
+    );
+  }
+}
+
+/** Configure kernel IPv4 forwarding, idempotent iptables NAT/FORWARD rules, and TCP MSS clamping for a tunnel subnet. */
 export async function ensureSubnetNat(subnet: string, enable: boolean): Promise<void> {
   if (process.platform !== 'linux' || !subnet) return;
   await runCmd('sysctl', ['-w', 'net.ipv4.ip_forward=1'], 4000);
-  const route = await runCmd('ip', ['route', 'show', 'default'], 3000);
-  const outIface = route.stdout.match(/\bdev\s+(\S+)/)?.[1] || '';
-  if (!outIface) return;
 
-  const natArgs = ['-t', 'nat', '-s', subnet, '-o', outIface, '-j', 'MASQUERADE'];
+  const natArgs = ['-t', 'nat', '-s', subnet, '!', '-d', subnet, '-j', 'MASQUERADE'];
   const fwdOut = ['-s', subnet, '-j', 'ACCEPT'];
   const fwdIn = ['-d', subnet, '-m', 'conntrack', '--ctstate', 'RELATED,ESTABLISHED', '-j', 'ACCEPT'];
+  const mssOut = ['-t', 'mangle', '-s', subnet, '-p', 'tcp', '--tcp-flags', 'SYN,RST', 'SYN', '-j', 'TCPMSS', '--set-mss', '1240'];
+  const mssIn = ['-t', 'mangle', '-d', subnet, '-p', 'tcp', '--tcp-flags', 'SYN,RST', 'SYN', '-j', 'TCPMSS', '--set-mss', '1240'];
+
+  const ensureRule = async (chain: string, args: string[], insertFirst = false) => {
+    if (!(await runCmd('iptables', ['-C', chain, ...args], 3000)).ok) {
+      await runCmd('iptables', insertFirst ? ['-I', chain, '1', ...args] : ['-A', chain, ...args], 3000);
+    }
+  };
 
   if (enable) {
-    if (!(await runCmd('iptables', ['-C', 'POSTROUTING', ...natArgs], 3000)).ok) {
-      await runCmd('iptables', ['-A', 'POSTROUTING', ...natArgs], 3000);
-    }
-    if (!(await runCmd('iptables', ['-C', 'FORWARD', ...fwdOut], 3000)).ok) {
-      await runCmd('iptables', ['-I', 'FORWARD', '1', ...fwdOut], 3000);
-    }
-    if (!(await runCmd('iptables', ['-C', 'FORWARD', ...fwdIn], 3000)).ok) {
-      await runCmd('iptables', ['-I', 'FORWARD', '1', ...fwdIn], 3000);
-    }
+    await ensureRule('POSTROUTING', natArgs, false);
+    await ensureRule('FORWARD', fwdOut, true);
+    await ensureRule('FORWARD', fwdIn, true);
+    await ensureRule('FORWARD', mssOut, true);
+    await ensureRule('FORWARD', mssIn, true);
   } else {
     await runCmd('iptables', ['-D', 'POSTROUTING', ...natArgs], 3000);
     await runCmd('iptables', ['-D', 'FORWARD', ...fwdOut], 3000);
     await runCmd('iptables', ['-D', 'FORWARD', ...fwdIn], 3000);
+    await runCmd('iptables', ['-D', 'FORWARD', ...mssOut], 3000);
+    await runCmd('iptables', ['-D', 'FORWARD', ...mssIn], 3000);
   }
 }
 
@@ -466,6 +562,7 @@ export async function syncLinuxInboundPeers(inbound: InboundRow, peers: PeerEntr
 
   if (inbound.protocol === 'openvpn') {
     syncOpenVpnAuthScript(inbound.name, peers);
+    await applyInterfaceSpeedLimits(`tun-${inbound.name}`, peers);
     return;
   }
 
@@ -554,10 +651,20 @@ export async function disconnectLinuxPeer(
   }
 
   if (inbound.protocol === 'openvpn') {
+    const cidMatch = opts.connectionId?.match(/-cid(\d+)$/);
+    if (cidMatch) {
+      const ok = await sendOpenVpnManagementCmd(inbound.name, `client-kill ${cidMatch[1]}`);
+      if (ok) return true;
+    }
     return sendOpenVpnManagementCmd(inbound.name, `kill ${opts.clientName}`);
   }
 
   if (inbound.protocol === 'openconnect' || inbound.protocol === 'ocserv') {
+    const idMatch = opts.connectionId?.match(/^oc-\d+-(\d+)$/);
+    if (idMatch) {
+      const r = await runCmd('occtl', ['-s', `/var/run/occtl-${inbound.name}.sock`, 'disconnect', 'id', idMatch[1]], 4000);
+      if (r.ok) return true;
+    }
     const r = await runCmd('occtl', ['-s', `/var/run/occtl-${inbound.name}.sock`, 'disconnect', 'user', opts.clientName], 4000);
     return r.ok;
   }
@@ -570,6 +677,18 @@ export async function disconnectLinuxPeer(
   if (inbound.protocol === 'l2tp' && opts.connectionId?.startsWith('l2tp-ppp-')) {
     const dev = opts.connectionId.split('-').slice(3).join('-');
     if (dev) {
+      const pidFile = `/var/run/${dev}.pid`;
+      if (fs.existsSync(pidFile)) {
+        const pid = Number(fs.readFileSync(pidFile, 'utf-8').trim());
+        if (Number.isInteger(pid) && pid > 1) {
+          try {
+            process.kill(pid, 'SIGHUP');
+            return true;
+          } catch {
+            // fallback to link down
+          }
+        }
+      }
       await runCmd('ip', ['link', 'set', dev, 'down'], 3000);
       return true;
     }
@@ -619,24 +738,46 @@ export async function collectLinuxLiveTunnels(
       if (!fs.existsSync(statusFile)) continue;
       const raw = fs.readFileSync(statusFile, 'utf-8');
       for (const line of raw.split('\n')) {
-        if (!line.startsWith('CLIENT_LIST,')) continue;
-        const parts = line.split(',');
-        if (parts.length < 7) continue;
-        const clientName = parts[1];
-        const remoteIp = parts[2].split(':')[0];
-        const tunnelIp = parts[3];
-        const bytesIn = Number(parts[5] || 0);
-        const bytesOut = Number(parts[6] || 0);
-        samples.push({
-          id: `ovpn-${ib.id}-${clientName}-${tunnelIp}`,
-          clientName,
-          inboundId: ib.id,
-          remoteIp,
-          tunnelIp,
-          device: 'OpenVPN',
-          bytesIn,
-          bytesOut,
-        });
+        if (line.startsWith('CLIENT_LIST\t')) {
+          const parts = line.split('\t');
+          if (parts.length < 11) continue;
+          const clientName = parts[9] && parts[9] !== 'UNDEF' ? parts[9] : parts[1];
+          const remoteIp = parts[2].split(':')[0] || '0.0.0.0';
+          const tunnelIp = parts[3] || '';
+          const bytesIn = Number(parts[5] || 0);
+          const bytesOut = Number(parts[6] || 0);
+          const cid = (parts[10] || '').trim();
+          samples.push({
+            id: cid ? `ovpn-${ib.id}-cid${cid}` : `ovpn-${ib.id}-${clientName}-${tunnelIp}`,
+            clientName,
+            inboundId: ib.id,
+            remoteIp,
+            tunnelIp,
+            device: 'OpenVPN',
+            interfaceName: `tun-${ib.name}`,
+            bytesIn,
+            bytesOut,
+          });
+        } else if (line.startsWith('CLIENT_LIST,')) {
+          const parts = line.split(',');
+          if (parts.length < 7) continue;
+          const clientName = parts[1];
+          const remoteIp = parts[2].split(':')[0];
+          const tunnelIp = parts[3];
+          const bytesIn = Number(parts[5] || 0);
+          const bytesOut = Number(parts[6] || 0);
+          samples.push({
+            id: `ovpn-${ib.id}-${clientName}-${tunnelIp}`,
+            clientName,
+            inboundId: ib.id,
+            remoteIp,
+            tunnelIp,
+            device: 'OpenVPN',
+            interfaceName: `tun-${ib.name}`,
+            bytesIn,
+            bytesOut,
+          });
+        }
       }
     } else if (ib.protocol === 'openconnect' || ib.protocol === 'ocserv') {
       const ocRes = await runCmd('occtl', ['-s', `/var/run/occtl-${ib.name}.sock`, '-j', 'show', 'users'], 4000);
@@ -647,6 +788,7 @@ export async function collectLinuxLiveTunnels(
           const clientName = String(u.Username || u.username || '');
           if (!clientName) continue;
           const tunnelIp = String(u.IPv4 || u['Remote IP'] || '');
+          const ifaceName = String(u.Device || u.device || '');
           samples.push({
             id: `oc-${ib.id}-${String(u.ID || clientName)}`,
             clientName,
@@ -654,6 +796,7 @@ export async function collectLinuxLiveTunnels(
             remoteIp: String(u['Remote IP'] || '0.0.0.0'),
             tunnelIp,
             device: String(u['User-Agent'] || 'OpenConnect'),
+            interfaceName: ifaceName || undefined,
             bytesIn: Number(u.RX || 0),
             bytesOut: Number(u.TX || 0),
           });
@@ -712,16 +855,17 @@ export async function collectLinuxLiveTunnels(
           const rxFile = `/sys/class/net/${meta.ifname}/statistics/rx_bytes`;
           const txFile = `/sys/class/net/${meta.ifname}/statistics/tx_bytes`;
           if (!fs.existsSync(rxFile) || !fs.existsSync(txFile)) continue;
-          samples.push({
-            id: `l2tp-ppp-${ib.id}-${meta.ifname}`,
-            clientName: meta.clientName,
-            inboundId: ib.id,
-            remoteIp: meta.remoteIp || '0.0.0.0',
-            tunnelIp: meta.tunnelIp || '',
-            device: 'L2TP/PPP',
-            bytesIn: Number(fs.readFileSync(rxFile, 'utf-8').trim() || 0),
-            bytesOut: Number(fs.readFileSync(txFile, 'utf-8').trim() || 0),
-          });
+            samples.push({
+              id: `l2tp-ppp-${ib.id}-${meta.ifname}`,
+              clientName: meta.clientName,
+              inboundId: ib.id,
+              remoteIp: meta.remoteIp || '0.0.0.0',
+              tunnelIp: meta.tunnelIp || '',
+              device: 'L2TP/PPP',
+              interfaceName: meta.ifname,
+              bytesIn: Number(fs.readFileSync(rxFile, 'utf-8').trim() || 0),
+              bytesOut: Number(fs.readFileSync(txFile, 'utf-8').trim() || 0),
+            });
         }
       } catch {
         // ignore missing /var/run or sysfs race
