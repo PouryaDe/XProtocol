@@ -7,7 +7,7 @@ import { getEffectiveLimits } from '../security/rbac.js';
 import { generateClientProfile } from '../generators/profiles.js';
 import type { InboundRow } from '../generators/configs.js';
 import { ensureClientCertificate, ensureOpenVpnPki } from '../drivers/pki.js';
-import { ensureClientSpeedColumns } from '../services/peerResolver.js';
+import { parseOptionalMbps } from '../services/peerResolver.js';
 import { kickClientConnections, scheduleSyncRunningInbounds } from '../services/syncService.js';
 
 const GB = 1024 * 1024 * 1024;
@@ -67,7 +67,6 @@ export function createClientRouter(): Router {
   const router = Router();
 
   router.get('/', (req: AuthedRequest, res) => {
-    ensureClientSpeedColumns();
     const acc = req.auth!.account;
     if (acc.permissions.clients.view === 'none') {
       res.status(403).json({ error: 'No permission to view clients' });
@@ -204,7 +203,6 @@ export function createClientRouter(): Router {
       enabled?: boolean;
     };
 
-    ensureClientSpeedColumns();
     const db = getDb();
     const limits = getEffectiveLimits(acc);
     const count = Math.min(50, Math.max(1, Number(body.count || 1)));
@@ -265,8 +263,8 @@ export function createClientRouter(): Router {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
 
-    const dlMbps = body.downloadMbps && Number(body.downloadMbps) > 0 ? Number(body.downloadMbps) : null;
-    const ulMbps = body.uploadMbps && Number(body.uploadMbps) > 0 ? Number(body.uploadMbps) : null;
+    const dlMbps = parseOptionalMbps(body.downloadMbps);
+    const ulMbps = parseOptionalMbps(body.uploadMbps);
 
     const groupIds = (body.groupIds || []).filter((id) =>
       acc.isOwner || acc.allowedGroupIds.length === 0 ? true : acc.allowedGroupIds.includes(id),
@@ -329,7 +327,6 @@ export function createClientRouter(): Router {
   });
 
   router.patch('/:id', async (req: AuthedRequest, res) => {
-    ensureClientSpeedColumns();
     const id = Number(req.params.id);
     const acc = req.auth!.account;
     const db = getDb();
@@ -382,20 +379,12 @@ export function createClientRouter(): Router {
 
     const nextDlMbps =
       body.downloadMbps !== undefined
-        ? body.downloadMbps && Number(body.downloadMbps) > 0
-          ? Number(body.downloadMbps)
-          : null
-        : existing.download_mbps === null || existing.download_mbps === undefined
-          ? null
-          : Number(existing.download_mbps);
+        ? parseOptionalMbps(body.downloadMbps)
+        : parseOptionalMbps(existing.download_mbps);
     const nextUlMbps =
       body.uploadMbps !== undefined
-        ? body.uploadMbps && Number(body.uploadMbps) > 0
-          ? Number(body.uploadMbps)
-          : null
-        : existing.upload_mbps === null || existing.upload_mbps === undefined
-          ? null
-          : Number(existing.upload_mbps);
+        ? parseOptionalMbps(body.uploadMbps)
+        : parseOptionalMbps(existing.upload_mbps);
 
     db.prepare(
       `UPDATE clients SET

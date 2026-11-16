@@ -2,7 +2,7 @@ import { getDb } from '../db/database.js';
 import { collectLinuxLiveTunnels } from '../drivers/linuxEngine.js';
 import type { InboundRow } from '../generators/configs.js';
 import { isClientActiveQuota } from './peerResolver.js';
-import { kickClientConnections, scheduleSyncRunningInbounds } from './syncService.js';
+import { kickClientConnections, kickConnectionById, scheduleSyncRunningInbounds } from './syncService.js';
 
 let collectorTimer: NodeJS.Timeout | null = null;
 const lastTunnelBytes = new Map<string, { in: number; out: number }>();
@@ -111,6 +111,16 @@ export async function runCollectorTick(): Promise<void> {
   let tickDl = 0;
   let tickUl = 0;
 
+  // Preserve original connected_at timestamps for sessions already online
+  const prevConnectedAt = new Map<string, string>();
+  const existingLive = db.prepare('SELECT id, connected_at FROM connections_live').all() as Array<{
+    id: string;
+    connected_at: string;
+  }>;
+  for (const row of existingLive) {
+    prevConnectedAt.set(row.id, row.connected_at);
+  }
+
   db.prepare('DELETE FROM connections_live').run();
   const insertLive = db.prepare(
     `INSERT INTO connections_live (id, client_id, inbound_id, node_id, remote_ip, tunnel_ip, device, connected_at, bytes_in, bytes_out, speed_in_bps, speed_out_bps)
@@ -118,6 +128,8 @@ export async function runCollectorTick(): Promise<void> {
   );
 
   const clientsToKick = new Set<number>();
+  const activeCountByClient = new Map<number, number>();
+  const excessConnectionIds: string[] = [];
 
   for (const s of live) {
     const client = clientByName.get(s.clientName);
@@ -164,6 +176,9 @@ export async function runCollectorTick(): Promise<void> {
       continue;
     }
 
+    const seenCount = (activeCountByClient.get(client.id) || 0) + 1;
+    activeCountByClient.set(client.id, seenCount);
+
     insertLive.run(
       s.id,
       client.id,
@@ -172,12 +187,20 @@ export async function runCollectorTick(): Promise<void> {
       s.remoteIp,
       s.tunnelIp,
       s.device,
-      nowIso,
+      prevConnectedAt.get(s.id) || nowIso,
       s.bytesIn,
       s.bytesOut,
       Math.round(deltaIn / 5),
       Math.round(deltaOut / 5),
     );
+
+    if (client.device_limit !== null && client.device_limit > 0 && seenCount > client.device_limit) {
+      excessConnectionIds.push(s.id);
+    }
+  }
+
+  for (const connId of excessConnectionIds) {
+    await kickConnectionById(connId, 'device_limit').catch(() => undefined);
   }
 
   if (clientsToKick.size > 0) {

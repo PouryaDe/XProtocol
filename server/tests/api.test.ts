@@ -102,13 +102,20 @@ test('Full panel API workflow: auth, 2FA, clients, subscription, RBAC, routing',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: 'reseller1', password: 'reseller-pass-1234' }),
     });
+    const resLoginJson = (await resLogin.json()) as { csrfToken: string };
     const resCookie = resLogin.headers.get('set-cookie')!.split(';')[0];
     const resClients = await fetch(`${baseUrl}/api/clients`, { headers: { Cookie: resCookie } }).then((r) => r.json());
     assert.equal(resClients.clients.length, 0);
 
-    // Reseller cannot access owner-only /api/accounts
+    // Reseller cannot access owner-only /api/accounts or manage inbound preflight
     const forbidden = await fetch(`${baseUrl}/api/accounts`, { headers: { Cookie: resCookie } });
     assert.equal(forbidden.status, 403);
+    const forbiddenPreflight = await fetch(`${baseUrl}/api/inbounds/preflight`, {
+      method: 'POST',
+      headers: { Cookie: resCookie, 'X-CSRF-Token': resLoginJson.csrfToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeIds: [1], port: 51821 }),
+    });
+    assert.equal(forbiddenPreflight.status, 403);
 
     // 7. Bulk client create with startNumber
     const bulkRes = await fetch(`${baseUrl}/api/clients`, {
@@ -159,6 +166,13 @@ test('Full panel API workflow: auth, 2FA, clients, subscription, RBAC, routing',
       }),
     });
     assert.equal(draftInbound.status, 201);
+    const draftJson = (await draftInbound.json()) as { id: number };
+    const badPortPatch = await fetch(`${baseUrl}/api/inbounds/${draftJson.id}`, {
+      method: 'PATCH',
+      headers: { Cookie: cookie, 'X-CSRF-Token': csrf, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ port: 99999 }),
+    });
+    assert.equal(badPortPatch.status, 400);
 
     // 11. Routing Psiphon preset & geo-update
     const psiphonRes = await fetch(`${baseUrl}/api/routing/outbounds`, {

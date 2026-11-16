@@ -1,17 +1,17 @@
 # Graph Report - Ovira  (2026-11-16)
 
 ## Corpus Check
-- 77 files · ~89,884 words
+- 77 files · ~89,987 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 6 file(s) not represented in the graph (top: (none) 2, .css 2, .service 1)
 
 ## Summary
-- 621 nodes · 2042 edges · 22 communities (21 shown, 1 thin omitted)
+- 620 nodes · 2041 edges · 22 communities (21 shown, 1 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 9 edges (avg confidence: 0.78)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `a176985c`
+- Built from commit: `657a5e47`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -30,11 +30,11 @@
 - Project Documentation & Architecture
 - install.sh
 - App.tsx
-- context.ts
+- database.ts
 - routingRoutes.ts
 - SubscriptionPage.tsx
-- recordAudit
-- database.ts
+- getDb
+- clientRoutes.ts
 - linuxEngine.ts
 - xprotocol-cli.sh
 - DonutChart.tsx
@@ -44,8 +44,8 @@
 2. `useUi()` - 47 edges
 3. `Button()` - 42 edges
 4. `apiFetch()` - 39 edges
-5. `InboundDetailPage()` - 29 edges
-6. `PageHead()` - 29 edges
+5. `PageHead()` - 29 edges
+6. `InboundDetailPage()` - 29 edges
 7. `RoutingPage()` - 28 edges
 8. `react` - 28 edges
 9. `PanelRoot()` - 26 edges
@@ -54,14 +54,14 @@
 ## Surprising Connections (you probably didn't know these)
 - `Ovira Open-Core VPN Panel` --conceptually_related_to--> `Inter JetBrains Mono Vazirmatn Typography`  [INFERRED]
   README.md → web/index.html
-- `ClientProfileParams` --references--> `InboundRow`  [EXTRACTED]
-  server/src/generators/profiles.ts → server/src/generators/configs.ts
 - `createAccountRouter()` --indirect_call--> `requireOwner()`  [INFERRED]
   server/src/routes/accountRoutes.ts → server/src/routes/context.ts
 - `createSettingsRouter()` --indirect_call--> `requireOwner()`  [INFERRED]
   server/src/routes/settingsRoutes.ts → server/src/routes/context.ts
 - `createUpdateRouter()` --indirect_call--> `requireOwner()`  [INFERRED]
   server/src/routes/updateRoutes.ts → server/src/routes/context.ts
+- `SubConnect()` --calls--> `useSlidingIndicator()`  [EXTRACTED]
+  web/src/pages/SubscriptionPage.tsx → web/src/components/UiPrimitives.tsx
 
 ## Import Cycles
 - None detected.
@@ -78,7 +78,7 @@ Nodes (34): CertOption, DeploymentNodesPanel(), ESP_PROPOSALS, FoldSection(), IK
 
 ### Community 2 - "index.ts"
 Cohesion: 0.16
-Nodes (22): CONFIG_PATH, DATA_DIR, formatMachineId(), getDataDir(), getDbPath(), loadRuntimeConfig(), normalizeSecretPath(), normalizeSubPath() (+14 more)
+Nodes (19): CONFIG_PATH, DATA_DIR, formatMachineId(), getDataDir(), getDbPath(), loadRuntimeConfig(), normalizeSecretPath(), normalizeSubPath() (+11 more)
 
 ### Community 3 - "web/package.json"
 Cohesion: 0.06
@@ -124,37 +124,37 @@ Nodes (16): DEBIAN_FRONTEND, do_update_from_src(), launch_cli_menu(), NEEDRESTAR
 Cohesion: 0.07
 Nodes (103): lucide-react, react, react-dom, App(), PanelRoot(), resolveRoute(), Drawer(), DrawerProps (+95 more)
 
-### Community 14 - "context.ts"
-Cohesion: 0.20
-Nodes (18): createAccountRouter(), createAuthRouter(), AuthContext, extractClientIp(), loadAccountById(), parseCookies(), requireAuth(), hashPassword() (+10 more)
+### Community 14 - "database.ts"
+Cohesion: 0.12
+Nodes (32): DEFAULT_SUB_SETTINGS, GeneralSettings, initDatabase(), setSetting(), SubPageProtocolConfig, SubscriptionPageSettings, createAccountRouter(), createAuthRouter() (+24 more)
 
 ### Community 15 - "routingRoutes.ts"
-Cohesion: 0.13
-Nodes (21): issueLetsEncryptCert(), updateXrayGeoAssets(), InboundRouteOverride, renderXrayRoutingConfig(), RoutingRule, createCertRouter(), requireOwner(), collectUsedByMap() (+13 more)
+Cohesion: 0.16
+Nodes (19): issueLetsEncryptCert(), updateXrayGeoAssets(), renderXrayRoutingConfig(), createCertRouter(), requireOwner(), collectUsedByMap(), createRoutingRouter(), ensureInboundRoutesColumn() (+11 more)
 
 ### Community 16 - "SubscriptionPage.tsx"
 Cohesion: 0.08
 Nodes (68): niceScale(), TrafficChart(), TrafficSample, BrandMark(), Odometer(), formatBytes(), formatBytesParts(), ACCENT_CSS_VARS (+60 more)
 
-### Community 17 - "recordAudit"
+### Community 17 - "getDb"
 Cohesion: 0.28
-Nodes (11): express, detectDriverMode(), testTcpLatency(), createApp(), createConnectionRouter(), AuthedRequest, createGroupRouter(), ensureGroupSpeedColumns() (+3 more)
+Nodes (15): express, getDb(), applyInboundRuntime(), createConnectionRouter(), AuthedRequest, createGroupRouter(), ensureGroupSpeedColumns(), parseOptionalMbps() (+7 more)
 
-### Community 19 - "database.ts"
-Cohesion: 0.12
-Nodes (28): DEFAULT_GENERAL_SETTINGS, DEFAULT_SUB_SETTINGS, GeneralSettings, initDatabase(), SubPageProtocolConfig, SubscriptionPageSettings, getHostStats(), ClientProfileParams (+20 more)
+### Community 19 - "clientRoutes.ts"
+Cohesion: 0.32
+Nodes (14): DEFAULT_GENERAL_SETTINGS, getSetting(), getHostStats(), generateClientProfile(), createApp(), createClientRouter(), resolveClientInbounds(), computeClientState() (+6 more)
 
 ### Community 21 - "linuxEngine.ts"
-Cohesion: 0.11
-Nodes (25): applyLinuxInbound(), collectLinuxLiveTunnels(), detectInstalledProtocols(), execFileAsync, installProtocolPackage(), LiveTunnelSample, openFirewallPort(), PROTOCOL_BINARIES (+17 more)
+Cohesion: 0.10
+Nodes (26): applyLinuxInbound(), collectLinuxLiveTunnels(), detectInstalledProtocols(), execFileAsync, installProtocolPackage(), LiveTunnelSample, openFirewallPort(), PROTOCOL_BINARIES (+18 more)
 
 ### Community 23 - "xprotocol-cli.sh"
 Cohesion: 0.55
 Nodes (11): cmd_backup(), cmd_logs(), cmd_ocserv(), cmd_password(), cmd_ssl(), cmd_status(), cmd_uninstall(), cmd_update() (+3 more)
 
 ## Knowledge Gaps
-- **185 isolated node(s):** `IKE_PROPOSALS`, `ESP_PROPOSALS`, `InboundKind`, `CidrInfo`, `GroupOption` (+180 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 198 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **185 isolated node(s):** `DIGIT_SETS`, `ActionMenuItem`, `CidrInfo`, `InboundKind`, `GroupOption` (+180 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 197 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **1 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
@@ -162,7 +162,7 @@ _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `react` connect `App.tsx` to `RoutingPage.tsx`, `InboundDetailPage.tsx`, `web/package.json`, `SubscriptionPage.tsx`?**
   _High betweenness centrality (0.038) - this node is a cross-community bridge._
-- **What connects `IKE_PROPOSALS`, `ESP_PROPOSALS`, `InboundKind` to the rest of the system?**
+- **What connects `DIGIT_SETS`, `ActionMenuItem`, `CidrInfo` to the rest of the system?**
   _185 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `RoutingPage.tsx` be split into smaller, more focused modules?**
   _Cohesion score 0.13900134952766532 - nodes in this community are weakly interconnected._
@@ -170,7 +170,7 @@ _Questions this graph is uniquely positioned to answer:_
   _High betweenness centrality (0.027) - this node is a cross-community bridge._
 - **Should `web/package.json` be split into smaller, more focused modules?**
   _Cohesion score 0.062388591800356503 - nodes in this community are weakly interconnected._
-- **Why does `express` connect `recordAudit` to `index.ts`, `Server Dependencies & Manifest`, `updater.ts`, `context.ts`, `routingRoutes.ts`, `database.ts`, `linuxEngine.ts`?**
+- **Why does `express` connect `getDb` to `index.ts`, `Server Dependencies & Manifest`, `updater.ts`, `database.ts`, `routingRoutes.ts`, `clientRoutes.ts`, `linuxEngine.ts`?**
   _High betweenness centrality (0.023) - this node is a cross-community bridge._
 - **Should `Server Dependencies & Manifest` be split into smaller, more focused modules?**
   _Cohesion score 0.09090909090909091 - nodes in this community are weakly interconnected._

@@ -69,21 +69,30 @@ export function extractAmneziaParams(settings: Record<string, unknown>): {
   };
 }
 
+function sanitizeLine(raw: unknown): string {
+  return String(raw ?? '').replace(/[\r\n\0]+/g, ' ').trim();
+}
+
+function escapeQuoted(raw: unknown): string {
+  return sanitizeLine(raw).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
 function parseListSetting(raw: unknown, fallback: string[]): string[] {
   if (Array.isArray(raw)) {
-    const items = raw.map((x) => String(x).trim()).filter(Boolean);
+    const items = raw.map((x) => sanitizeLine(x)).filter(Boolean);
     return items.length > 0 ? items : fallback;
   }
   if (typeof raw === 'string') {
     const items = raw
       .split(/[\n,]+/)
-      .map((x) => x.trim())
+      .map((x) => sanitizeLine(x))
       .filter(Boolean);
     return items.length > 0 ? items : fallback;
   }
   return fallback;
 }
 
+/** Render the protocol daemon configuration path and contents for a given inbound and eligible peers. */
 export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[]): { path: string; content: string } {
   let settings: Record<string, unknown> = {};
   try {
@@ -148,16 +157,17 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
 
     case 'openvpn': {
       const pkiDir = path.join(dataDir, 'pki');
-      const authScript = path.join(dataDir, 'bin', `ovpn-auth-${inbound.name}.mjs`);
+      const safeName = inbound.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const authScript = path.join(dataDir, 'bin', `ovpn-auth-${safeName}.mjs`);
       const proto = inbound.transport.startsWith('tcp') ? 'tcp-server' : 'udp';
       const dataCiphers = parseListSetting(settings.dataCiphers, [
-        String(settings.cipher || 'AES-256-GCM'),
+        sanitizeLine(settings.cipher || 'AES-256-GCM'),
         'AES-128-GCM',
         'CHACHA20-POLY1305',
       ]);
-      const fallbackCipher = String(settings.fallbackCipher || 'AES-256-CBC');
-      const authDigest = String(settings.authDigest || 'SHA256');
-      const tlsMin = String(settings.tlsMinVersion || '1.2');
+      const fallbackCipher = sanitizeLine(settings.fallbackCipher || 'AES-256-CBC');
+      const authDigest = sanitizeLine(settings.authDigest || 'SHA256');
+      const tlsMin = sanitizeLine(settings.tlsMinVersion || '1.2');
       const tlsMode = String(settings.tlsMode || 'tls-crypt');
       const authMode = String(settings.authMode || inbound.auth_mode || 'cert');
       const keepInterval = Number(settings.keepaliveInterval ?? 10);
@@ -225,7 +235,7 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
         lines.push(`explicit-exit-notify 1`);
       }
       if (proto === 'tcp-server' && settings.portShare) {
-        lines.push(`port-share ${String(settings.portShare).trim()}`);
+        lines.push(`port-share ${sanitizeLine(settings.portShare)}`);
       }
 
       if (authMode === 'pass' || authMode === 'password') {
@@ -278,7 +288,7 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
         `dpd = ${Number(settings.dpd ?? 90)}`,
         `mobile-dpd = ${Number(settings.mobileDpd ?? 1800)}`,
         `cookie-timeout = ${Number(settings.cookieTimeout ?? 300)}`,
-        `tls-priorities = "${String(settings.tlsPriorities || 'NORMAL:%SERVER_PRECEDENCE:%COMPAT:-VERS-SSL3.0')}"`,
+        `tls-priorities = "${escapeQuoted(settings.tlsPriorities || 'NORMAL:%SERVER_PRECEDENCE:%COMPAT:-VERS-SSL3.0')}"`,
         `max-same-clients = 10`,
       ];
       if (settings.redirectGateway !== false) {
@@ -290,8 +300,8 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
       if (settings.camouflage && settings.camouflageSecret) {
         lines.push(
           `camouflage = true`,
-          `camouflage_secret = "${String(settings.camouflageSecret)}"`,
-          `camouflage_realm = "${String(settings.camouflageRealm || 'Login')}"`,
+          `camouflage_secret = "${escapeQuoted(settings.camouflageSecret)}"`,
+          `camouflage_realm = "${escapeQuoted(settings.camouflageRealm || 'Login')}"`,
         );
       }
       if (settings.ocCustom) {
@@ -305,9 +315,9 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
 
     case 'ikev2': {
       const certTag = inbound.cert_id ? String(inbound.cert_id) : 'default';
-      const serverId = String(settings.serverId || '').trim();
-      const ikeProps = String(settings.ikeProposals || 'aes256-sha256-modp2048,aes128-sha256-modp2048');
-      const espProps = String(settings.espProposals || 'aes256-sha256,aes128-sha256');
+      const serverId = sanitizeLine(settings.serverId || '');
+      const ikeProps = sanitizeLine(settings.ikeProposals || 'aes256-sha256-modp2048,aes128-sha256-modp2048');
+      const espProps = sanitizeLine(settings.espProposals || 'aes256-sha256,aes128-sha256');
       const lines = [
         `# Managed by XProtocol Open-Core (${inbound.name})`,
         `connections {`,
@@ -348,8 +358,8 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
       for (const p of peers) {
         lines.push(
           `  eap-${inbound.name}-${p.clientId} {`,
-          `    id = "${p.name}"`,
-          `    secret = "${p.vpnPassword || ''}"`,
+          `    id = "${escapeQuoted(p.name)}"`,
+          `    secret = "${escapeQuoted(p.vpnPassword || '')}"`,
           `  }`,
         );
       }
@@ -415,6 +425,7 @@ export function renderInboundExtraFiles(inbound: InboundRow, peers: PeerEntry[])
       `nodefaultroute`,
       `proxyarp`,
       `connect-delay 5000`,
+      `ipparam ${sanitizeLine(inbound.name)}`,
     ];
     files.push({
       path: `/etc/ppp/options.xl2tpd.${inbound.name}`,
@@ -422,9 +433,9 @@ export function renderInboundExtraFiles(inbound: InboundRow, peers: PeerEntry[])
       mode: 0o644,
     });
 
-    const psk = String(settings.psk || 'xprotocol-l2tp-psk');
-    const ikeProps = String(settings.ikeProposals || 'aes256-sha256-modp2048,aes128-sha1-modp1024');
-    const espProps = String(settings.espProposals || 'aes256-sha256,aes128-sha1');
+    const psk = escapeQuoted(settings.psk || 'xprotocol-l2tp-psk');
+    const ikeProps = sanitizeLine(settings.ikeProposals || 'aes256-sha256-modp2048,aes128-sha1-modp1024');
+    const espProps = sanitizeLine(settings.espProposals || 'aes256-sha256,aes128-sha1');
     files.push({
       path: `/etc/swanctl/conf.d/l2tp-${inbound.name}.conf`,
       content: [

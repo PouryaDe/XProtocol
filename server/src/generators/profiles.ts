@@ -60,7 +60,7 @@ export function generateClientProfile(p: ClientProfileParams): {
   const amneziaOn = isAmneziaInbound(p.inbound.protocol, settings);
   const mtu = Number(settings.mtu || (amneziaOn ? 1380 : 1420));
   const keepalive = Number(settings.keepalive ?? 25);
-  const clientIp = p.fixedIp || resolveClientTunnelIp(p.inbound.id, p.inbound.subnet, p.clientIndex);
+  const clientIp = resolveClientTunnelIp(p.inbound.id, p.inbound.subnet, p.clientIndex, p.fixedIp);
 
   if (p.inbound.protocol === 'wireguard' || p.inbound.protocol === 'amneziawg') {
     const lines = [

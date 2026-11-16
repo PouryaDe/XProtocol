@@ -1,5 +1,5 @@
 import { getDb } from '../db/database.js';
-import { disconnectLinuxPeer, syncLinuxInboundPeers } from '../drivers/linuxEngine.js';
+import { disconnectLinuxPeer, syncL2tpSecrets, syncLinuxInboundPeers } from '../drivers/linuxEngine.js';
 import type { InboundRow } from '../generators/configs.js';
 import { getEligiblePeersForInbound } from './peerResolver.js';
 
@@ -12,9 +12,21 @@ async function runSyncPass(): Promise<void> {
     .prepare('SELECT * FROM inbounds WHERE running = 1 AND node_id IS NOT NULL')
     .all() as unknown as InboundRow[];
 
+  const l2tpMerged = new Map<string, { name: string; vpnPassword: string }>();
+
   for (const ib of runningInbounds) {
     const peers = getEligiblePeersForInbound(ib.id, ib.subnet);
+    if (ib.protocol === 'l2tp') {
+      for (const p of peers) {
+        l2tpMerged.set(p.name, { name: p.name, vpnPassword: p.vpnPassword || '' });
+      }
+      continue;
+    }
     await syncLinuxInboundPeers(ib, peers).catch(() => undefined);
+  }
+
+  if (runningInbounds.some((ib) => ib.protocol === 'l2tp')) {
+    await syncL2tpSecrets([...l2tpMerged.values()]).catch(() => undefined);
   }
 }
 

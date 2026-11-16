@@ -209,17 +209,20 @@ export async function ensureClientCertificate(clientName: string): Promise<{ cer
   };
 }
 
+/** Write per-inbound salted scrypt credentials JSON and OpenVPN auth-user-pass-verify script. */
 export function syncOpenVpnAuthScript(inboundName: string, peers: PeerEntry[]): string {
+  const safeName = inboundName.replace(/[^a-zA-Z0-9_-]/g, '_');
   const authDir = getAuthDir();
-  const usersFile = path.join(authDir, `${inboundName}.users.json`);
-  const records = peers.map((p) => ({
-    u: p.name,
-    h: crypto.createHash('sha256').update(String(p.vpnPassword || '')).digest('hex'),
-  }));
+  const usersFile = path.join(authDir, `${safeName}.users.json`);
+  const records = peers.map((p) => {
+    const salt = crypto.randomBytes(16).toString('hex');
+    const derived = crypto.scryptSync(String(p.vpnPassword || ''), salt, 32).toString('hex');
+    return { u: p.name, s: salt, h: derived };
+  });
   fs.writeFileSync(usersFile, JSON.stringify(records, null, 2), { mode: 0o600 });
 
   const binDir = getBinDir();
-  const scriptPath = path.join(binDir, `ovpn-auth-${inboundName}.mjs`);
+  const scriptPath = path.join(binDir, `ovpn-auth-${safeName}.mjs`);
   const script = `#!/usr/bin/env node
 import fs from 'node:fs';
 import crypto from 'node:crypto';
@@ -231,10 +234,11 @@ const pass = lines[1] || '';
 if (!user) process.exit(1);
 const users = JSON.parse(fs.readFileSync(${JSON.stringify(usersFile)}, 'utf8'));
 const rec = users.find((x) => x.u === user);
-if (!rec) process.exit(1);
-const actual = crypto.createHash('sha256').update(pass).digest('hex');
-const ok = crypto.timingSafeEqual(Buffer.from(actual, 'hex'), Buffer.from(rec.h, 'hex'));
-process.exit(ok ? 0 : 1);
+if (!rec || !rec.s || !rec.h) process.exit(1);
+const actual = crypto.scryptSync(pass, String(rec.s), 32);
+const expected = Buffer.from(String(rec.h), 'hex');
+if (actual.length !== expected.length) process.exit(1);
+process.exit(crypto.timingSafeEqual(actual, expected) ? 0 : 1);
 `;
   fs.writeFileSync(scriptPath, script, { mode: 0o755 });
   return scriptPath;

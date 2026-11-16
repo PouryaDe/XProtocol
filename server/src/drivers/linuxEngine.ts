@@ -58,8 +58,8 @@ async function runCmd(cmd: string, args: string[], timeout = 15000): Promise<{ o
   }
 }
 
-async function runShell(script: string, timeout = 15000): Promise<{ ok: boolean; stdout: string; stderr: string }> {
-  return runCmd('bash', ['-lc', script], timeout);
+function escapeSecretField(raw: string): string {
+  return String(raw || '').replace(/[\r\n\0]+/g, '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
 function parseInboundSettings(inbound: InboundRow): Record<string, unknown> {
@@ -148,11 +148,45 @@ export async function syncOpenConnectPasswd(inbound: InboundRow, clients: { name
   fs.writeFileSync(passwdPath, lines.join('\n') + '\n', { mode: 0o600 });
 }
 
+/** Sync `/etc/ppp/chap-secrets` safely with escaped credentials for L2TP/PPP clients. */
 export async function syncL2tpSecrets(clients: { name: string; vpnPassword: string }[]): Promise<void> {
   if (process.platform !== 'linux') return;
   fs.mkdirSync('/etc/ppp', { recursive: true });
-  const lines = ['# Managed by XProtocol Open-Core', ...clients.map((c) => `"${c.name}" * "${c.vpnPassword}" *`)];
+  const lines = [
+    '# Managed by XProtocol Open-Core',
+    ...clients.map((c) => `"${escapeSecretField(c.name)}" * "${escapeSecretField(c.vpnPassword)}" *`),
+  ];
   fs.writeFileSync('/etc/ppp/chap-secrets', lines.join('\n') + '\n', { mode: 0o600 });
+}
+
+function ensurePppSessionHooks(): void {
+  if (process.platform !== 'linux') return;
+  const upDir = '/etc/ppp/ip-up.d';
+  const downDir = '/etc/ppp/ip-down.d';
+  const upFile = path.join(upDir, '99-xprotocol');
+  const downFile = path.join(downDir, '99-xprotocol');
+  if (!fs.existsSync(upFile)) {
+    fs.mkdirSync(upDir, { recursive: true });
+    fs.writeFileSync(
+      upFile,
+      `#!/bin/sh
+cat > "/var/run/xprotocol-ppp-\${IFNAME}.json" <<EOF
+{"ifname":"\${IFNAME}","clientName":"\${PEERNAME}","remoteIp":"\${IPREMOTE}","tunnelIp":"\${IPLOCAL}","inboundName":"\${6}"}
+EOF
+`,
+      { mode: 0o755 },
+    );
+  }
+  if (!fs.existsSync(downFile)) {
+    fs.mkdirSync(downDir, { recursive: true });
+    fs.writeFileSync(
+      downFile,
+      `#!/bin/sh
+rm -f "/var/run/xprotocol-ppp-\${IFNAME}.json"
+`,
+      { mode: 0o755 },
+    );
+  }
 }
 
 function ensureSystemdTemplateUnits(): void {
@@ -199,118 +233,56 @@ WantedBy=multi-user.target
   }
 }
 
+async function applyTcIpClasses(
+  dev: string,
+  handlePrefix: string,
+  entries: Array<{ ip: string; mbps: number }>,
+  direction: 'dst' | 'src',
+): Promise<void> {
+  if (entries.length === 0) return;
+  await runCmd('tc', ['qdisc', 'add', 'dev', dev, 'root', 'handle', `${handlePrefix}:`, 'htb', 'default', '999'], 3000);
+  await runCmd('tc', ['class', 'add', 'dev', dev, 'parent', `${handlePrefix}:`, 'classid', `${handlePrefix}:999`, 'htb', 'rate', '10gbit'], 3000);
+  let idx = 10;
+  for (const item of entries) {
+    const rate = `${Math.max(0.1, item.mbps).toFixed(2)}mbit`;
+    const cls = `${handlePrefix}:${idx++}`;
+    await runCmd('tc', ['class', 'add', 'dev', dev, 'parent', `${handlePrefix}:`, 'classid', cls, 'htb', 'rate', rate, 'ceil', rate], 3000);
+    await runCmd(
+      'tc',
+      ['filter', 'add', 'dev', dev, 'protocol', 'ip', 'parent', `${handlePrefix}:`, 'prio', '1', 'u32', 'match', 'ip', direction, `${item.ip}/32`, 'flowid', cls],
+      3000,
+    );
+  }
+}
+
+/** Apply per-client download and (when IFB is supported) upload bandwidth shaping via Linux `tc`. */
 export async function applyInterfaceSpeedLimits(iface: string, peers: PeerEntry[]): Promise<void> {
   if (process.platform !== 'linux' || !iface) return;
   const check = await runCmd('ip', ['link', 'show', iface], 3000);
   if (!check.ok) return;
 
-  // Reset root qdisc cleanly before reapplying classes
   await runCmd('tc', ['qdisc', 'del', 'dev', iface, 'root'], 3000);
-  const limitedDownload = peers.filter((p) => p.downloadMbps && p.downloadMbps > 0);
-  if (limitedDownload.length > 0) {
-    await runCmd('tc', ['qdisc', 'add', 'dev', iface, 'root', 'handle', '1:', 'htb', 'default', '999'], 3000);
-    await runCmd('tc', ['class', 'add', 'dev', iface, 'parent', '1:', 'classid', '1:999', 'htb', 'rate', '10gbit'], 3000);
-    let idx = 10;
-    for (const p of limitedDownload) {
-      const rate = `${Math.max(0.1, Number(p.downloadMbps)).toFixed(2)}mbit`;
-      const cls = `1:${idx}`;
-      await runCmd('tc', ['class', 'add', 'dev', iface, 'parent', '1:', 'classid', cls, 'htb', 'rate', rate, 'ceil', rate], 3000);
-      await runCmd(
-        'tc',
-        [
-          'filter',
-          'add',
-          'dev',
-          iface,
-          'protocol',
-          'ip',
-          'parent',
-          '1:',
-          'prio',
-          '1',
-          'u32',
-          'match',
-          'ip',
-          'dst',
-          `${p.tunnelIp}/32`,
-          'flowid',
-          cls,
-        ],
-        3000,
-      );
-      idx += 1;
-    }
-  }
+  const dlEntries = peers
+    .filter((p) => p.downloadMbps && p.downloadMbps > 0)
+    .map((p) => ({ ip: p.tunnelIp, mbps: Number(p.downloadMbps) }));
+  await applyTcIpClasses(iface, '1', dlEntries, 'dst');
 
-  // Optional upload shaping via IFB when kernel module is available
   const ifbDev = `ifb-${iface}`.slice(0, 15);
   await runCmd('tc', ['qdisc', 'del', 'dev', iface, 'ingress'], 3000);
   await runCmd('ip', ['link', 'del', ifbDev], 3000);
-  const limitedUpload = peers.filter((p) => p.uploadMbps && p.uploadMbps > 0);
-  if (limitedUpload.length > 0) {
-    const mod = await runCmd('modprobe', ['ifb'], 3000);
-    if (mod.ok) {
-      await runCmd('ip', ['link', 'add', ifbDev, 'type', 'ifb'], 3000);
-      await runCmd('ip', ['link', 'set', ifbDev, 'up'], 3000);
-      await runCmd('tc', ['qdisc', 'add', 'dev', iface, 'handle', 'ffff:', 'ingress'], 3000);
-      await runCmd(
-        'tc',
-        [
-          'filter',
-          'add',
-          'dev',
-          iface,
-          'parent',
-          'ffff:',
-          'protocol',
-          'ip',
-          'u32',
-          'match',
-          'u32',
-          '0',
-          '0',
-          'action',
-          'mirred',
-          'egress',
-          'redirect',
-          'dev',
-          ifbDev,
-        ],
-        3000,
-      );
-      await runCmd('tc', ['qdisc', 'add', 'dev', ifbDev, 'root', 'handle', '2:', 'htb', 'default', '999'], 3000);
-      await runCmd('tc', ['class', 'add', 'dev', ifbDev, 'parent', '2:', 'classid', '2:999', 'htb', 'rate', '10gbit'], 3000);
-      let idx = 10;
-      for (const p of limitedUpload) {
-        const rate = `${Math.max(0.1, Number(p.uploadMbps)).toFixed(2)}mbit`;
-        const cls = `2:${idx}`;
-        await runCmd('tc', ['class', 'add', 'dev', ifbDev, 'parent', '2:', 'classid', cls, 'htb', 'rate', rate, 'ceil', rate], 3000);
-        await runCmd(
-          'tc',
-          [
-            'filter',
-            'add',
-            'dev',
-            ifbDev,
-            'protocol',
-            'ip',
-            'parent',
-            '2:',
-            'prio',
-            '1',
-            'u32',
-            'match',
-            'ip',
-            'src',
-            `${p.tunnelIp}/32`,
-            'flowid',
-            cls,
-          ],
-          3000,
-        );
-        idx += 1;
-      }
-    }
+  const ulEntries = peers
+    .filter((p) => p.uploadMbps && p.uploadMbps > 0)
+    .map((p) => ({ ip: p.tunnelIp, mbps: Number(p.uploadMbps) }));
+  if (ulEntries.length > 0 && (await runCmd('modprobe', ['ifb'], 3000)).ok) {
+    await runCmd('ip', ['link', 'add', ifbDev, 'type', 'ifb'], 3000);
+    await runCmd('ip', ['link', 'set', ifbDev, 'up'], 3000);
+    await runCmd('tc', ['qdisc', 'add', 'dev', iface, 'handle', 'ffff:', 'ingress'], 3000);
+    await runCmd(
+      'tc',
+      ['filter', 'add', 'dev', iface, 'parent', 'ffff:', 'protocol', 'ip', 'u32', 'match', 'u32', '0', '0', 'action', 'mirred', 'egress', 'redirect', 'dev', ifbDev],
+      3000,
+    );
+    await applyTcIpClasses(ifbDev, '2', ulEntries, 'src');
   }
 }
 
@@ -343,6 +315,7 @@ export async function applyLinuxInbound(
       if (fs.existsSync(certs.keyPath)) fs.copyFileSync(certs.keyPath, `/etc/swanctl/private/xprotocol-${tag}.pem`);
     }
   } else if (inbound.protocol === 'l2tp') {
+    ensurePppSessionHooks();
     await syncL2tpSecrets(peers.map((p) => ({ name: p.name, vpnPassword: p.vpnPassword || '' })));
   }
 
@@ -468,7 +441,16 @@ export async function syncLinuxInboundPeers(inbound: InboundRow, peers: PeerEntr
     const quickBin = amneziaOn ? 'awg-quick' : 'wg-quick';
     const upCheck = await runCmd('ip', ['link', 'show', inbound.name], 3000);
     if (upCheck.ok) {
-      await runShell(`${wgBin} syncconf ${inbound.name} <(${quickBin} strip ${rendered.path})`, 8000);
+      const stripped = await runCmd(quickBin, ['strip', rendered.path], 5000);
+      if (stripped.ok && stripped.stdout) {
+        const tmpFile = path.join(os.tmpdir(), `xp-wg-${inbound.name.replace(/[^a-zA-Z0-9_-]/g, '_')}-${Date.now()}.conf`);
+        fs.writeFileSync(tmpFile, stripped.stdout, { mode: 0o600 });
+        try {
+          await runCmd(wgBin, ['syncconf', inbound.name, tmpFile], 5000);
+        } finally {
+          fs.rmSync(tmpFile, { force: true });
+        }
+      }
       await applyInterfaceSpeedLimits(inbound.name, peers);
     } else {
       await applyLinuxInbound(inbound, peers, 'start');
@@ -659,6 +641,35 @@ export async function collectLinuxLiveTunnels(
             curClientName = '';
           }
         }
+      }
+    } else if (ib.protocol === 'l2tp') {
+      try {
+        const runEntries = fs.readdirSync('/var/run').filter((f) => f.startsWith('xprotocol-ppp-') && f.endsWith('.json'));
+        for (const f of runEntries) {
+          const meta = JSON.parse(fs.readFileSync(path.join('/var/run', f), 'utf-8')) as {
+            ifname?: string;
+            clientName?: string;
+            remoteIp?: string;
+            tunnelIp?: string;
+            inboundName?: string;
+          };
+          if (!meta.ifname || !meta.clientName || (meta.inboundName && meta.inboundName !== ib.name)) continue;
+          const rxFile = `/sys/class/net/${meta.ifname}/statistics/rx_bytes`;
+          const txFile = `/sys/class/net/${meta.ifname}/statistics/tx_bytes`;
+          if (!fs.existsSync(rxFile) || !fs.existsSync(txFile)) continue;
+          samples.push({
+            id: `l2tp-ppp-${ib.id}-${meta.ifname}`,
+            clientName: meta.clientName,
+            inboundId: ib.id,
+            remoteIp: meta.remoteIp || '0.0.0.0',
+            tunnelIp: meta.tunnelIp || '',
+            device: 'L2TP/PPP',
+            bytesIn: Number(fs.readFileSync(rxFile, 'utf-8').trim() || 0),
+            bytesOut: Number(fs.readFileSync(txFile, 'utf-8').trim() || 0),
+          });
+        }
+      } catch {
+        // ignore missing /var/run or sysfs race
       }
     }
   }

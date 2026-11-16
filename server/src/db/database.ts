@@ -288,6 +288,8 @@ export function initDatabase(): { initialPasswordGenerated?: string } {
       note TEXT NOT NULL DEFAULT '',
       all_inbounds INTEGER NOT NULL DEFAULT 0,
       enabled INTEGER NOT NULL DEFAULT 1,
+      download_mbps REAL,
+      upload_mbps REAL,
       created_at TEXT NOT NULL
     );
 
@@ -309,6 +311,8 @@ export function initDatabase(): { initialPasswordGenerated?: string } {
       first_connect_days INTEGER,
       first_connected_at TEXT,
       device_limit INTEGER,
+      download_mbps REAL,
+      upload_mbps REAL,
       reset_period TEXT NOT NULL DEFAULT 'never',
       next_reset_at TEXT,
       fixed_ip TEXT NOT NULL DEFAULT '',
@@ -410,6 +414,19 @@ export function initDatabase(): { initialPasswordGenerated?: string } {
       ip TEXT NOT NULL DEFAULT ''
     );
   `);
+
+  // Idempotent schema migrations for pre-existing databases
+  const ensureCol = (table: string, col: string, def: string) => {
+    const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === col)) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
+    }
+  };
+  ensureCol('groups', 'download_mbps', 'REAL');
+  ensureCol('groups', 'upload_mbps', 'REAL');
+  ensureCol('clients', 'download_mbps', 'REAL');
+  ensureCol('clients', 'upload_mbps', 'REAL');
+  ensureCol('routing_policies', 'inbound_routes_json', "TEXT NOT NULL DEFAULT '[]'");
 
   const now = new Date().toISOString();
 

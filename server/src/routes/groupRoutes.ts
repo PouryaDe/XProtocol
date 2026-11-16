@@ -1,35 +1,14 @@
 import { Router } from 'express';
 import { getDb } from '../db/database.js';
 import { recordAudit } from '../services/audit.js';
+import { parseOptionalMbps } from '../services/peerResolver.js';
 import { scheduleSyncRunningInbounds } from '../services/syncService.js';
 import type { AuthedRequest } from './context.js';
-
-function ensureGroupSpeedColumns(): void {
-  const db = getDb();
-  try {
-    const cols = db.prepare('PRAGMA table_info(groups)').all() as Array<{ name: string }>;
-    if (!cols.some((c) => c.name === 'download_mbps')) {
-      db.exec('ALTER TABLE groups ADD COLUMN download_mbps REAL');
-    }
-    if (!cols.some((c) => c.name === 'upload_mbps')) {
-      db.exec('ALTER TABLE groups ADD COLUMN upload_mbps REAL');
-    }
-  } catch {
-    // ignore if columns already exist
-  }
-}
-
-function parseOptionalMbps(v: unknown): number | null {
-  if (v === null || v === undefined || v === '') return null;
-  const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
 
 export function createGroupRouter(): Router {
   const router = Router();
 
   router.get('/', (req: AuthedRequest, res) => {
-    ensureGroupSpeedColumns();
     const acc = req.auth!.account;
     if (acc.permissions.groups.view === 'none') {
       res.status(403).json({ error: 'No permission to view groups' });
@@ -86,7 +65,6 @@ export function createGroupRouter(): Router {
   });
 
   router.post('/', (req: AuthedRequest, res) => {
-    ensureGroupSpeedColumns();
     const acc = req.auth!.account;
     if (!acc.isOwner && acc.permissions.groups.manage === 'none') {
       res.status(403).json({ error: 'No permission to manage groups' });
@@ -130,7 +108,6 @@ export function createGroupRouter(): Router {
   });
 
   router.patch('/:id', (req: AuthedRequest, res) => {
-    ensureGroupSpeedColumns();
     const acc = req.auth!.account;
     if (!acc.isOwner && acc.permissions.groups.manage === 'none') {
       res.status(403).json({ error: 'No permission' });

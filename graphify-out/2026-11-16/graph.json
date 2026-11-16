@@ -339,7 +339,7 @@
       "file_type": "code",
       "norm_label": "actionmenuitem",
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L472"
+      "source_location": "L478"
     },
     {
       "id": "web_src_components_uiprimitives_tabitem",
@@ -352,7 +352,7 @@
       "file_type": "code",
       "norm_label": "tabitem",
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L393"
+      "source_location": "L399"
     },
     {
       "id": "web_src_i18n_context_accentname",
@@ -732,13 +732,52 @@
       "source_location": "L24"
     },
     {
+      "id": "server_src_db_database_generalsettings",
+      "label": "GeneralSettings",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "database.ts",
+      "file_type": "code",
+      "norm_label": "generalsettings",
+      "source_file": "server/src/db/database.ts",
+      "source_location": "L31"
+    },
+    {
+      "id": "server_src_db_database_subpageprotocolconfig",
+      "label": "SubPageProtocolConfig",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "database.ts",
+      "file_type": "code",
+      "norm_label": "subpageprotocolconfig",
+      "source_file": "server/src/db/database.ts",
+      "source_location": "L46"
+    },
+    {
+      "id": "server_src_db_database_subscriptionpagesettings",
+      "label": "SubscriptionPageSettings",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "database.ts",
+      "file_type": "code",
+      "norm_label": "subscriptionpagesettings",
+      "source_file": "server/src/db/database.ts",
+      "source_location": "L59"
+    },
+    {
       "id": "server_src_routes_context_authcontext",
       "label": "AuthContext",
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "authcontext",
       "source_file": "server/src/routes/context.ts",
@@ -751,11 +790,24 @@
       "_callable_class": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "accountrecord",
       "source_file": "server/src/security/rbac.ts",
       "source_location": "L42"
+    },
+    {
+      "id": "server_src_security_rbac_rolelimits",
+      "label": "RoleLimits",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "database.ts",
+      "file_type": "code",
+      "norm_label": "rolelimits",
+      "source_file": "server/src/security/rbac.ts",
+      "source_location": "L32"
     },
     {
       "id": "server_src_security_rbac_rolepermissions",
@@ -764,37 +816,50 @@
       "_callable_class": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "rolepermissions",
       "source_file": "server/src/security/rbac.ts",
       "source_location": "L5"
     },
     {
-      "id": "server_src_generators_configs_inboundrouteoverride",
-      "label": "InboundRouteOverride",
+      "id": "server_src_security_rbac_scopeallownnone",
+      "label": "ScopeAllOwnNone",
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 15,
-      "community_name": "routingRoutes.ts",
+      "community": 14,
+      "community_name": "database.ts",
       "file_type": "code",
-      "norm_label": "inboundrouteoverride",
-      "source_file": "server/src/generators/configs.ts",
-      "source_location": "L194"
+      "norm_label": "scopeallownnone",
+      "source_file": "server/src/security/rbac.ts",
+      "source_location": "L1"
     },
     {
-      "id": "server_src_generators_configs_routingrule",
-      "label": "RoutingRule",
+      "id": "server_src_security_rbac_scopebool",
+      "label": "ScopeBool",
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 15,
-      "community_name": "routingRoutes.ts",
+      "community": 14,
+      "community_name": "database.ts",
       "file_type": "code",
-      "norm_label": "routingrule",
-      "source_file": "server/src/generators/configs.ts",
-      "source_location": "L179"
+      "norm_label": "scopebool",
+      "source_file": "server/src/security/rbac.ts",
+      "source_location": "L3"
+    },
+    {
+      "id": "server_src_security_rbac_scopegranted",
+      "label": "ScopeGranted",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "database.ts",
+      "file_type": "code",
+      "norm_label": "scopegranted",
+      "source_file": "server/src/security/rbac.ts",
+      "source_location": "L2"
     },
     {
       "id": "web_src_components_trafficchart_trafficsample",
@@ -985,115 +1050,11 @@
       "_callable_class": true,
       "_origin": "ast",
       "community": 17,
-      "community_name": "recordAudit",
+      "community_name": "getDb",
       "file_type": "code",
       "norm_label": "authedrequest",
       "source_file": "server/src/routes/context.ts",
       "source_location": "L19"
-    },
-    {
-      "id": "server_src_db_database_generalsettings",
-      "label": "GeneralSettings",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "generalsettings",
-      "source_file": "server/src/db/database.ts",
-      "source_location": "L31"
-    },
-    {
-      "id": "server_src_db_database_subpageprotocolconfig",
-      "label": "SubPageProtocolConfig",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "subpageprotocolconfig",
-      "source_file": "server/src/db/database.ts",
-      "source_location": "L46"
-    },
-    {
-      "id": "server_src_db_database_subscriptionpagesettings",
-      "label": "SubscriptionPageSettings",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "subscriptionpagesettings",
-      "source_file": "server/src/db/database.ts",
-      "source_location": "L59"
-    },
-    {
-      "id": "server_src_generators_profiles_clientprofileparams",
-      "label": "ClientProfileParams",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "clientprofileparams",
-      "source_file": "server/src/generators/profiles.ts",
-      "source_location": "L3"
-    },
-    {
-      "id": "server_src_security_rbac_rolelimits",
-      "label": "RoleLimits",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "rolelimits",
-      "source_file": "server/src/security/rbac.ts",
-      "source_location": "L32"
-    },
-    {
-      "id": "server_src_security_rbac_scopeallownnone",
-      "label": "ScopeAllOwnNone",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "scopeallownnone",
-      "source_file": "server/src/security/rbac.ts",
-      "source_location": "L1"
-    },
-    {
-      "id": "server_src_security_rbac_scopebool",
-      "label": "ScopeBool",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "scopebool",
-      "source_file": "server/src/security/rbac.ts",
-      "source_location": "L3"
-    },
-    {
-      "id": "server_src_security_rbac_scopegranted",
-      "label": "ScopeGranted",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "scopegranted",
-      "source_file": "server/src/security/rbac.ts",
-      "source_location": "L2"
     },
     {
       "id": "server_src_config_runtimeconfig",
@@ -1174,6 +1135,19 @@
       "source_location": "L7"
     },
     {
+      "id": "server_src_generators_configs_inboundrouteoverride",
+      "label": "InboundRouteOverride",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 21,
+      "community_name": "linuxEngine.ts",
+      "file_type": "code",
+      "norm_label": "inboundrouteoverride",
+      "source_file": "server/src/generators/configs.ts",
+      "source_location": "L194"
+    },
+    {
       "id": "server_src_generators_configs_inboundrow",
       "label": "InboundRow",
       "_callable": true,
@@ -1198,6 +1172,32 @@
       "norm_label": "peerentry",
       "source_file": "server/src/generators/configs.ts",
       "source_location": "L20"
+    },
+    {
+      "id": "server_src_generators_configs_routingrule",
+      "label": "RoutingRule",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 21,
+      "community_name": "linuxEngine.ts",
+      "file_type": "code",
+      "norm_label": "routingrule",
+      "source_file": "server/src/generators/configs.ts",
+      "source_location": "L179"
+    },
+    {
+      "id": "server_src_generators_profiles_clientprofileparams",
+      "label": "ClientProfileParams",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 21,
+      "community_name": "linuxEngine.ts",
+      "file_type": "code",
+      "norm_label": "clientprofileparams",
+      "source_file": "server/src/generators/profiles.ts",
+      "source_location": "L3"
     },
     {
       "id": "web_src_components_donutchart_segment",
@@ -1443,7 +1443,7 @@
       "file_type": "code",
       "norm_label": "actionmenu()",
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L479"
+      "source_location": "L485"
     },
     {
       "id": "web_src_components_uiprimitives_segmented",
@@ -1455,7 +1455,7 @@
       "file_type": "code",
       "norm_label": "segmented()",
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L272"
+      "source_location": "L278"
     },
     {
       "id": "web_src_lib_routingtypes_formatprotocollabel",
@@ -1911,7 +1911,7 @@
       "file_type": "code",
       "norm_label": "button()",
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L242"
+      "source_location": "L248"
     },
     {
       "id": "web_src_components_uiprimitives_card",
@@ -1923,7 +1923,7 @@
       "file_type": "code",
       "norm_label": "card()",
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L232"
+      "source_location": "L238"
     },
     {
       "id": "web_src_components_uiprimitives_emptysonar",
@@ -1935,7 +1935,7 @@
       "file_type": "code",
       "norm_label": "emptysonar()",
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L218"
+      "source_location": "L224"
     },
     {
       "id": "web_src_components_uiprimitives_eqloader",
@@ -1947,7 +1947,7 @@
       "file_type": "code",
       "norm_label": "eqloader()",
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L203"
+      "source_location": "L209"
     },
     {
       "id": "web_src_components_uiprimitives_input",
@@ -1959,7 +1959,7 @@
       "file_type": "code",
       "norm_label": "input()",
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L304"
+      "source_location": "L310"
     },
     {
       "id": "web_src_components_uiprimitives_lamps",
@@ -1971,7 +1971,7 @@
       "file_type": "code",
       "norm_label": "lamps()",
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L433"
+      "source_location": "L439"
     },
     {
       "id": "web_src_components_uiprimitives_pagehead",
@@ -1983,7 +1983,7 @@
       "file_type": "code",
       "norm_label": "pagehead()",
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L362"
+      "source_location": "L368"
     },
     {
       "id": "web_src_components_uiprimitives_select",
@@ -1995,7 +1995,7 @@
       "file_type": "code",
       "norm_label": "select()",
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L320"
+      "source_location": "L326"
     },
     {
       "id": "web_src_components_uiprimitives_splitheading",
@@ -2007,7 +2007,7 @@
       "file_type": "code",
       "norm_label": "splitheading()",
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L187"
+      "source_location": "L193"
     },
     {
       "id": "web_src_components_uiprimitives_statuspill",
@@ -2019,7 +2019,7 @@
       "file_type": "code",
       "norm_label": "statuspill()",
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L339"
+      "source_location": "L345"
     },
     {
       "id": "web_src_components_uiprimitives_tabs",
@@ -2031,7 +2031,7 @@
       "file_type": "code",
       "norm_label": "tabs()",
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L399"
+      "source_location": "L405"
     },
     {
       "id": "web_src_components_uiprimitives_useslidingindicator",
@@ -2502,12 +2502,48 @@
       "source_location": "L53"
     },
     {
+      "id": "server_src_db_database_closedb",
+      "label": "closeDb()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "database.ts",
+      "file_type": "code",
+      "norm_label": "closedb()",
+      "source_file": "server/src/db/database.ts",
+      "source_location": "L24"
+    },
+    {
+      "id": "server_src_db_database_initdatabase",
+      "label": "initDatabase()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "database.ts",
+      "file_type": "code",
+      "norm_label": "initdatabase()",
+      "source_file": "server/src/db/database.ts",
+      "source_location": "L161"
+    },
+    {
+      "id": "server_src_db_database_setsetting",
+      "label": "setSetting()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "database.ts",
+      "file_type": "code",
+      "norm_label": "setsetting()",
+      "source_file": "server/src/db/database.ts",
+      "source_location": "L154"
+    },
+    {
       "id": "server_src_routes_accountroutes_createaccountrouter",
       "label": "createAccountRouter()",
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "createaccountrouter()",
       "source_file": "server/src/routes/accountRoutes.ts",
@@ -2519,7 +2555,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "createauthrouter()",
       "source_file": "server/src/routes/authRoutes.ts",
@@ -2531,7 +2567,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "extractclientip()",
       "source_file": "server/src/routes/context.ts",
@@ -2543,7 +2579,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "loadaccountbyid()",
       "source_file": "server/src/routes/context.ts",
@@ -2555,7 +2591,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "parsecookies()",
       "source_file": "server/src/routes/context.ts",
@@ -2567,7 +2603,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "requireauth()",
       "source_file": "server/src/routes/context.ts",
@@ -2579,11 +2615,23 @@
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "hashpassword()",
       "source_file": "server/src/security/auth.ts",
       "source_location": "L3"
+    },
+    {
+      "id": "server_src_security_auth_randomtoken",
+      "label": "randomToken()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "database.ts",
+      "file_type": "code",
+      "norm_label": "randomtoken()",
+      "source_file": "server/src/security/auth.ts",
+      "source_location": "L19"
     },
     {
       "id": "server_src_security_auth_sha256hex",
@@ -2591,7 +2639,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "sha256hex()",
       "source_file": "server/src/security/auth.ts",
@@ -2603,7 +2651,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "verifypassword()",
       "source_file": "server/src/security/auth.ts",
@@ -2615,7 +2663,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "buildtotpuri()",
       "source_file": "server/src/security/totp.ts",
@@ -2627,7 +2675,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "computetotp()",
       "source_file": "server/src/security/totp.ts",
@@ -2639,7 +2687,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "decodebase32()",
       "source_file": "server/src/security/totp.ts",
@@ -2651,7 +2699,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "generaterecoverycodes()",
       "source_file": "server/src/security/totp.ts",
@@ -2663,7 +2711,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "generatetotpsecret()",
       "source_file": "server/src/security/totp.ts",
@@ -2675,7 +2723,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "verifytotp()",
       "source_file": "server/src/security/totp.ts",
@@ -2871,7 +2919,7 @@
       "file_type": "code",
       "norm_label": "brandmark()",
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L97"
+      "source_location": "L100"
     },
     {
       "id": "web_src_components_uiprimitives_odometer",
@@ -2883,7 +2931,7 @@
       "file_type": "code",
       "norm_label": "odometer()",
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L128"
+      "source_location": "L134"
     },
     {
       "id": "web_src_lib_format_formatbytes",
@@ -3390,40 +3438,28 @@
       "source_location": "L1189"
     },
     {
-      "id": "server_src_drivers_runtime_detectdrivermode",
-      "label": "detectDriverMode()",
+      "id": "server_src_db_database_getdb",
+      "label": "getDb()",
       "_callable": true,
       "_origin": "ast",
       "community": 17,
-      "community_name": "recordAudit",
+      "community_name": "getDb",
       "file_type": "code",
-      "norm_label": "detectdrivermode()",
-      "source_file": "server/src/drivers/runtime.ts",
-      "source_location": "L21"
+      "norm_label": "getdb()",
+      "source_file": "server/src/db/database.ts",
+      "source_location": "L14"
     },
     {
-      "id": "server_src_drivers_runtime_testtcplatency",
-      "label": "testTcpLatency()",
+      "id": "server_src_drivers_runtime_applyinboundruntime",
+      "label": "applyInboundRuntime()",
       "_callable": true,
       "_origin": "ast",
       "community": 17,
-      "community_name": "recordAudit",
+      "community_name": "getDb",
       "file_type": "code",
-      "norm_label": "testtcplatency()",
+      "norm_label": "applyinboundruntime()",
       "source_file": "server/src/drivers/runtime.ts",
-      "source_location": "L77"
-    },
-    {
-      "id": "server_src_index_createapp",
-      "label": "createApp()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "recordAudit",
-      "file_type": "code",
-      "norm_label": "createapp()",
-      "source_file": "server/src/index.ts",
-      "source_location": "L42"
+      "source_location": "L68"
     },
     {
       "id": "server_src_routes_connectionroutes_createconnectionrouter",
@@ -3431,7 +3467,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 17,
-      "community_name": "recordAudit",
+      "community_name": "getDb",
       "file_type": "code",
       "norm_label": "createconnectionrouter()",
       "source_file": "server/src/routes/connectionRoutes.ts",
@@ -3443,7 +3479,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 17,
-      "community_name": "recordAudit",
+      "community_name": "getDb",
       "file_type": "code",
       "norm_label": "creategrouprouter()",
       "source_file": "server/src/routes/groupRoutes.ts",
@@ -3455,7 +3491,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 17,
-      "community_name": "recordAudit",
+      "community_name": "getDb",
       "file_type": "code",
       "norm_label": "ensuregroupspeedcolumns()",
       "source_file": "server/src/routes/groupRoutes.ts",
@@ -3467,23 +3503,83 @@
       "_callable": true,
       "_origin": "ast",
       "community": 17,
-      "community_name": "recordAudit",
+      "community_name": "getDb",
       "file_type": "code",
       "norm_label": "parseoptionalmbps()",
       "source_file": "server/src/routes/groupRoutes.ts",
       "source_location": "L21"
     },
     {
-      "id": "server_src_routes_noderoutes_createnoderouter",
-      "label": "createNodeRouter()",
+      "id": "server_src_routes_inboundroutes_countallowedclients",
+      "label": "countAllowedClients()",
       "_callable": true,
       "_origin": "ast",
       "community": 17,
-      "community_name": "recordAudit",
+      "community_name": "getDb",
       "file_type": "code",
-      "norm_label": "createnoderouter()",
-      "source_file": "server/src/routes/nodeRoutes.ts",
+      "norm_label": "countallowedclients()",
+      "source_file": "server/src/routes/inboundRoutes.ts",
+      "source_location": "L60"
+    },
+    {
+      "id": "server_src_routes_inboundroutes_createinboundrouter",
+      "label": "createInboundRouter()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 17,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "createinboundrouter()",
+      "source_file": "server/src/routes/inboundRoutes.ts",
+      "source_location": "L76"
+    },
+    {
+      "id": "server_src_routes_inboundroutes_defaultslugprefix",
+      "label": "defaultSlugPrefix()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 17,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "defaultslugprefix()",
+      "source_file": "server/src/routes/inboundRoutes.ts",
+      "source_location": "L23"
+    },
+    {
+      "id": "server_src_routes_inboundroutes_getinboundpeers",
+      "label": "getInboundPeers()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 17,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "getinboundpeers()",
+      "source_file": "server/src/routes/inboundRoutes.ts",
       "source_location": "L9"
+    },
+    {
+      "id": "server_src_routes_inboundroutes_resolveuniqueslug",
+      "label": "resolveUniqueSlug()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 17,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "resolveuniqueslug()",
+      "source_file": "server/src/routes/inboundRoutes.ts",
+      "source_location": "L40"
+    },
+    {
+      "id": "server_src_security_auth_generatewireguardkeypair",
+      "label": "generateWireGuardKeypair()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 17,
+      "community_name": "getDb",
+      "file_type": "code",
+      "norm_label": "generatewireguardkeypair()",
+      "source_file": "server/src/security/auth.ts",
+      "source_location": "L27"
     },
     {
       "id": "server_src_services_audit_recordaudit",
@@ -3491,35 +3587,23 @@
       "_callable": true,
       "_origin": "ast",
       "community": 17,
-      "community_name": "recordAudit",
+      "community_name": "getDb",
       "file_type": "code",
       "norm_label": "recordaudit()",
       "source_file": "server/src/services/audit.ts",
       "source_location": "L3"
     },
     {
-      "id": "server_src_db_database_closedb",
-      "label": "closeDb()",
+      "id": "server_src_db_database_getsetting",
+      "label": "getSetting()",
       "_callable": true,
       "_origin": "ast",
       "community": 19,
-      "community_name": "database.ts",
+      "community_name": "clientRoutes.ts",
       "file_type": "code",
-      "norm_label": "closedb()",
+      "norm_label": "getsetting()",
       "source_file": "server/src/db/database.ts",
-      "source_location": "L24"
-    },
-    {
-      "id": "server_src_db_database_initdatabase",
-      "label": "initDatabase()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "initdatabase()",
-      "source_file": "server/src/db/database.ts",
-      "source_location": "L161"
+      "source_location": "L143"
     },
     {
       "id": "server_src_drivers_runtime_gethoststats",
@@ -3527,23 +3611,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 19,
-      "community_name": "database.ts",
+      "community_name": "clientRoutes.ts",
       "file_type": "code",
       "norm_label": "gethoststats()",
       "source_file": "server/src/drivers/runtime.ts",
       "source_location": "L28"
-    },
-    {
-      "id": "server_src_generators_profiles_computeclientip",
-      "label": "computeClientIp()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "computeclientip()",
-      "source_file": "server/src/generators/profiles.ts",
-      "source_location": "L14"
     },
     {
       "id": "server_src_generators_profiles_generateclientprofile",
@@ -3551,11 +3623,23 @@
       "_callable": true,
       "_origin": "ast",
       "community": 19,
-      "community_name": "database.ts",
+      "community_name": "clientRoutes.ts",
       "file_type": "code",
       "norm_label": "generateclientprofile()",
       "source_file": "server/src/generators/profiles.ts",
       "source_location": "L21"
+    },
+    {
+      "id": "server_src_index_createapp",
+      "label": "createApp()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 19,
+      "community_name": "clientRoutes.ts",
+      "file_type": "code",
+      "norm_label": "createapp()",
+      "source_file": "server/src/index.ts",
+      "source_location": "L42"
     },
     {
       "id": "server_src_routes_clientroutes_createclientrouter",
@@ -3563,7 +3647,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 19,
-      "community_name": "database.ts",
+      "community_name": "clientRoutes.ts",
       "file_type": "code",
       "norm_label": "createclientrouter()",
       "source_file": "server/src/routes/clientRoutes.ts",
@@ -3575,7 +3659,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 19,
-      "community_name": "database.ts",
+      "community_name": "clientRoutes.ts",
       "file_type": "code",
       "norm_label": "resolveclientinbounds()",
       "source_file": "server/src/routes/clientRoutes.ts",
@@ -3587,7 +3671,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 19,
-      "community_name": "database.ts",
+      "community_name": "clientRoutes.ts",
       "file_type": "code",
       "norm_label": "computeclientstate()",
       "source_file": "server/src/routes/context.ts",
@@ -3599,7 +3683,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 19,
-      "community_name": "database.ts",
+      "community_name": "clientRoutes.ts",
       "file_type": "code",
       "norm_label": "ensureaccountoperational()",
       "source_file": "server/src/routes/context.ts",
@@ -3611,7 +3695,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 19,
-      "community_name": "database.ts",
+      "community_name": "clientRoutes.ts",
       "file_type": "code",
       "norm_label": "createdashboardrouter()",
       "source_file": "server/src/routes/dashboardRoutes.ts",
@@ -3623,35 +3707,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 19,
-      "community_name": "database.ts",
+      "community_name": "clientRoutes.ts",
       "file_type": "code",
       "norm_label": "createsubrouter()",
       "source_file": "server/src/routes/subRoutes.ts",
       "source_location": "L45"
-    },
-    {
-      "id": "server_src_security_auth_generatewireguardkeypair",
-      "label": "generateWireGuardKeypair()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "generatewireguardkeypair()",
-      "source_file": "server/src/security/auth.ts",
-      "source_location": "L27"
-    },
-    {
-      "id": "server_src_security_auth_randomtoken",
-      "label": "randomToken()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "randomtoken()",
-      "source_file": "server/src/security/auth.ts",
-      "source_location": "L19"
     },
     {
       "id": "server_src_security_rbac_getaccountstatus",
@@ -3659,7 +3719,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 19,
-      "community_name": "database.ts",
+      "community_name": "clientRoutes.ts",
       "file_type": "code",
       "norm_label": "getaccountstatus()",
       "source_file": "server/src/security/rbac.ts",
@@ -3671,7 +3731,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 19,
-      "community_name": "database.ts",
+      "community_name": "clientRoutes.ts",
       "file_type": "code",
       "norm_label": "geteffectivelimits()",
       "source_file": "server/src/security/rbac.ts",
@@ -3760,42 +3820,6 @@
       "norm_label": "saveruntimeconfig()",
       "source_file": "server/src/config.ts",
       "source_location": "L80"
-    },
-    {
-      "id": "server_src_db_database_getdb",
-      "label": "getDb()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 2,
-      "community_name": "index.ts",
-      "file_type": "code",
-      "norm_label": "getdb()",
-      "source_file": "server/src/db/database.ts",
-      "source_location": "L14"
-    },
-    {
-      "id": "server_src_db_database_getsetting",
-      "label": "getSetting()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 2,
-      "community_name": "index.ts",
-      "file_type": "code",
-      "norm_label": "getsetting()",
-      "source_file": "server/src/db/database.ts",
-      "source_location": "L143"
-    },
-    {
-      "id": "server_src_db_database_setsetting",
-      "label": "setSetting()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 2,
-      "community_name": "index.ts",
-      "file_type": "code",
-      "norm_label": "setsetting()",
-      "source_file": "server/src/db/database.ts",
-      "source_location": "L154"
     },
     {
       "id": "server_src_index_applypendingrestore",
@@ -3954,16 +3978,28 @@
       "source_location": "L95"
     },
     {
-      "id": "server_src_drivers_runtime_applyinboundruntime",
-      "label": "applyInboundRuntime()",
+      "id": "server_src_drivers_runtime_detectdrivermode",
+      "label": "detectDriverMode()",
       "_callable": true,
       "_origin": "ast",
       "community": 21,
       "community_name": "linuxEngine.ts",
       "file_type": "code",
-      "norm_label": "applyinboundruntime()",
+      "norm_label": "detectdrivermode()",
       "source_file": "server/src/drivers/runtime.ts",
-      "source_location": "L68"
+      "source_location": "L21"
+    },
+    {
+      "id": "server_src_drivers_runtime_testtcplatency",
+      "label": "testTcpLatency()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 21,
+      "community_name": "linuxEngine.ts",
+      "file_type": "code",
+      "norm_label": "testtcplatency()",
+      "source_file": "server/src/drivers/runtime.ts",
+      "source_location": "L77"
     },
     {
       "id": "server_src_generators_configs_renderinboundserverconfig",
@@ -3978,64 +4014,28 @@
       "source_location": "L27"
     },
     {
-      "id": "server_src_routes_inboundroutes_countallowedclients",
-      "label": "countAllowedClients()",
+      "id": "server_src_generators_profiles_computeclientip",
+      "label": "computeClientIp()",
       "_callable": true,
       "_origin": "ast",
       "community": 21,
       "community_name": "linuxEngine.ts",
       "file_type": "code",
-      "norm_label": "countallowedclients()",
-      "source_file": "server/src/routes/inboundRoutes.ts",
-      "source_location": "L60"
+      "norm_label": "computeclientip()",
+      "source_file": "server/src/generators/profiles.ts",
+      "source_location": "L14"
     },
     {
-      "id": "server_src_routes_inboundroutes_createinboundrouter",
-      "label": "createInboundRouter()",
+      "id": "server_src_routes_noderoutes_createnoderouter",
+      "label": "createNodeRouter()",
       "_callable": true,
       "_origin": "ast",
       "community": 21,
       "community_name": "linuxEngine.ts",
       "file_type": "code",
-      "norm_label": "createinboundrouter()",
-      "source_file": "server/src/routes/inboundRoutes.ts",
-      "source_location": "L76"
-    },
-    {
-      "id": "server_src_routes_inboundroutes_defaultslugprefix",
-      "label": "defaultSlugPrefix()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "defaultslugprefix()",
-      "source_file": "server/src/routes/inboundRoutes.ts",
-      "source_location": "L23"
-    },
-    {
-      "id": "server_src_routes_inboundroutes_getinboundpeers",
-      "label": "getInboundPeers()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "getinboundpeers()",
-      "source_file": "server/src/routes/inboundRoutes.ts",
+      "norm_label": "createnoderouter()",
+      "source_file": "server/src/routes/nodeRoutes.ts",
       "source_location": "L9"
-    },
-    {
-      "id": "server_src_routes_inboundroutes_resolveuniqueslug",
-      "label": "resolveUniqueSlug()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "file_type": "code",
-      "norm_label": "resolveuniqueslug()",
-      "source_file": "server/src/routes/inboundRoutes.ts",
-      "source_location": "L40"
     },
     {
       "id": "server_src_services_collector_runcollectortick",
@@ -4796,7 +4796,7 @@
       "file_type": "code",
       "norm_label": "digit_sets",
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L125"
+      "source_location": "L131"
     },
     {
       "id": "web_src_i18n_context",
@@ -5085,11 +5085,33 @@
       "source_location": "L16"
     },
     {
+      "id": "server_src_db_database",
+      "label": "database.ts",
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "database.ts",
+      "file_type": "code",
+      "norm_label": "database.ts",
+      "source_file": "server/src/db/database.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "server_src_db_database_default_sub_settings",
+      "label": "DEFAULT_SUB_SETTINGS",
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "database.ts",
+      "file_type": "code",
+      "norm_label": "default_sub_settings",
+      "source_file": "server/src/db/database.ts",
+      "source_location": "L84"
+    },
+    {
       "id": "server_src_routes_accountroutes",
       "label": "accountRoutes.ts",
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "accountroutes.ts",
       "source_file": "server/src/routes/accountRoutes.ts",
@@ -5100,7 +5122,7 @@
       "label": "authRoutes.ts",
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "authroutes.ts",
       "source_file": "server/src/routes/authRoutes.ts",
@@ -5111,7 +5133,7 @@
       "label": "context.ts",
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "context.ts",
       "source_file": "server/src/routes/context.ts",
@@ -5122,18 +5144,62 @@
       "label": "auth.ts",
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "auth.ts",
       "source_file": "server/src/security/auth.ts",
       "source_location": "L1"
     },
     {
+      "id": "server_src_security_rbac",
+      "label": "rbac.ts",
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "database.ts",
+      "file_type": "code",
+      "norm_label": "rbac.ts",
+      "source_file": "server/src/security/rbac.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "server_src_security_rbac_admin_permissions",
+      "label": "ADMIN_PERMISSIONS",
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "database.ts",
+      "file_type": "code",
+      "norm_label": "admin_permissions",
+      "source_file": "server/src/security/rbac.ts",
+      "source_location": "L72"
+    },
+    {
+      "id": "server_src_security_rbac_owner_permissions",
+      "label": "OWNER_PERMISSIONS",
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "database.ts",
+      "file_type": "code",
+      "norm_label": "owner_permissions",
+      "source_file": "server/src/security/rbac.ts",
+      "source_location": "L64"
+    },
+    {
+      "id": "server_src_security_rbac_reseller_permissions",
+      "label": "RESELLER_PERMISSIONS",
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "database.ts",
+      "file_type": "code",
+      "norm_label": "reseller_permissions",
+      "source_file": "server/src/security/rbac.ts",
+      "source_location": "L80"
+    },
+    {
       "id": "server_src_security_totp",
       "label": "totp.ts",
       "_origin": "ast",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "file_type": "code",
       "norm_label": "totp.ts",
       "source_file": "server/src/security/totp.ts",
@@ -5353,7 +5419,7 @@
       "label": "connectionRoutes.ts",
       "_origin": "ast",
       "community": 17,
-      "community_name": "recordAudit",
+      "community_name": "getDb",
       "file_type": "code",
       "norm_label": "connectionroutes.ts",
       "source_file": "server/src/routes/connectionRoutes.ts",
@@ -5364,21 +5430,21 @@
       "label": "groupRoutes.ts",
       "_origin": "ast",
       "community": 17,
-      "community_name": "recordAudit",
+      "community_name": "getDb",
       "file_type": "code",
       "norm_label": "grouproutes.ts",
       "source_file": "server/src/routes/groupRoutes.ts",
       "source_location": "L1"
     },
     {
-      "id": "server_src_routes_noderoutes",
-      "label": "nodeRoutes.ts",
+      "id": "server_src_routes_inboundroutes",
+      "label": "inboundRoutes.ts",
       "_origin": "ast",
       "community": 17,
-      "community_name": "recordAudit",
+      "community_name": "getDb",
       "file_type": "code",
-      "norm_label": "noderoutes.ts",
-      "source_file": "server/src/routes/nodeRoutes.ts",
+      "norm_label": "inboundroutes.ts",
+      "source_file": "server/src/routes/inboundRoutes.ts",
       "source_location": "L1"
     },
     {
@@ -5386,7 +5452,7 @@
       "label": "audit.ts",
       "_origin": "ast",
       "community": 17,
-      "community_name": "recordAudit",
+      "community_name": "getDb",
       "file_type": "code",
       "norm_label": "audit.ts",
       "source_file": "server/src/services/audit.ts",
@@ -5397,62 +5463,29 @@
       "label": "express",
       "_origin": "ast",
       "community": 17,
-      "community_name": "recordAudit",
+      "community_name": "getDb",
       "file_type": "concept",
       "norm_label": "express",
       "source_file": "server/package.json",
       "source_location": "L14"
     },
     {
-      "id": "server_src_db_database",
-      "label": "database.ts",
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "database.ts",
-      "source_file": "server/src/db/database.ts",
-      "source_location": "L1"
-    },
-    {
       "id": "server_src_db_database_default_general_settings",
       "label": "DEFAULT_GENERAL_SETTINGS",
       "_origin": "ast",
       "community": 19,
-      "community_name": "database.ts",
+      "community_name": "clientRoutes.ts",
       "file_type": "code",
       "norm_label": "default_general_settings",
       "source_file": "server/src/db/database.ts",
       "source_location": "L69"
     },
     {
-      "id": "server_src_db_database_default_sub_settings",
-      "label": "DEFAULT_SUB_SETTINGS",
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "default_sub_settings",
-      "source_file": "server/src/db/database.ts",
-      "source_location": "L84"
-    },
-    {
-      "id": "server_src_generators_profiles",
-      "label": "profiles.ts",
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "profiles.ts",
-      "source_file": "server/src/generators/profiles.ts",
-      "source_location": "L1"
-    },
-    {
       "id": "server_src_routes_clientroutes",
       "label": "clientRoutes.ts",
       "_origin": "ast",
       "community": 19,
-      "community_name": "database.ts",
+      "community_name": "clientRoutes.ts",
       "file_type": "code",
       "norm_label": "clientroutes.ts",
       "source_file": "server/src/routes/clientRoutes.ts",
@@ -5463,7 +5496,7 @@
       "label": "dashboardRoutes.ts",
       "_origin": "ast",
       "community": 19,
-      "community_name": "database.ts",
+      "community_name": "clientRoutes.ts",
       "file_type": "code",
       "norm_label": "dashboardroutes.ts",
       "source_file": "server/src/routes/dashboardRoutes.ts",
@@ -5474,7 +5507,7 @@
       "label": "subRoutes.ts",
       "_origin": "ast",
       "community": 19,
-      "community_name": "database.ts",
+      "community_name": "clientRoutes.ts",
       "file_type": "code",
       "norm_label": "subroutes.ts",
       "source_file": "server/src/routes/subRoutes.ts",
@@ -5485,55 +5518,11 @@
       "label": "DEFAULT_APPS",
       "_origin": "ast",
       "community": 19,
-      "community_name": "database.ts",
+      "community_name": "clientRoutes.ts",
       "file_type": "code",
       "norm_label": "default_apps",
       "source_file": "server/src/routes/subRoutes.ts",
       "source_location": "L12"
-    },
-    {
-      "id": "server_src_security_rbac",
-      "label": "rbac.ts",
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "rbac.ts",
-      "source_file": "server/src/security/rbac.ts",
-      "source_location": "L1"
-    },
-    {
-      "id": "server_src_security_rbac_admin_permissions",
-      "label": "ADMIN_PERMISSIONS",
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "admin_permissions",
-      "source_file": "server/src/security/rbac.ts",
-      "source_location": "L72"
-    },
-    {
-      "id": "server_src_security_rbac_owner_permissions",
-      "label": "OWNER_PERMISSIONS",
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "owner_permissions",
-      "source_file": "server/src/security/rbac.ts",
-      "source_location": "L64"
-    },
-    {
-      "id": "server_src_security_rbac_reseller_permissions",
-      "label": "RESELLER_PERMISSIONS",
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "database.ts",
-      "file_type": "code",
-      "norm_label": "reseller_permissions",
-      "source_file": "server/src/security/rbac.ts",
-      "source_location": "L80"
     },
     {
       "id": "server_src_config",
@@ -5646,17 +5635,6 @@
       "source_location": "L8"
     },
     {
-      "id": "express",
-      "label": "express",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "linuxEngine.ts",
-      "confidence": "EXTRACTED",
-      "file_type": "code",
-      "norm_label": "express",
-      "source_file": "express"
-    },
-    {
       "id": "server_src_drivers_linuxengine",
       "label": "linuxEngine.ts",
       "_origin": "ast",
@@ -5712,14 +5690,25 @@
       "source_location": "L1"
     },
     {
-      "id": "server_src_routes_inboundroutes",
-      "label": "inboundRoutes.ts",
+      "id": "server_src_generators_profiles",
+      "label": "profiles.ts",
       "_origin": "ast",
       "community": 21,
       "community_name": "linuxEngine.ts",
       "file_type": "code",
-      "norm_label": "inboundroutes.ts",
-      "source_file": "server/src/routes/inboundRoutes.ts",
+      "norm_label": "profiles.ts",
+      "source_file": "server/src/generators/profiles.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "server_src_routes_noderoutes",
+      "label": "nodeRoutes.ts",
+      "_origin": "ast",
+      "community": 21,
+      "community_name": "linuxEngine.ts",
+      "file_type": "code",
+      "norm_label": "noderoutes.ts",
+      "source_file": "server/src/routes/nodeRoutes.ts",
       "source_location": "L1"
     },
     {
@@ -7290,22 +7279,10 @@
       "label": "ref_node_crypto",
       "_origin": "semantic",
       "community": 14,
-      "community_name": "context.ts",
+      "community_name": "database.ts",
       "external": true,
       "file_type": "concept",
       "norm_label": "ref_node_crypto",
-      "source_file": "",
-      "type": "external"
-    },
-    {
-      "id": "ref_node_os",
-      "label": "ref_node_os",
-      "_origin": "semantic",
-      "community": 15,
-      "community_name": "routingRoutes.ts",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "ref_node_os",
       "source_file": "",
       "type": "external"
     },
@@ -7354,6 +7331,18 @@
       "external": true,
       "file_type": "concept",
       "norm_label": "ref_node_http",
+      "source_file": "",
+      "type": "external"
+    },
+    {
+      "id": "ref_node_os",
+      "label": "ref_node_os",
+      "_origin": "semantic",
+      "community": 2,
+      "community_name": "index.ts",
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "ref_node_os",
       "source_file": "",
       "type": "external"
     },
@@ -11268,7 +11257,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L373",
+      "source_location": "L379",
       "weight": 1.0
     },
     {
@@ -11280,7 +11269,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L385",
+      "source_location": "L391",
       "weight": 1.0
     },
     {
@@ -11292,7 +11281,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L286",
+      "source_location": "L292",
       "weight": 1.0
     },
     {
@@ -11304,7 +11293,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L409",
+      "source_location": "L415",
       "weight": 1.0
     },
     {
@@ -28591,13 +28580,24 @@
     },
     {
       "source": "web_src_components_uiprimitives",
+      "target": "web_src_components_uiprimitives_brandmark",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "web/src/components/UiPrimitives.tsx",
+      "source_location": "L100",
+      "weight": 1.0
+    },
+    {
+      "source": "web_src_components_uiprimitives",
       "target": "web_src_components_uiprimitives_digit_sets",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L125",
+      "source_location": "L131",
       "weight": 1.0
     },
     {
@@ -28608,7 +28608,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L128",
+      "source_location": "L134",
       "weight": 1.0
     },
     {
@@ -28619,7 +28619,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L187",
+      "source_location": "L193",
       "weight": 1.0
     },
     {
@@ -28630,7 +28630,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L203",
+      "source_location": "L209",
       "weight": 1.0
     },
     {
@@ -28641,7 +28641,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L218",
+      "source_location": "L224",
       "weight": 1.0
     },
     {
@@ -28652,7 +28652,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L232",
+      "source_location": "L238",
       "weight": 1.0
     },
     {
@@ -28663,7 +28663,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L242",
+      "source_location": "L248",
       "weight": 1.0
     },
     {
@@ -28674,7 +28674,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L272",
+      "source_location": "L278",
       "weight": 1.0
     },
     {
@@ -28685,7 +28685,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L304",
+      "source_location": "L310",
       "weight": 1.0
     },
     {
@@ -28696,7 +28696,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L320",
+      "source_location": "L326",
       "weight": 1.0
     },
     {
@@ -28707,7 +28707,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L339",
+      "source_location": "L345",
       "weight": 1.0
     },
     {
@@ -28718,7 +28718,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L362",
+      "source_location": "L368",
       "weight": 1.0
     },
     {
@@ -28729,7 +28729,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L393",
+      "source_location": "L399",
       "weight": 1.0
     },
     {
@@ -28740,7 +28740,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L399",
+      "source_location": "L405",
       "weight": 1.0
     },
     {
@@ -28751,7 +28751,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L433",
+      "source_location": "L439",
       "weight": 1.0
     },
     {
@@ -28762,7 +28762,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L472",
+      "source_location": "L478",
       "weight": 1.0
     },
     {
@@ -28773,7 +28773,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L479",
+      "source_location": "L485",
       "weight": 1.0
     },
     {
@@ -28796,17 +28796,6 @@
       "confidence_score": 1.0,
       "source_file": "web/src/components/UiPrimitives.tsx",
       "source_location": "L8",
-      "weight": 1.0
-    },
-    {
-      "source": "web_src_components_uiprimitives",
-      "target": "web_src_components_uiprimitives_brandmark",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "web/src/components/UiPrimitives.tsx",
-      "source_location": "L97",
       "weight": 1.0
     },
     {
@@ -31230,15 +31219,6 @@
       "weight": 1.0
     },
     {
-      "source": "server_src_routes_inboundroutes",
-      "target": "express",
-      "relation": "dynamic_import",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "server/src/routes/inboundRoutes.ts"
-    },
-    {
       "source": "server_tests_api_test",
       "target": "server_src_config",
       "relation": "dynamic_import",
@@ -31438,5 +31418,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "a176985c541deeef2440b3b8ac6a3ae83df01bc6"
+  "built_at_commit": "657a5e47829094f893ceb104b02725259ee5387b"
 }

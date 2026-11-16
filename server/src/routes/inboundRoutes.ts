@@ -129,6 +129,11 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
   });
 
   router.post('/preflight', (req: AuthedRequest, res) => {
+    const acc = req.auth!.account;
+    if (!acc.isOwner && acc.permissions.inbounds.manage === 'none') {
+      res.status(403).json({ error: 'No permission to manage inbounds' });
+      return;
+    }
     const { nodeIds = [], port, ports = {}, excludeInboundId } = req.body as {
       nodeIds?: number[];
       port?: number;
@@ -291,6 +296,14 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       settings?: Record<string, unknown>;
     };
 
+    if (body.port !== undefined) {
+      const nextPort = Number(body.port);
+      if (!Number.isInteger(nextPort) || nextPort < 1 || nextPort > 65535) {
+        res.status(400).json({ error: 'Port must be 1-65535' });
+        return;
+      }
+    }
+
     const existingSettings = JSON.parse(existing.settings_json || '{}') as Record<string, unknown>;
     const nextSettings = body.settings
       ? { ...existingSettings, ...body.settings, ...(body.displayName !== undefined ? { displayName: body.displayName } : {}) }
@@ -302,7 +315,7 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       `UPDATE inbounds SET transport = ?, port = ?, subnet = ?, auth_mode = ?, description = ?, public_address_override = ?, enabled = ?, cert_id = ?, settings_json = ? WHERE id = ?`,
     ).run(
       body.transport ?? existing.transport,
-      body.port ?? existing.port,
+      body.port !== undefined ? Number(body.port) : existing.port,
       body.subnet ?? existing.subnet,
       body.authMode ?? existing.auth_mode,
       body.description ?? existing.description,
@@ -314,8 +327,16 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
     );
 
     const updated = db.prepare('SELECT * FROM inbounds WHERE id = ?').get(id) as unknown as InboundRow;
-    if (updated.node_id && updated.running) {
-      await applyInboundRuntime(driverMode, updated, getInboundPeers(id, updated.subnet), 'restart');
+    if (updated.node_id) {
+      if (!updated.enabled && updated.running) {
+        await applyInboundRuntime(driverMode, updated, [], 'stop');
+        db.prepare('UPDATE inbounds SET running = 0 WHERE id = ?').run(id);
+      } else if (updated.enabled && !updated.running && body.enabled === true) {
+        await applyInboundRuntime(driverMode, updated, getInboundPeers(id, updated.subnet), 'start');
+        db.prepare('UPDATE inbounds SET running = 1 WHERE id = ?').run(id);
+      } else if (updated.enabled && updated.running) {
+        await applyInboundRuntime(driverMode, updated, getInboundPeers(id, updated.subnet), 'restart');
+      }
     }
     recordAudit({ accountId: acc.id, username: acc.username, action: 'instance.update', target: existing.name, ip: req.clientIp });
     res.json({ ok: true });
