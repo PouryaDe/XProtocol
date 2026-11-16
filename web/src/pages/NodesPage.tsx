@@ -298,6 +298,7 @@ export function NodesPage() {
         <label className="nd-search">
           <Search aria-hidden="true" />
           <input
+            className="input"
             type="search"
             value={nodeSearchQuery}
             onChange={(e) => setNodeSearchQuery(e.target.value)}

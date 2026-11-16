@@ -1761,8 +1761,17 @@ h1 .w > span {
 .tabs .t-count { font-size: var(--t-xs); color: var(--ink-3); font-weight: 500; font-variant-numeric: tabular-nums; }
 
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.search { position: relative; flex: 1; min-width: 200px; max-width: 420px; }
-.search svg {
+.search,
+.inb-search,
+.nd-search {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+  max-width: 360px;
+}
+.search svg,
+.inb-search svg,
+.nd-search svg {
   position: absolute;
   inset-inline-start: 11px;
   top: 50%;
@@ -1772,7 +1781,11 @@ h1 .w > span {
   color: var(--ink-3);
   pointer-events: none;
 }
-.search input { padding-inline-start: 35px; }
+.search input,
+.inb-search input,
+.nd-search input {
+  padding-inline-start: 35px;
+}
 
 .bulkbar {
   position: sticky;

@@ -291,8 +291,8 @@ export function InboundsPage() {
         title={t.inbounds.title}
         sub={
           lang === 'fa'
-            ? `${inbounds.length} سرویس · ${inbounds.filter((i) => i.running).length} فعال`
-            : `${inbounds.length} inbounds · ${inbounds.filter((i) => i.running).length} running`
+            ? 'یک‌بار تعریف کنید. روی نودهایی که انتخاب می‌کنید اجرا شوند.'
+            : 'Define once. Run on the nodes you choose.'
         }
         actions={
           <Button variant="primary" onClick={openWizard}>
@@ -324,14 +324,14 @@ export function InboundsPage() {
                 type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={lang === 'fa' ? 'جستجوی سرویس، پورت یا نود...' : 'Search by name, protocol, port or node...'}
+                placeholder={lang === 'fa' ? 'جستجوی اینباندها' : 'Search inbounds'}
               />
             </label>
             <div className="inb-filters" role="group" aria-label={t.inbounds.title}>
               {([
-                { id: 'all', label: lang === 'fa' ? 'همه' : 'All' },
-                { id: 'attention', label: lang === 'fa' ? 'نیازمند توجه' : 'Attention' },
-                { id: 'drafts', label: lang === 'fa' ? 'بدون نود' : 'Drafts' },
+                { id: 'all', label: lang === 'fa' ? 'همه اینباندها' : 'All inbounds' },
+                { id: 'attention', label: lang === 'fa' ? 'نیازمند توجه' : 'Needs attention' },
+                { id: 'drafts', label: lang === 'fa' ? 'پیش‌نویس‌ها' : 'Drafts' },
               ] as const).map((f) => (
                 <button
                   key={f.id}
