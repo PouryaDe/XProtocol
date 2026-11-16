@@ -48,9 +48,9 @@
     "semantic_hash": "5345a83af155d4f37ecce2f846642301"
   },
   "server/src/generators/configs.ts": {
-    "mtime": 1794710495.0615208,
-    "seen": 1794711687.6310947,
-    "ast_hash": "fff13ab51dde3c1896e7afcdb9c8e218",
+    "mtime": 1794804345.0639699,
+    "seen": 1794805605.3920226,
+    "ast_hash": "226da63302f20433649979280fcf3536",
     "semantic_hash": ""
   },
   "server/src/generators/profiles.ts": {
@@ -126,10 +126,10 @@
     "semantic_hash": ""
   },
   "server/src/routes/routingRoutes.ts": {
-    "mtime": 1794706877.7195475,
-    "seen": 1794708422.9708505,
-    "ast_hash": "6ec6ff9285b8585331e3f9491e9340c9",
-    "semantic_hash": "6ec6ff9285b8585331e3f9491e9340c9"
+    "mtime": 1794804418.0908542,
+    "seen": 1794805605.3920345,
+    "ast_hash": "43b805f0faf069ac0523d89acd226b2d",
+    "semantic_hash": ""
   },
   "server/src/routes/settingsRoutes.ts": {
     "mtime": 1794710529.610065,
@@ -336,9 +336,9 @@
     "semantic_hash": ""
   },
   "web/src/pages/RoutingPage.tsx": {
-    "mtime": 1794761981.3237982,
-    "seen": 1794762419.8976884,
-    "ast_hash": "34d44d20b12b91c0b2a45a0f49439866",
+    "mtime": 1794805314.880387,
+    "seen": 1794805605.3920722,
+    "ast_hash": "a6b696da7a1dd6f53f1a7612f0d59f6a",
     "semantic_hash": ""
   },
   "web/src/pages/SettingsPage.tsx": {
@@ -441,6 +441,18 @@
     "mtime": 1794796535.1720278,
     "seen": 1794796976.7118473,
     "ast_hash": "4e996f2e2a5fa956f10eb04e0174d07a",
+    "semantic_hash": ""
+  },
+  "web/src/components/RoutingModals.tsx": {
+    "mtime": 1794805175.0335424,
+    "seen": 1794805605.3920524,
+    "ast_hash": "cebdbc671fa9bb8f43ee07cbbaef9c22",
+    "semantic_hash": ""
+  },
+  "web/src/lib/routingTypes.ts": {
+    "mtime": 1794805011.8438563,
+    "seen": 1794805605.39206,
+    "ast_hash": "79ad548d0405ead3ccb806655bad1917",
     "semantic_hash": ""
   }
 }

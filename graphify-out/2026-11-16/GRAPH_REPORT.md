@@ -1,7 +1,7 @@
 # Graph Report - Ovira  (2026-11-16)
 
 ## Corpus Check
-- 73 files · ~70,139 words
+- 73 files · ~70,304 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 6 file(s) not represented in the graph (top: (none) 2, .css 2, .service 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `9d0d99b6`
+- Built from commit: `d1d0817e`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -58,14 +58,14 @@
 ## Surprising Connections (you probably didn't know these)
 - `Ovira Open-Core VPN Panel` --conceptually_related_to--> `Inter JetBrains Mono Vazirmatn Typography`  [INFERRED]
   README.md → web/index.html
-- `createRoutingRouter()` --indirect_call--> `requireOwner()`  [INFERRED]
-  server/src/routes/routingRoutes.ts → server/src/routes/context.ts
 - `createAccountRouter()` --indirect_call--> `requireOwner()`  [INFERRED]
   server/src/routes/accountRoutes.ts → server/src/routes/context.ts
-- `createUpdateRouter()` --indirect_call--> `requireOwner()`  [INFERRED]
-  server/src/routes/updateRoutes.ts → server/src/routes/context.ts
+- `createRoutingRouter()` --indirect_call--> `requireOwner()`  [INFERRED]
+  server/src/routes/routingRoutes.ts → server/src/routes/context.ts
 - `createSettingsRouter()` --indirect_call--> `requireOwner()`  [INFERRED]
   server/src/routes/settingsRoutes.ts → server/src/routes/context.ts
+- `createUpdateRouter()` --indirect_call--> `requireOwner()`  [INFERRED]
+  server/src/routes/updateRoutes.ts → server/src/routes/context.ts
 
 ## Import Cycles
 - None detected.
@@ -173,7 +173,7 @@ Cohesion: 0.44
 Nodes (8): createAuthRouter(), verifyPassword(), buildTotpUri(), computeTotp(), decodeBase32(), generateRecoveryCodes(), generateTotpSecret(), verifyTotp()
 
 ## Knowledge Gaps
-- **175 isolated node(s):** `DIGIT_SETS`, `ActionMenuItem`, `GroupOption`, `OverviewResponse`, `Lang` (+170 more)
+- **175 isolated node(s):** `DIGIT_SETS`, `ActionMenuItem`, `NodeItem`, `UnattachedInbound`, `ProtocolRow` (+170 more)
   These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 187 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **1 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -182,7 +182,7 @@ _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `react` connect `NodesPage.tsx` to `UiPrimitives.tsx`, `context.tsx`, `web/package.json`, `App.tsx`, `ClientDetailPage.tsx`, `useUi`, `SubscriptionPage.tsx`, `AccountsPage.tsx`?**
   _High betweenness centrality (0.034) - this node is a cross-community bridge._
-- **What connects `DIGIT_SETS`, `ActionMenuItem`, `GroupOption` to the rest of the system?**
+- **What connects `DIGIT_SETS`, `ActionMenuItem`, `NodeItem` to the rest of the system?**
   _175 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `web/package.json` be split into smaller, more focused modules?**
   _Cohesion score 0.06050420168067227 - nodes in this community are weakly interconnected._

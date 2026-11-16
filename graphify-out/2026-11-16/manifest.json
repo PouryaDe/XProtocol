@@ -240,9 +240,9 @@
     "semantic_hash": ""
   },
   "web/src/components/UiPrimitives.tsx": {
-    "mtime": 1794801081.2705767,
-    "seen": 1794801485.9266124,
-    "ast_hash": "ecd9fefeb2b32aa65bee7cf882d0381d",
+    "mtime": 1794802096.8644843,
+    "seen": 1794802308.6996038,
+    "ast_hash": "863b9b1fd57ed0d75f1be9a8a56048f5",
     "semantic_hash": ""
   },
   "web/src/i18n/context.tsx": {
@@ -324,9 +324,9 @@
     "semantic_hash": ""
   },
   "web/src/pages/NodesPage.tsx": {
-    "mtime": 1794798842.9589355,
-    "seen": 1794799068.9875517,
-    "ast_hash": "8468805f3c7c1cfa63c48be7be874a7f",
+    "mtime": 1794802110.9024045,
+    "seen": 1794802308.6996193,
+    "ast_hash": "1f5148449083336cbd86bdf19f4ca006",
     "semantic_hash": ""
   },
   "web/src/pages/OverviewPage.tsx": {

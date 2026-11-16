@@ -3,10 +3,32 @@ import { getDb } from '../db/database.js';
 import { recordAudit } from '../services/audit.js';
 import type { AuthedRequest } from './context.js';
 
+function ensureGroupSpeedColumns(): void {
+  const db = getDb();
+  try {
+    const cols = db.prepare('PRAGMA table_info(groups)').all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'download_mbps')) {
+      db.exec('ALTER TABLE groups ADD COLUMN download_mbps REAL');
+    }
+    if (!cols.some((c) => c.name === 'upload_mbps')) {
+      db.exec('ALTER TABLE groups ADD COLUMN upload_mbps REAL');
+    }
+  } catch {
+    // ignore if columns already exist
+  }
+}
+
+function parseOptionalMbps(v: unknown): number | null {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 export function createGroupRouter(): Router {
   const router = Router();
 
   router.get('/', (req: AuthedRequest, res) => {
+    ensureGroupSpeedColumns();
     const acc = req.auth!.account;
     if (acc.permissions.groups.view === 'none') {
       res.status(403).json({ error: 'No permission to view groups' });
@@ -20,6 +42,8 @@ export function createGroupRouter(): Router {
       note: string;
       all_inbounds: number;
       enabled: number;
+      download_mbps?: number | null;
+      upload_mbps?: number | null;
       created_at: string;
     }>;
 
@@ -51,6 +75,8 @@ export function createGroupRouter(): Router {
         note: g.note,
         allInbounds: Boolean(g.all_inbounds),
         enabled: Boolean(g.enabled),
+        downloadMbps: g.download_mbps ?? null,
+        uploadMbps: g.upload_mbps ?? null,
         inboundIds: giMap.get(g.id) || [],
         clientCount: countMap.get(g.id) || 0,
         createdAt: g.created_at,
@@ -59,28 +85,35 @@ export function createGroupRouter(): Router {
   });
 
   router.post('/', (req: AuthedRequest, res) => {
+    ensureGroupSpeedColumns();
     const acc = req.auth!.account;
     if (!acc.isOwner && acc.permissions.groups.manage === 'none') {
       res.status(403).json({ error: 'No permission to manage groups' });
       return;
     }
 
-    const { name, note, allInbounds, enabled, inboundIds } = req.body as {
+    const { name, note, allInbounds, enabled, inboundIds, downloadMbps, uploadMbps } = req.body as {
       name?: string;
       note?: string;
       allInbounds?: boolean;
       enabled?: boolean;
       inboundIds?: number[];
+      downloadMbps?: number | null;
+      uploadMbps?: number | null;
     };
     if (!name?.trim()) {
       res.status(400).json({ error: 'Group name is required' });
       return;
     }
+    const dl = parseOptionalMbps(downloadMbps);
+    const ul = parseOptionalMbps(uploadMbps);
     const db = getDb();
     try {
       const info = db
-        .prepare('INSERT INTO groups (name, note, all_inbounds, enabled, created_at) VALUES (?, ?, ?, ?, ?)')
-        .run(name.trim(), note || '', allInbounds ? 1 : 0, enabled === false ? 0 : 1, new Date().toISOString());
+        .prepare(
+          'INSERT INTO groups (name, note, all_inbounds, enabled, download_mbps, upload_mbps, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        )
+        .run(name.trim(), note || '', allInbounds ? 1 : 0, enabled === false ? 0 : 1, dl, ul, new Date().toISOString());
       const gid = Number(info.lastInsertRowid);
       if (!allInbounds && inboundIds) {
         for (const iid of inboundIds) {
@@ -95,18 +128,21 @@ export function createGroupRouter(): Router {
   });
 
   router.patch('/:id', (req: AuthedRequest, res) => {
+    ensureGroupSpeedColumns();
     const acc = req.auth!.account;
     if (!acc.isOwner && acc.permissions.groups.manage === 'none') {
       res.status(403).json({ error: 'No permission' });
       return;
     }
     const id = Number(req.params.id);
-    const { name, note, allInbounds, enabled, inboundIds } = req.body as {
+    const { name, note, allInbounds, enabled, inboundIds, downloadMbps, uploadMbps } = req.body as {
       name?: string;
       note?: string;
       allInbounds?: boolean;
       enabled?: boolean;
       inboundIds?: number[];
+      downloadMbps?: number | null;
+      uploadMbps?: number | null;
     };
     const db = getDb();
     const existing = db.prepare('SELECT * FROM groups WHERE id = ?').get(id) as Record<string, unknown> | undefined;
@@ -114,17 +150,27 @@ export function createGroupRouter(): Router {
       res.status(404).json({ error: 'Group not found' });
       return;
     }
-    db.prepare('UPDATE groups SET name = ?, note = ?, all_inbounds = ?, enabled = ? WHERE id = ?').run(
+    const nextDl: number | null =
+      downloadMbps !== undefined ? parseOptionalMbps(downloadMbps) : parseOptionalMbps(existing.download_mbps);
+    const nextUl: number | null =
+      uploadMbps !== undefined ? parseOptionalMbps(uploadMbps) : parseOptionalMbps(existing.upload_mbps);
+    db.prepare(
+      'UPDATE groups SET name = ?, note = ?, all_inbounds = ?, enabled = ?, download_mbps = ?, upload_mbps = ? WHERE id = ?',
+    ).run(
       name?.trim() || String(existing.name),
       note !== undefined ? note : String(existing.note || ''),
       allInbounds !== undefined ? (allInbounds ? 1 : 0) : Number(existing.all_inbounds),
       enabled !== undefined ? (enabled ? 1 : 0) : Number(existing.enabled),
+      nextDl,
+      nextUl,
       id,
     );
     if (inboundIds !== undefined) {
       db.prepare('DELETE FROM group_inbounds WHERE group_id = ?').run(id);
-      for (const iid of inboundIds) {
-        db.prepare('INSERT OR IGNORE INTO group_inbounds (group_id, inbound_id) VALUES (?, ?)').run(id, iid);
+      if (!allInbounds) {
+        for (const iid of inboundIds) {
+          db.prepare('INSERT OR IGNORE INTO group_inbounds (group_id, inbound_id) VALUES (?, ?)').run(id, iid);
+        }
       }
     }
     recordAudit({ accountId: acc.id, username: acc.username, action: 'group.update', target: String(existing.name), ip: req.clientIp });

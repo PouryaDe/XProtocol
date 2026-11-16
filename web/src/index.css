@@ -2208,8 +2208,11 @@ h1 .w > span {
 /* Groups Card Grid */
 .group-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 .group-card {
   display: grid;
@@ -2219,9 +2222,164 @@ h1 .w > span {
   background: var(--raise);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
-  transition: transform 0.6s var(--spring), border-color var(--fast) var(--ease);
+  animation: rise 0.8s var(--out) backwards;
+  animation-delay: calc(var(--r, 0) * 60ms);
+  transition: transform 0.6s var(--spring), border-color var(--fast) var(--ease), opacity var(--med) var(--ease);
 }
 .group-card:hover { border-color: var(--line-strong); transform: translateY(-4px); }
+.group-card.off { opacity: 0.6; }
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: var(--t-md);
+}
+.check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex: none;
+}
+
+.gc-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.gc-head h2 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--t-lg);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+.gc-ico {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--accent-wash);
+  color: var(--accent-text);
+}
+.gc-ico svg { width: 18px; height: 18px; }
+
+.gc-servers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 28px;
+}
+.srv-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: var(--t-sm);
+  text-decoration: none;
+  transition: transform 0.5s var(--spring), background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+.srv-pill:hover {
+  background: var(--raise-2);
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.srv-pill .proto {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  color: var(--accent-text);
+  font-weight: 650;
+}
+
+.gc-speed {
+  font-size: var(--t-xs);
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+}
+
+.gc-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.gc-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: var(--t-sm);
+  text-decoration: none;
+  cursor: pointer;
+}
+.gc-count:hover { color: var(--ink); }
+.gc-count svg { width: 16px; height: 16px; }
+
+.gc-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.gc-icon-btn:hover { background: var(--raise-3); color: var(--ink); }
+.gc-icon-btn.danger:hover { background: var(--bad-wash); color: var(--bad); }
+
+.grp-modal-form {
+  display: grid;
+  gap: 16px;
+}
+.grp-section {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.grp-section-title {
+  font-size: var(--t-sm);
+  font-weight: 650;
+  color: var(--ink);
+  margin: 0;
+}
+.grp-inbound-checks {
+  display: grid;
+  gap: 10px;
+  padding-top: 2px;
+}
+.grp-inbound-checks .check {
+  font-size: var(--t-sm);
+  gap: 10px;
+}
+.grp-ib-name { color: var(--ink); font-weight: 560; }
+.grp-ib-meta { color: var(--ink-3); font-size: var(--t-xs); font-family: var(--font-mono); }
+.grp-speed-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 520px) {
+  .grp-speed-grid { grid-template-columns: minmax(0, 1fr); }
+}
 
 /* Settings Subscription Builder Split + Sticky Phone Frame */
 .sp-layout {
