@@ -216,9 +216,9 @@
     "semantic_hash": ""
   },
   "web/src/components/Layout.tsx": {
-    "mtime": 1794788275.0378716,
-    "seen": 1794788422.664012,
-    "ast_hash": "4a02ed8ec94865f79914094c860bb0ac",
+    "mtime": 1794795851.4280734,
+    "seen": 1794796087.4873095,
+    "ast_hash": "336e0e5cda81d207a050811f1003b3b3",
     "semantic_hash": ""
   },
   "web/src/components/Modal.tsx": {
@@ -240,9 +240,9 @@
     "semantic_hash": ""
   },
   "web/src/components/UiPrimitives.tsx": {
-    "mtime": 1794787026.4242399,
-    "seen": 1794787684.227081,
-    "ast_hash": "635042681cc2d8ca2403174e21969cbc",
+    "mtime": 1794791072.0410998,
+    "seen": 1794791240.9733546,
+    "ast_hash": "c1fc2c988863873dec3098b72832bf83",
     "semantic_hash": ""
   },
   "web/src/i18n/context.tsx": {
@@ -270,9 +270,9 @@
     "semantic_hash": ""
   },
   "web/src/lib/format.ts": {
-    "mtime": 1794786987.2912538,
-    "seen": 1794787684.2270849,
-    "ast_hash": "8492d1a3171c17045ce07b827d75d99d",
+    "mtime": 1794791070.136169,
+    "seen": 1794791240.973364,
+    "ast_hash": "87bb4c78cc7bec6e7cc61a7f3afaaa34",
     "semantic_hash": ""
   },
   "web/src/main.tsx": {
@@ -342,15 +342,15 @@
     "semantic_hash": ""
   },
   "web/src/pages/SettingsPage.tsx": {
-    "mtime": 1794786142.2833085,
-    "seen": 1794786287.9004047,
-    "ast_hash": "37105b6e9c15aa42d73ae0124eaf82c4",
+    "mtime": 1794790126.1932395,
+    "seen": 1794790320.9570704,
+    "ast_hash": "5e9fc1a64374695e0b46c25d2d01f8b0",
     "semantic_hash": ""
   },
   "web/src/pages/SubscriptionPage.tsx": {
-    "mtime": 1794762271.9549038,
-    "seen": 1794762419.8976896,
-    "ast_hash": "4e2df3c30aa799603116832e7caa6daa",
+    "mtime": 1794790015.8605697,
+    "seen": 1794790320.957071,
+    "ast_hash": "ed706e4046ebfd0bc4ba45dc2788068f",
     "semantic_hash": ""
   },
   "web/tsconfig.json": {
@@ -372,9 +372,9 @@
     "semantic_hash": ""
   },
   "web/index.html": {
-    "mtime": 1794711761.4498398,
-    "seen": 1794758040.0076423,
-    "ast_hash": "dee2c2bba702501e090eb1f5b537af0a",
+    "mtime": 1794789563.9129834,
+    "seen": 1794790320.9570768,
+    "ast_hash": "b581c4d5b6a823315423302107e4bda4",
     "semantic_hash": ""
   },
   "AGENTS.md": {
@@ -435,6 +435,12 @@
     "mtime": 1794785721.675501,
     "seen": 1794785847.0855963,
     "ast_hash": "d2ad1c80ee200a13b551942e164b7d7e",
+    "semantic_hash": ""
+  },
+  "web/src/lib/subTheme.ts": {
+    "mtime": 1794789770.2375624,
+    "seen": 1794790320.957058,
+    "ast_hash": "58e4da67bdba92df8d3069340ae015d9",
     "semantic_hash": ""
   }
 }

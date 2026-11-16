@@ -54,19 +54,7 @@
   filter: brightness(1.06);
 }
 
-/* Night theme ambient backdrop */
-.sub-ambient {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: -1;
-  background-color: var(--ground);
-  background-image:
-    radial-gradient(circle at 20% 0%, var(--blob-a), transparent 48%),
-    radial-gradient(circle at 85% 20%, var(--blob-b), transparent 44%),
-    radial-gradient(var(--grid-dot) 1.2px, transparent 1.2px);
-  background-size: 100% 100%, 100% 100%, 24px 24px;
-}
+/* Night theme uses root <Ambient /> */
 
 /* Night theme */
 .sub-night {
@@ -417,6 +405,7 @@
   padding: 4px;
   position: relative;
   overflow-x: auto;
+  overflow-y: hidden;
 }
 .sub .sub-tabs::-webkit-scrollbar { display: none; }
 .sub .sub-tabs::before {
@@ -431,7 +420,7 @@
   left: 0;
 }
 .sub .sub-tabs[data-ready]::before {
-  transition: transform 0.45s var(--spring), width 0.45s var(--spring), opacity var(--med) var(--ease);
+  transition: transform 0.36s var(--out), width 0.36s var(--out), opacity var(--med) var(--ease);
 }
 .sub .sub-tab {
   z-index: 1;
@@ -515,6 +504,7 @@
   border: 1px solid var(--line);
   border-radius: var(--r);
   background: var(--raise);
+  clip-path: inset(0 round var(--r));
 }
 .sub-night .sub-tabs::before {
   border-radius: calc(var(--r) - 3px);
@@ -584,7 +574,7 @@
   --au-light: 0.4;
 }
 :root[data-sub-theme="aurora"] body { background: var(--ground); }
-:root[data-sub-theme="aurora"] .sub-ambient { display: none; }
+:root[data-sub-theme="aurora"] .ambient { display: none; }
 
 .sub-aurora .au-glow {
   z-index: -1;
@@ -1107,7 +1097,7 @@
   background-image: radial-gradient(var(--pk-dot) 1.6px, transparent 1.8px);
   background-size: 22px 22px;
 }
-:root[data-sub-theme="pop"] .sub-ambient { display: none; }
+:root[data-sub-theme="pop"] .ambient { display: none; }
 
 .sub-pop {
   max-width: 1000px;
@@ -1915,7 +1905,7 @@
     repeating-linear-gradient(0deg, var(--tk-grain) 0 1px, transparent 1px 4px),
     repeating-linear-gradient(90deg, var(--tk-grain) 0 1px, transparent 1px 4px);
 }
-:root[data-sub-theme="ticket"] .sub-ambient { display: none; }
+:root[data-sub-theme="ticket"] .ambient { display: none; }
 
 .sub-ticket {
   --k-r: 10px;
@@ -2334,7 +2324,7 @@
   --ob-planet: 0.5;
 }
 :root[data-sub-theme="orbit"] body { background: var(--ground); }
-:root[data-sub-theme="orbit"] .sub-ambient { display: none; }
+:root[data-sub-theme="orbit"] .ambient { display: none; }
 
 .sub-orbit .ob-sky {
   z-index: -1;
@@ -2773,7 +2763,7 @@
   --bad-wash: #ff8a7a1a;
 }
 :root[data-sub-theme="mono"] body { background: var(--ground); }
-:root[data-sub-theme="mono"] .sub-ambient { display: none; }
+:root[data-sub-theme="mono"] .ambient { display: none; }
 
 .sub-mono {
   --k-r: 2px;

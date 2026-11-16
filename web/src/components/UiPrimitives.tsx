@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useUi } from '../i18n/context';
 
 const SPOTLIGHT_SELECTOR =
-  '.xp-card, .xp-kpis, .node-card, .login-form-card, .panel, .kpis, .editor, .update-hero, .group-card';
+  '.xp-card, .xp-kpis, .node-card, .login-form-card, .panel, .kpis, .editor, .update-hero, .group-card, .sub-hero, .sub-qr, .chart, .sub-steps';
 
 export function Ambient() {
   useEffect(() => {

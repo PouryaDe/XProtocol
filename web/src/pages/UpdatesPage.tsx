@@ -81,6 +81,7 @@ export function UpdatesPage() {
     try {
       const res = await apiFetch<UpdateState>('/updates/check', { method: 'POST' });
       setState(res);
+      window.dispatchEvent(new Event('xp-updates-changed'));
     } finally {
       setChecking(false);
     }

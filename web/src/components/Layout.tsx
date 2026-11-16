@@ -88,15 +88,36 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
   useEffect(() => {
     if (!account.isOwner) return;
     let alive = true;
-    apiFetch<{ available?: boolean; updateAvailable?: boolean }>('/updates/status')
-      .then((res) => {
-        if (alive) setUpdateAvailable(Boolean(res?.available || res?.updateAvailable));
-      })
-      .catch(() => {});
+    const syncUpdates = () => {
+      apiFetch<{
+        checkedAt?: string | null;
+        settings?: { autoUpdate?: string };
+        latest?: { tag?: string } | null;
+        newer?: unknown[];
+      }>('/updates')
+        .then((res) => {
+          if (!alive) return;
+          const hasUpdate = Boolean(res?.latest || (res?.newer && res.newer.length > 0));
+          setUpdateAvailable(hasUpdate);
+          if (!res?.checkedAt && res?.settings?.autoUpdate !== 'off') {
+            apiFetch<{ latest?: { tag?: string } | null; newer?: unknown[] }>('/updates/check', { method: 'POST' })
+              .then((fresh) => {
+                if (alive) setUpdateAvailable(Boolean(fresh?.latest || (fresh?.newer && fresh.newer.length > 0)));
+              })
+              .catch(() => {});
+          }
+        })
+        .catch(() => {});
+    };
+    syncUpdates();
+    window.addEventListener('xp-updates-changed', syncUpdates);
+    const timer = setInterval(syncUpdates, 10 * 60_000);
     return () => {
       alive = false;
+      window.removeEventListener('xp-updates-changed', syncUpdates);
+      clearInterval(timer);
     };
-  }, [account.isOwner]);
+  }, [account.isOwner, active]);
 
   const cycleTheme = () => {
     const order: ThemeMode[] = ['system', 'dark', 'light'];

@@ -31,6 +31,8 @@ const ACCENT_CSS_VARS = [
   '--accent-glow',
   '--accent-2',
   '--accent-3',
+  '--grid-lit',
+  '--blob-a',
 ] as const;
 
 export function normalizeSubTheme(look: string | undefined | null): SubThemeKey {
@@ -126,6 +128,8 @@ export function computeSubAccentTokens(theme: SubThemeKey, accentHex: string, mo
     '--accent-glow': rgba(accentFill, 0.4),
     '--accent-2': rgbToHex(acc2),
     '--accent-3': rgbToHex(l > 0.97 ? acc2 : acc3),
+    '--grid-lit': rgba(accentFill, 0.55),
+    '--blob-a': rgba(accentFill, mode === 'dark' ? 0.1 : 0.22),
   };
 }
 

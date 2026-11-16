@@ -1779,22 +1779,17 @@ export function SubscriptionPage({ token }: { token: string }) {
       `openvpn://import-profile/${window.location.origin}/${subPath}/${encodeURIComponent(token)}/profile/${inboundId}`,
   };
 
-  return (
-    <>
-      <div className="sub-ambient" aria-hidden="true" />
-      {theme === 'aurora' ? (
-        <AuroraView m={model} />
-      ) : theme === 'pop' ? (
-        <PopView m={model} />
-      ) : theme === 'ticket' ? (
-        <TicketView m={model} />
-      ) : theme === 'orbit' ? (
-        <OrbitView m={model} />
-      ) : theme === 'mono' ? (
-        <MonoView m={model} />
-      ) : (
-        <NightView m={model} />
-      )}
-    </>
+  return theme === 'aurora' ? (
+    <AuroraView m={model} />
+  ) : theme === 'pop' ? (
+    <PopView m={model} />
+  ) : theme === 'ticket' ? (
+    <TicketView m={model} />
+  ) : theme === 'orbit' ? (
+    <OrbitView m={model} />
+  ) : theme === 'mono' ? (
+    <MonoView m={model} />
+  ) : (
+    <NightView m={model} />
   );
 }

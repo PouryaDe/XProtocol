@@ -216,9 +216,9 @@
     "semantic_hash": ""
   },
   "web/src/components/Layout.tsx": {
-    "mtime": 1794777584.410759,
-    "seen": 1794777807.8476653,
-    "ast_hash": "d19f466244424c004ee6d02c4b049bed",
+    "mtime": 1794788275.0378716,
+    "seen": 1794788422.664012,
+    "ast_hash": "4a02ed8ec94865f79914094c860bb0ac",
     "semantic_hash": ""
   },
   "web/src/components/Modal.tsx": {
@@ -234,15 +234,15 @@
     "semantic_hash": "e3752fcde71c1afcec36f5cf8ac34ed6"
   },
   "web/src/components/TrafficChart.tsx": {
-    "mtime": 1794710195.9570131,
-    "seen": 1794711687.6311243,
-    "ast_hash": "3933a81ee2329dca5651e84917b8610f",
+    "mtime": 1794787153.3781114,
+    "seen": 1794787684.22708,
+    "ast_hash": "06e589ad79c8c23830c25abaeed54b11",
     "semantic_hash": ""
   },
   "web/src/components/UiPrimitives.tsx": {
-    "mtime": 1794781328.0697,
-    "seen": 1794781608.165387,
-    "ast_hash": "6117a0e2e6c158920b5384be204a2ab1",
+    "mtime": 1794791072.0410998,
+    "seen": 1794791240.9733546,
+    "ast_hash": "c1fc2c988863873dec3098b72832bf83",
     "semantic_hash": ""
   },
   "web/src/i18n/context.tsx": {
@@ -252,15 +252,15 @@
     "semantic_hash": ""
   },
   "web/src/i18n/en.ts": {
-    "mtime": 1794777568.7194247,
-    "seen": 1794777807.8476706,
-    "ast_hash": "5a1da664323bd9d60ea0c9e27925e581",
+    "mtime": 1794786989.6213882,
+    "seen": 1794787684.2270825,
+    "ast_hash": "9b5054c12afa26e13346208d35058cde",
     "semantic_hash": ""
   },
   "web/src/i18n/fa.ts": {
-    "mtime": 1794777571.795985,
-    "seen": 1794777807.8476713,
-    "ast_hash": "cf0f2992eb90039ec9c7fb8920e4f1ed",
+    "mtime": 1794786995.0968425,
+    "seen": 1794787684.2270832,
+    "ast_hash": "4f08a4fd3474be1b6551a01de5af768a",
     "semantic_hash": ""
   },
   "web/src/lib/api.ts": {
@@ -270,10 +270,10 @@
     "semantic_hash": ""
   },
   "web/src/lib/format.ts": {
-    "mtime": 1794703424.085878,
-    "seen": 1794708422.9708652,
-    "ast_hash": "8048f0a5fc8580a055dbd296d239036a",
-    "semantic_hash": "8048f0a5fc8580a055dbd296d239036a"
+    "mtime": 1794791070.136169,
+    "seen": 1794791240.973364,
+    "ast_hash": "87bb4c78cc7bec6e7cc61a7f3afaaa34",
+    "semantic_hash": ""
   },
   "web/src/main.tsx": {
     "mtime": 1794703727.7322862,
@@ -330,9 +330,9 @@
     "semantic_hash": ""
   },
   "web/src/pages/OverviewPage.tsx": {
-    "mtime": 1794761314.3200488,
-    "seen": 1794762419.8976874,
-    "ast_hash": "896359885c599cc99563f83614e35ba0",
+    "mtime": 1794788279.8033273,
+    "seen": 1794788422.6640425,
+    "ast_hash": "062f1c2152ef9a40aec791a7ec90ca91",
     "semantic_hash": ""
   },
   "web/src/pages/RoutingPage.tsx": {
@@ -342,15 +342,15 @@
     "semantic_hash": ""
   },
   "web/src/pages/SettingsPage.tsx": {
-    "mtime": 1794786142.2833085,
-    "seen": 1794786287.9004047,
-    "ast_hash": "37105b6e9c15aa42d73ae0124eaf82c4",
+    "mtime": 1794790126.1932395,
+    "seen": 1794790320.9570704,
+    "ast_hash": "5e9fc1a64374695e0b46c25d2d01f8b0",
     "semantic_hash": ""
   },
   "web/src/pages/SubscriptionPage.tsx": {
-    "mtime": 1794762271.9549038,
-    "seen": 1794762419.8976896,
-    "ast_hash": "4e2df3c30aa799603116832e7caa6daa",
+    "mtime": 1794790015.8605697,
+    "seen": 1794790320.957071,
+    "ast_hash": "ed706e4046ebfd0bc4ba45dc2788068f",
     "semantic_hash": ""
   },
   "web/tsconfig.json": {
@@ -372,9 +372,9 @@
     "semantic_hash": ""
   },
   "web/index.html": {
-    "mtime": 1794711761.4498398,
-    "seen": 1794758040.0076423,
-    "ast_hash": "dee2c2bba702501e090eb1f5b537af0a",
+    "mtime": 1794789563.9129834,
+    "seen": 1794790320.9570768,
+    "ast_hash": "b581c4d5b6a823315423302107e4bda4",
     "semantic_hash": ""
   },
   "AGENTS.md": {
@@ -435,6 +435,12 @@
     "mtime": 1794785721.675501,
     "seen": 1794785847.0855963,
     "ast_hash": "d2ad1c80ee200a13b551942e164b7d7e",
+    "semantic_hash": ""
+  },
+  "web/src/lib/subTheme.ts": {
+    "mtime": 1794789770.2375624,
+    "seen": 1794790320.957058,
+    "ast_hash": "58e4da67bdba92df8d3069340ae015d9",
     "semantic_hash": ""
   }
 }
