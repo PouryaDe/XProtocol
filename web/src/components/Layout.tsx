@@ -189,14 +189,6 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
           <strong>{brandName}</strong>
           <span className="faint">{lang === 'fa' ? 'پنل مدیریت VPN' : 'VPN Control Panel'}</span>
         </div>
-        <button
-          type="button"
-          onClick={() => setMobileOpen(false)}
-          className="btn ghost icon sm ms-auto lg:hidden"
-          aria-label={t.common.close}
-        >
-          <X size={16} />
-        </button>
       </div>
 
       <nav ref={navRef}>
