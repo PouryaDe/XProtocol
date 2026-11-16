@@ -57,12 +57,15 @@ export function generateClientProfile(p: ClientProfileParams): {
     settings = {};
   }
 
-  const dnsRaw = Array.isArray(settings.dns)
-    ? settings.dns.map((x) => String(x).trim()).filter(Boolean).join(', ')
-    : String(settings.dns || '1.1.1.1, 8.8.8.8');
+  const dnsRaw = (
+    Array.isArray(settings.dns)
+      ? settings.dns.map((x) => String(x).trim()).filter(Boolean).join(', ')
+      : String(settings.dns || '').trim()
+  ) || '1.1.1.1, 8.8.8.8';
   const amneziaOn = isAmneziaInbound(p.inbound.protocol, settings);
   const mtu = Number(settings.mtu || (amneziaOn ? 1380 : 1420));
   const keepalive = Number(settings.keepalive ?? 25);
+  const allowedClientRoutes = settings.ipv6 ? '0.0.0.0/0, ::/0' : '0.0.0.0/0';
   const clientIp = resolveClientTunnelIp(p.inbound.id, p.inbound.subnet, p.clientIndex, p.fixedIp);
 
   if (p.inbound.protocol === 'wireguard' || p.inbound.protocol === 'amneziawg') {
@@ -92,7 +95,7 @@ export function generateClientProfile(p: ClientProfileParams): {
       ``,
       `[Peer]`,
       `PublicKey = ${p.inbound.server_public_key || 'SERVER_PUBLIC_KEY'}`,
-      `AllowedIPs = 0.0.0.0/0, ::/0`,
+      `AllowedIPs = ${allowedClientRoutes}`,
       `Endpoint = ${host}:${p.inbound.port}`,
       `PersistentKeepalive = ${keepalive}`,
     );

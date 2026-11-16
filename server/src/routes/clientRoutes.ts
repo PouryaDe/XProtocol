@@ -8,7 +8,7 @@ import { generateClientProfile } from '../generators/profiles.js';
 import type { InboundRow } from '../generators/configs.js';
 import { ensureClientCertificate, ensureOpenVpnPki } from '../drivers/pki.js';
 import { parseOptionalMbps } from '../services/peerResolver.js';
-import { kickClientConnections, scheduleSyncRunningInbounds } from '../services/syncService.js';
+import { kickClientConnections, syncRunningInbounds } from '../services/syncService.js';
 
 const GB = 1024 * 1024 * 1024;
 
@@ -169,7 +169,7 @@ export function createClientRouter(): Router {
     res.json({ clients: list });
   });
 
-  router.post('/', (req: AuthedRequest, res) => {
+  router.post('/', async (req: AuthedRequest, res) => {
     const acc = req.auth!.account;
     if (acc.permissions.clients.create === 'none') {
       res.status(403).json({ error: 'No permission to create clients' });
@@ -322,7 +322,7 @@ export function createClientRouter(): Router {
       ip: req.clientIp,
     });
 
-    scheduleSyncRunningInbounds();
+    await syncRunningInbounds().catch(() => undefined);
     res.status(201).json({ ids: createdIds });
   });
 
@@ -438,11 +438,11 @@ export function createClientRouter(): Router {
     if (body.enabled === false) {
       await kickClientConnections(id, 'client_disabled').catch(() => 0);
     }
-    scheduleSyncRunningInbounds();
+    await syncRunningInbounds().catch(() => undefined);
     res.json({ ok: true });
   });
 
-  router.post('/:id/reset-traffic', (req: AuthedRequest, res) => {
+  router.post('/:id/reset-traffic', async (req: AuthedRequest, res) => {
     const id = Number(req.params.id);
     const acc = req.auth!.account;
     const db = getDb();
@@ -459,7 +459,7 @@ export function createClientRouter(): Router {
     }
     db.prepare('UPDATE clients SET traffic_used_bytes = 0, upload_bytes = 0, download_bytes = 0 WHERE id = ?').run(id);
     recordAudit({ accountId: acc.id, username: acc.username, action: 'client.update', target: existing.name, details: 'reset traffic', ip: req.clientIp });
-    scheduleSyncRunningInbounds();
+    await syncRunningInbounds().catch(() => undefined);
     res.json({ ok: true });
   });
 
@@ -560,7 +560,7 @@ export function createClientRouter(): Router {
       ip: req.clientIp,
     });
     if (action !== 'disconnect') {
-      scheduleSyncRunningInbounds();
+      await syncRunningInbounds().catch(() => undefined);
     }
     res.json({ ok: true });
   });
@@ -582,7 +582,7 @@ export function createClientRouter(): Router {
     }
     await kickClientConnections(id, 'client_deleted').catch(() => 0);
     db.prepare('DELETE FROM clients WHERE id = ?').run(id);
-    scheduleSyncRunningInbounds();
+    await syncRunningInbounds().catch(() => undefined);
     recordAudit({ accountId: acc.id, username: acc.username, action: 'client.delete', target: existing.name, ip: req.clientIp });
     res.json({ ok: true });
   });

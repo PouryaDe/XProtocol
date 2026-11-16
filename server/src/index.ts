@@ -1,10 +1,11 @@
 import express from 'express';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { loadRuntimeConfig, getDbPath, type RuntimeConfig } from './config.js';
-import { initDatabase } from './db/database.js';
+import { initDatabase, getDb, getSetting, setSetting, DEFAULT_GENERAL_SETTINGS } from './db/database.js';
 import { detectDriverMode } from './drivers/runtime.js';
 import { requireAuth } from './routes/context.js';
 import { createAuthRouter } from './routes/authRoutes.js';
@@ -147,10 +148,54 @@ export function createApp(initialConfig: RuntimeConfig) {
   return app;
 }
 
+function isPrivateIpv4(ip: string): boolean {
+  const parts = ip.split('.').map(Number);
+  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return true;
+  const [a, b] = parts;
+  if (a === 10 || a === 127 || a === 0) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true;
+  return false;
+}
+
+function detectHostIpv4(): string | null {
+  const ifaces = os.networkInterfaces();
+  let fallbackPrivate: string | null = null;
+  for (const entries of Object.values(ifaces)) {
+    for (const entry of entries || []) {
+      if (entry.family !== 'IPv4' || entry.internal) continue;
+      if (!isPrivateIpv4(entry.address)) return entry.address;
+      if (!fallbackPrivate) fallbackPrivate = entry.address;
+    }
+  }
+  return fallbackPrivate;
+}
+
+function syncDetectedHostIp(): void {
+  if (process.platform !== 'linux') return;
+  const detected = detectHostIpv4();
+  if (!detected) return;
+  const isLoopback = (v: string) => !v || v === '127.0.0.1' || v === 'localhost' || v === '0.0.0.0';
+  const general = getSetting('general', DEFAULT_GENERAL_SETTINGS);
+  if (isLoopback((general.publicAddress || '').trim())) {
+    setSetting('general', { ...general, publicAddress: detected });
+  }
+  const db = getDb();
+  const localNodes = db.prepare('SELECT id, address FROM nodes WHERE is_local = 1').all() as { id: number; address: string }[];
+  for (const n of localNodes) {
+    if (isLoopback((n.address || '').trim())) {
+      db.prepare('UPDATE nodes SET address = ? WHERE id = ?').run(detected, n.id);
+    }
+  }
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   applyPendingRestore();
   const runtimeConfig = loadRuntimeConfig();
   const { initialPasswordGenerated } = initDatabase();
+  syncDetectedHostIp();
   reconcileRunningInboundsOnBoot().catch(() => undefined);
   startCollectorLoop();
   startTelegramBackupScheduler();

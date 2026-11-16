@@ -19,7 +19,10 @@ export async function reconcileRunningInboundsOnBoot(): Promise<void> {
     .all() as unknown as InboundRow[];
   for (const ib of rows) {
     const peers = getEligiblePeersForInbound(ib.id, ib.subnet);
-    await applyLinuxInbound(ib, peers, 'start').catch(() => undefined);
+    const res = await applyLinuxInbound(ib, peers, 'start').catch(() => undefined);
+    if (!res?.ok) {
+      db.prepare('UPDATE inbounds SET running = 0 WHERE id = ?').run(ib.id);
+    }
   }
 }
 

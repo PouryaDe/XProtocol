@@ -303,10 +303,10 @@ export async function ensureSubnetNat(subnet: string, enable: boolean): Promise<
       await runCmd('iptables', ['-A', 'POSTROUTING', ...natArgs], 3000);
     }
     if (!(await runCmd('iptables', ['-C', 'FORWARD', ...fwdOut], 3000)).ok) {
-      await runCmd('iptables', ['-A', 'FORWARD', ...fwdOut], 3000);
+      await runCmd('iptables', ['-I', 'FORWARD', '1', ...fwdOut], 3000);
     }
     if (!(await runCmd('iptables', ['-C', 'FORWARD', ...fwdIn], 3000)).ok) {
-      await runCmd('iptables', ['-A', 'FORWARD', ...fwdIn], 3000);
+      await runCmd('iptables', ['-I', 'FORWARD', '1', ...fwdIn], 3000);
     }
   } else {
     await runCmd('iptables', ['-D', 'POSTROUTING', ...natArgs], 3000);
@@ -377,15 +377,27 @@ export async function applyLinuxInbound(
   if (inbound.protocol === 'wireguard' || inbound.protocol === 'amneziawg') {
     const amneziaOn = isAmneziaInbound(inbound.protocol, settings);
     const tool = amneziaOn ? 'awg-quick' : 'wg-quick';
+    const wgBin = amneziaOn ? 'awg' : 'wg';
+    await ensureSubnetNat(inbound.subnet, action !== 'stop' && settings.nat !== false);
     if (action === 'stop' || action === 'restart') {
       const r = await runCmd(tool, ['down', rendered.path]);
+      if (!r.ok) await runCmd('ip', ['link', 'del', inbound.name], 3000);
       logs.push(`${tool} down ${inbound.name}: ${r.ok ? 'ok' : r.stderr}`);
     }
     if (action === 'start' || action === 'restart') {
+      if (action === 'start') {
+        const exists = await runCmd('ip', ['link', 'show', inbound.name], 3000);
+        if (exists.ok) {
+          await runCmd(tool, ['down', rendered.path], 5000);
+          await runCmd('ip', ['link', 'del', inbound.name], 3000);
+        }
+      }
       const r = await runCmd(tool, ['up', rendered.path]);
       logs.push(`${tool} up ${inbound.name}: ${r.ok ? 'ok' : r.stderr}`);
       if (r.ok) {
         await applyInterfaceSpeedLimits(inbound.name, peers);
+        const show = await runCmd(wgBin, ['show', inbound.name], 3000);
+        if (show.ok && show.stdout) logs.push(show.stdout.trim());
       }
       return { ok: r.ok, logs };
     }
@@ -486,7 +498,10 @@ export async function syncLinuxInboundPeers(inbound: InboundRow, peers: PeerEntr
         const tmpFile = path.join(os.tmpdir(), `xp-wg-${inbound.name.replace(/[^a-zA-Z0-9_-]/g, '_')}-${Date.now()}.conf`);
         fs.writeFileSync(tmpFile, stripped.stdout, { mode: 0o600 });
         try {
-          await runCmd(wgBin, ['syncconf', inbound.name, tmpFile], 5000);
+          const syncRes = await runCmd(wgBin, ['syncconf', inbound.name, tmpFile], 5000);
+          if (!syncRes.ok) {
+            await applyLinuxInbound(inbound, peers, 'restart');
+          }
         } finally {
           fs.rmSync(tmpFile, { force: true });
         }
@@ -769,6 +784,25 @@ WantedBy=multi-user.target
     await runCmd('systemctl', ['stop', 'xprotocol-xray'], 5000);
     return { ok: true, statusMessage: 'Stopped' };
   }
+}
+
+/** Query live runtime diagnostic output for an inbound on Ubuntu Linux. */
+export async function getInboundRuntimeStatus(inbound: InboundRow): Promise<string[]> {
+  if (process.platform !== 'linux') return [];
+  const settings = parseInboundSettings(inbound);
+  const out: string[] = [];
+  if (inbound.protocol === 'wireguard' || inbound.protocol === 'amneziawg') {
+    const wgBin = isAmneziaInbound(inbound.protocol, settings) ? 'awg' : 'wg';
+    const r = await runCmd(wgBin, ['show', inbound.name], 3000);
+    out.push(r.ok ? r.stdout.trim() || `${wgBin} ${inbound.name}: up (0 peers)` : `${wgBin} show ${inbound.name} error: ${r.stderr.trim()}`);
+  } else if (inbound.protocol === 'openvpn') {
+    const r = await runCmd('systemctl', ['status', `openvpn-server@${inbound.name}`, '--no-pager', '-n', '15'], 3000);
+    if (r.stdout || r.stderr) out.push((r.stdout || r.stderr).trim());
+  } else if (inbound.protocol === 'openconnect' || inbound.protocol === 'ocserv') {
+    const r = await runCmd('systemctl', ['status', `xprotocol-ocserv@${inbound.name}`, '--no-pager', '-n', '15'], 3000);
+    if (r.stdout || r.stderr) out.push((r.stdout || r.stderr).trim());
+  }
+  return out;
 }
 
 export async function updateXrayGeoAssets(): Promise<{ ok: boolean; message: string }> {

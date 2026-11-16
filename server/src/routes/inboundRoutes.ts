@@ -2,10 +2,19 @@ import { Router } from 'express';
 import { getDb } from '../db/database.js';
 import { generateWireGuardKeypair } from '../security/auth.js';
 import { applyInboundRuntime } from '../drivers/runtime.js';
+import { getInboundRuntimeStatus } from '../drivers/linuxEngine.js';
 import { renderInboundServerConfig, type InboundRow, type PeerEntry } from '../generators/configs.js';
 import { recordAudit } from '../services/audit.js';
 import { getEligiblePeersForInbound } from '../services/peerResolver.js';
 import type { AuthedRequest } from './context.js';
+
+const runtimeLogsByInbound = new Map<number, string[]>();
+
+function recordInboundLogs(inboundId: number, entries: string[]) {
+  if (!entries.length) return;
+  const prev = runtimeLogsByInbound.get(inboundId) ?? [];
+  runtimeLogsByInbound.set(inboundId, [...prev, ...entries].slice(-40));
+}
 
 function getInboundPeers(inboundId: number, subnet: string): PeerEntry[] {
   return getEligiblePeersForInbound(inboundId, subnet);
@@ -37,13 +46,13 @@ function resolveUniqueSlug(rawName: string | undefined, displayName: string | un
       .toLowerCase()
       .replace(/[^a-z0-9-]+/g, '-')
       .replace(/^-+|-+$/g, '');
-    base = slugFromDisplay.length >= 2 ? slugFromDisplay.slice(0, 28) : `${defaultSlugPrefix(protocol, transport)}${port}`;
+    base = slugFromDisplay.length >= 2 ? slugFromDisplay.slice(0, 11) : `${defaultSlugPrefix(protocol, transport)}${port}`;
   }
-  base = base.slice(0, 28);
+  base = base.slice(0, 11).replace(/-+$/g, '') || `${defaultSlugPrefix(protocol, transport)}${port}`.slice(0, 11);
   let candidate = base;
   let n = 2;
   while (db.prepare('SELECT 1 FROM inbounds WHERE name = ?').get(candidate)) {
-    candidate = `${base.slice(0, 25)}-${n++}`;
+    candidate = `${base.slice(0, 11)}-${n++}`;
   }
   return candidate;
 }
@@ -274,7 +283,11 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
         }
         if (shouldRun) {
           const row = db.prepare('SELECT * FROM inbounds WHERE id = ?').get(id) as unknown as InboundRow;
-          await applyInboundRuntime(driverMode, row, getInboundPeers(id, row.subnet), 'start');
+          const rt = await applyInboundRuntime(driverMode, row, getInboundPeers(id, row.subnet), 'start');
+          recordInboundLogs(id, rt.logs);
+          if (!rt.ok) {
+            db.prepare('UPDATE inbounds SET running = 0 WHERE id = ?').run(id);
+          }
         }
       }
       recordAudit({ accountId: acc.id, username: acc.username, action: 'instance.create', target: name, ip: req.clientIp });
@@ -344,13 +357,19 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
     const updated = db.prepare('SELECT * FROM inbounds WHERE id = ?').get(id) as unknown as InboundRow;
     if (updated.node_id) {
       if (!updated.enabled && updated.running) {
-        await applyInboundRuntime(driverMode, updated, [], 'stop');
+        const rt = await applyInboundRuntime(driverMode, updated, [], 'stop');
+        recordInboundLogs(id, rt.logs);
         db.prepare('UPDATE inbounds SET running = 0 WHERE id = ?').run(id);
       } else if (updated.enabled && !updated.running && body.enabled === true) {
-        await applyInboundRuntime(driverMode, updated, getInboundPeers(id, updated.subnet), 'start');
-        db.prepare('UPDATE inbounds SET running = 1 WHERE id = ?').run(id);
+        const rt = await applyInboundRuntime(driverMode, updated, getInboundPeers(id, updated.subnet), 'start');
+        recordInboundLogs(id, rt.logs);
+        db.prepare('UPDATE inbounds SET running = ? WHERE id = ?').run(rt.ok ? 1 : 0, id);
       } else if (updated.enabled && updated.running) {
-        await applyInboundRuntime(driverMode, updated, getInboundPeers(id, updated.subnet), 'restart');
+        const rt = await applyInboundRuntime(driverMode, updated, getInboundPeers(id, updated.subnet), 'restart');
+        recordInboundLogs(id, rt.logs);
+        if (!rt.ok) {
+          db.prepare('UPDATE inbounds SET running = 0 WHERE id = ?').run(id);
+        }
       }
     }
     recordAudit({ accountId: acc.id, username: acc.username, action: 'instance.update', target: existing.name, ip: req.clientIp });
@@ -392,7 +411,11 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       );
       const row = db.prepare('SELECT * FROM inbounds WHERE id = ?').get(id) as unknown as InboundRow;
       if (shouldRun) {
-        await applyInboundRuntime(driverMode, row, getInboundPeers(id, row.subnet), 'start');
+        const rt = await applyInboundRuntime(driverMode, row, getInboundPeers(id, row.subnet), 'start');
+        recordInboundLogs(id, rt.logs);
+        if (!rt.ok) {
+          db.prepare('UPDATE inbounds SET running = 0 WHERE id = ?').run(id);
+        }
       }
     } else if (existing.node_id !== firstNode) {
       restNodes.unshift(firstNode);
@@ -428,7 +451,11 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       const newId = Number(info.lastInsertRowid);
       if (shouldRun) {
         const row = db.prepare('SELECT * FROM inbounds WHERE id = ?').get(newId) as unknown as InboundRow;
-        await applyInboundRuntime(driverMode, row, getInboundPeers(newId, row.subnet), 'start');
+        const rt = await applyInboundRuntime(driverMode, row, getInboundPeers(newId, row.subnet), 'start');
+        recordInboundLogs(newId, rt.logs);
+        if (!rt.ok) {
+          db.prepare('UPDATE inbounds SET running = 0 WHERE id = ?').run(newId);
+        }
       }
     }
 
@@ -456,7 +483,7 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
     res.json({ ok: true });
   });
 
-  router.get('/:id/config', (req: AuthedRequest, res) => {
+  router.get('/:id/config', async (req: AuthedRequest, res) => {
     const id = Number(req.params.id);
     const db = getDb();
     const row = db.prepare('SELECT * FROM inbounds WHERE id = ?').get(id) as InboundRow | undefined;
@@ -464,11 +491,15 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       res.status(404).json({ error: 'Inbound not found' });
       return;
     }
-    const rendered = renderInboundServerConfig(row, getInboundPeers(id, row.subnet));
+    const peers = getInboundPeers(id, row.subnet);
+    const rendered = renderInboundServerConfig(row, peers);
+    const liveStatus = driverMode === 'linux' && row.node_id ? await getInboundRuntimeStatus(row) : [];
     const logs = [
       `[${new Date().toISOString()}] inbound=${row.name} protocol=${row.protocol} port=${row.port}`,
-      `[${new Date().toISOString()}] state=${row.running ? 'running' : 'stopped'} subnet=${row.subnet}`,
+      `[${new Date().toISOString()}] state=${row.running ? 'running' : 'stopped'} subnet=${row.subnet} peers=${peers.length}`,
       `[${new Date().toISOString()}] config_path=${rendered.path}`,
+      ...(runtimeLogsByInbound.get(id) ?? []),
+      ...liveStatus,
     ];
     res.json({ path: rendered.path, content: rendered.content, logs });
   });
@@ -496,7 +527,8 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       return;
     }
     const result = await applyInboundRuntime(driverMode, row, getInboundPeers(id, row.subnet), action);
-    const nextRunning = action === 'stop' ? 0 : 1;
+    recordInboundLogs(id, result.logs);
+    const nextRunning = action === 'stop' ? 0 : result.ok ? 1 : 0;
     db.prepare('UPDATE inbounds SET running = ? WHERE id = ?').run(nextRunning, id);
     res.json({ ok: result.ok, running: Boolean(nextRunning), logs: result.logs });
   });

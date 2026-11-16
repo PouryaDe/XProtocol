@@ -239,6 +239,34 @@ test('Config rendering sanitizes CRLF/quotes across OpenConnect, IKEv2, L2TP, an
   assert.equal(wgProfile.filename.includes('..') || wgProfile.filename.includes('/'), false);
   assert.match(wgProfile.filename, /^[^/\\]*alice-wg\.conf$/);
   assert.match(wgProfile.content, /Address = 10\.66\.0\.\d+\/32/);
+
+  // IPv4-only inbound with empty dns array must fall back to public DNS and omit ::/0 blackhole route
+  const wgIpv4Only = generateClientProfile({
+    client: { id: 1, name: 'alice', wg_public_key: 'PUB', wg_private_key: 'PRIV', vpn_password: '' },
+    inbound: {
+      id: 2,
+      node_id: 1,
+      protocol: 'wireguard',
+      name: 'wg-v4',
+      transport: 'udp',
+      port: 51822,
+      subnet: '10.67.0.0/24',
+      auth_mode: 'device_keys',
+      description: '',
+      public_address_override: '',
+      enabled: 1,
+      running: 1,
+      cert_id: null,
+      server_public_key: 'SRV_PUB',
+      server_private_key: '',
+      settings_json: JSON.stringify({ dns: [], ipv6: false }),
+    },
+    endpointHost: '1.2.3.4',
+    nodeName: 'Node1',
+  });
+  assert.match(wgIpv4Only.content, /DNS = 1\.1\.1\.1, 8\.8\.8\.8/);
+  assert.match(wgIpv4Only.content, /AllowedIPs = 0\.0\.0\.0\/0\r?\n/);
+  assert.equal(wgIpv4Only.content.includes('::/0'), false);
 });
 
 test('OpenVPN salted scrypt auth verifier accepts valid password and rejects invalid credentials', async () => {

@@ -120,9 +120,10 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
         `MTU = ${mtu}`,
       ];
       if (natOn) {
+        const netCidr = `${cidr.networkIp}/${cidr.prefix}`;
         lines.push(
-          `PostUp = IFACE=$(ip route show default | awk '{print $5; exit}'); iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT; [ -n "$IFACE" ] && iptables -t nat -C POSTROUTING -s ${cidr.networkIp}/${cidr.prefix} -o "$IFACE" -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s ${cidr.networkIp}/${cidr.prefix} -o "$IFACE" -j MASQUERADE`,
-          `PostDown = IFACE=$(ip route show default | awk '{print $5; exit}'); iptables -D FORWARD -i %i -j ACCEPT 2>/dev/null || true; iptables -D FORWARD -o %i -j ACCEPT 2>/dev/null || true; [ -n "$IFACE" ] && iptables -t nat -D POSTROUTING -s ${cidr.networkIp}/${cidr.prefix} -o "$IFACE" -j MASQUERADE 2>/dev/null || true`,
+          `PostUp = iptables -C FORWARD -i %i -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -i %i -j ACCEPT; iptables -C FORWARD -o %i -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -o %i -j ACCEPT; iptables -t nat -C POSTROUTING -s ${netCidr} ! -o %i -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s ${netCidr} ! -o %i -j MASQUERADE`,
+          `PostDown = iptables -D FORWARD -i %i -j ACCEPT 2>/dev/null || true; iptables -D FORWARD -o %i -j ACCEPT 2>/dev/null || true; iptables -t nat -D POSTROUTING -s ${netCidr} ! -o %i -j MASQUERADE 2>/dev/null || true`,
         );
       }
       if (amneziaOn) {

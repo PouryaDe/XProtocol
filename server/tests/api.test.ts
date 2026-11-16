@@ -174,6 +174,31 @@ test('Full panel API workflow: auth, 2FA, clients, subscription, RBAC, routing',
     });
     assert.equal(badPortPatch.status, 400);
 
+    // Long displayName slug must stay <= 15 chars for Linux IFNAMSIZ limit
+    const longWgRes = await fetch(`${baseUrl}/api/inbounds`, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'X-CSRF-Token': csrf, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        protocol: 'wireguard',
+        displayName: 'WireGuard Primary Production Tunnel',
+        transport: 'udp',
+        port: 51835,
+        subnet: '10.97.0.0/24',
+        nodeIds: [],
+      }),
+    });
+    assert.equal(longWgRes.status, 201);
+    const longWgJson = (await longWgRes.json()) as { id: number };
+    const inboundList = (await fetch(`${baseUrl}/api/inbounds`, { headers: { Cookie: cookie } }).then((r) =>
+      r.json(),
+    )) as { inbounds: Array<{ id: number; name: string }> };
+    const longWgInbound = inboundList.inbounds.find((i) => i.id === longWgJson.id);
+    assert.ok(longWgInbound, 'Created long displayName inbound should be listed');
+    assert.ok(
+      longWgInbound.name.length > 0 && longWgInbound.name.length <= 15,
+      `Expected Linux-safe interface slug <= 15 chars, got ${longWgInbound.name}`,
+    );
+
     // 11. Routing Psiphon preset & geo-update
     const psiphonRes = await fetch(`${baseUrl}/api/routing/outbounds`, {
       method: 'POST',
