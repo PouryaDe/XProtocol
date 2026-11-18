@@ -1703,8 +1703,8 @@ h1 .w > span {
 .tag i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); }
 .tag-online { color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent); }
 .tag-online i { background: var(--good); box-shadow: 0 0 6px var(--good); }
-.tag-active { color: var(--accent-text); background: var(--accent-wash); }
-.tag-active i { background: var(--accent); }
+.tag-active { color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent); }
+.tag-active i { background: var(--good); }
 .tag-pending { color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 14%, transparent); }
 .tag-pending i { background: var(--accent-2); }
 .tag-expired, .tag-limited { color: var(--bad); background: var(--bad-wash); }
@@ -1772,7 +1772,13 @@ h1 .w > span {
 }
 .sort .select {
   width: auto;
-  min-width: 118px;
+  min-width: 0;
+  height: 38px;
+  padding-inline: 14px 32px;
+  font-weight: 550;
+}
+.search .input {
+  height: 38px;
 }
 .search {
   position: relative;
@@ -3222,6 +3228,22 @@ details.history > summary::-webkit-details-marker {
   line-height: 1.5;
 }
 .input:hover, .select:hover, .textarea:hover { border-color: var(--ink-3); }
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23cbd5e1' d='M1.2 1.2h7.6L5 5.2z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 9px 6px;
+  padding-inline: 12px 30px;
+  cursor: pointer;
+}
+[data-theme="light"] .select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23334155' d='M1.2 1.2h7.6L5 5.2z'/%3E%3C/svg%3E");
+}
+[dir="rtl"] .select {
+  background-position: left 12px center;
+}
 .input:focus, .select:focus, .textarea:focus {
   border-color: var(--accent);
   background: var(--raise);

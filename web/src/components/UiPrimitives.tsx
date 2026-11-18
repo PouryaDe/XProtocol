@@ -334,7 +334,7 @@ export function Select({
       {label && <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">{label}</span>}
       <select
         {...rest}
-        className={`w-full rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-3 py-2 text-sm text-(--text-primary) transition focus:border-(--accent) focus:outline-none ${className}`}
+        className={`select w-full rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-3 py-2 text-sm text-(--text-primary) transition focus:border-(--accent) focus:outline-none ${className}`}
       >
         {children}
       </select>

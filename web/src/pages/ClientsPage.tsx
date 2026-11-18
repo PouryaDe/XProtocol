@@ -704,7 +704,7 @@ export function ClientsPage({
                     <td>{renderClientStatusTag(c.status)}</td>
                     <td>
                       <div className="traffic-cell">
-                        <Lamps used={c.trafficUsedBytes} limit={c.trafficLimitBytes ?? 0} count={12} />
+                        <Lamps used={c.trafficUsedBytes} limit={c.trafficLimitBytes ?? 0} count={10} />
                         <span className="small num">
                           <strong>{formatBytes(c.trafficUsedBytes, lang)}</strong>{' '}
                           <span className="faint">/ {formatBytes(c.trafficLimitBytes, lang)}</span>
