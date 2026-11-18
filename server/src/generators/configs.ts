@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { getDataDir } from '../config.js';
 import { intToIp, parseCidr } from '../services/peerResolver.js';
+import { renderXrayInboundObject } from '../drivers/xrayEngine.js';
 
 export interface InboundRow {
   id: number;
@@ -26,6 +27,8 @@ export interface PeerEntry {
   name: string;
   wgPublicKey: string;
   vpnPassword?: string;
+  xrayUuid?: string;
+  ssPassword?: string;
   tunnelIp: string;
   downloadMbps?: number | null;
   uploadMbps?: number | null;
@@ -414,6 +417,14 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
       return {
         path: `/etc/xl2tpd/${inbound.name}.conf`,
         content: lines.join('\n') + '\n',
+      };
+    }
+
+    case 'xray': {
+      const obj = renderXrayInboundObject(inbound, peers);
+      return {
+        path: `/usr/local/lib/xprotocol/xray/inbound-${inbound.name}.json`,
+        content: JSON.stringify(obj, null, 2) + '\n',
       };
     }
   }

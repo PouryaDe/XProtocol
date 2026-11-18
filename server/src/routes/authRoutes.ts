@@ -8,7 +8,9 @@ import {
   verifyTotp,
 } from '../security/totp.js';
 import { recordAudit } from '../services/audit.js';
-import { extractClientIp, loadAccountById, type AuthedRequest } from './context.js';
+import { emitEvent } from '../services/events.js';
+import { checkLoginAllowed, clearLoginFailures, recordLoginFailure } from '../security/loginGuard.js';
+import { extractClientIp, loadAccountById, requireFreshMfa, type AuthedRequest } from './context.js';
 import { getAccountStatus, getEffectiveLimits } from '../security/rbac.js';
 
 export function createAuthRouter(
@@ -29,6 +31,16 @@ export function createAuthRouter(
       return;
     }
 
+    const guard = checkLoginAllowed(ip, username);
+    if (!guard.allowed) {
+      res.status(guard.code === 'rate_limited' || guard.code === 'account_locked' ? 429 : 403).json({
+        error: guard.reason || 'Sign-in blocked',
+        code: guard.code,
+        retryAfterSec: guard.retryAfterSec,
+      });
+      return;
+    }
+
     const db = getDb();
     const row = db
       .prepare('SELECT id, username, password_hash, active, totp_enabled, totp_secret, recovery_codes_json FROM accounts WHERE username = ?')
@@ -45,6 +57,15 @@ export function createAuthRouter(
       | undefined;
 
     if (!row || !verifyPassword(password, row.password_hash)) {
+      const ban = recordLoginFailure(ip, username);
+      if (ban.bannedKey) {
+        emitEvent({
+          type: 'security.ban',
+          ownerId: 0,
+          subject: ban.bannedKey,
+          data: { target: ban.bannedKey, level: ban.level, until: ban.until, ip },
+        });
+      }
       recordAudit({ username: username.trim(), action: 'login.failed', target: username.trim(), ip });
       res.status(401).json({ error: 'Invalid username or password' });
       return;
@@ -56,6 +77,7 @@ export function createAuthRouter(
       return;
     }
 
+    let mfaConfirmedAt = 0;
     if (row.totp_enabled && row.totp_secret) {
       if (!totpCode) {
         res.status(200).json({ requires2fa: true });
@@ -67,6 +89,7 @@ export function createAuthRouter(
         const recoveryCodes = JSON.parse(row.recovery_codes_json || '[]') as string[];
         const idx = recoveryCodes.indexOf(codeTrimmed);
         if (idx === -1) {
+          recordLoginFailure(ip, username);
           recordAudit({ accountId: row.id, username: row.username, action: 'login.failed', target: '2fa invalid', ip });
           res.status(401).json({ error: 'Invalid two-factor code' });
           return;
@@ -78,6 +101,22 @@ export function createAuthRouter(
         );
         recordAudit({ accountId: row.id, username: row.username, action: 'login.recovery-code', target: row.username, ip });
       }
+      mfaConfirmedAt = Math.floor(Date.now() / 1000);
+    }
+
+    clearLoginFailures(ip, row.username);
+
+    const prevLogin = db
+      .prepare("SELECT 1 FROM audit_logs WHERE account_id = ? AND action = 'login' AND ip = ? LIMIT 1")
+      .get(row.id, ip);
+    const anyLogin = db.prepare("SELECT 1 FROM audit_logs WHERE account_id = ? AND action = 'login' LIMIT 1").get(row.id);
+    if (anyLogin && !prevLogin) {
+      emitEvent({
+        type: 'admin.login_new_ip',
+        ownerId: row.id,
+        subject: `admin:${row.id}`,
+        data: { username: row.username, ip },
+      });
     }
 
     const sessionId = randomToken(32);
@@ -86,8 +125,8 @@ export function createAuthRouter(
     const ua = String(req.headers['user-agent'] || '').slice(0, 180);
 
     db.prepare(
-      'INSERT INTO sessions (id, account_id, csrf_token, ip, user_agent, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    ).run(sessionId, row.id, csrfToken, ip, ua, now, now);
+      'INSERT INTO sessions (id, account_id, csrf_token, ip, user_agent, created_at, last_seen_at, mfa_confirmed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    ).run(sessionId, row.id, csrfToken, ip, ua, now, now, mfaConfirmedAt);
 
     recordAudit({ accountId: row.id, username: row.username, action: 'login', target: row.username, ip });
 
@@ -145,6 +184,7 @@ export function createAuthRouter(
   });
 
   router.post('/me/password', authMiddleware, (req: AuthedRequest, res) => {
+    if (!requireFreshMfa(req, res)) return;
     const { currentPassword, newPassword } = req.body as { currentPassword?: string; newPassword?: string };
     if (!currentPassword || !newPassword || newPassword.length < 10) {
       res.status(400).json({ error: 'New password must be at least 10 characters' });
@@ -205,7 +245,49 @@ export function createAuthRouter(
     res.json({ ok: true, recoveryCodes });
   });
 
+  router.post('/me/2fa/confirm', authMiddleware, (req: AuthedRequest, res) => {
+    const { code } = req.body as { code?: string };
+    const db = getDb();
+    const row = db
+      .prepare('SELECT totp_enabled, totp_secret, recovery_codes_json FROM accounts WHERE id = ?')
+      .get(req.auth!.account.id) as
+      | { totp_enabled: number; totp_secret: string | null; recovery_codes_json: string }
+      | undefined;
+    if (!row?.totp_enabled || !row.totp_secret) {
+      res.json({ ok: true, validFor: 300 });
+      return;
+    }
+    const clean = (code || '').trim().toUpperCase();
+    if (!clean) {
+      res.status(400).json({ error: 'Verification code is required' });
+      return;
+    }
+    let valid = verifyTotp(row.totp_secret, clean);
+    if (!valid) {
+      const recoveryCodes = JSON.parse(row.recovery_codes_json || '[]') as string[];
+      const idx = recoveryCodes.indexOf(clean);
+      if (idx !== -1) {
+        recoveryCodes.splice(idx, 1);
+        db.prepare('UPDATE accounts SET recovery_codes_json = ? WHERE id = ?').run(
+          JSON.stringify(recoveryCodes),
+          req.auth!.account.id,
+        );
+        valid = true;
+      }
+    }
+    if (!valid) {
+      res.status(401).json({ error: 'Invalid two-factor code' });
+      return;
+    }
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (req.auth?.sessionId) {
+      db.prepare('UPDATE sessions SET mfa_confirmed_at = ? WHERE id = ?').run(nowSec, req.auth.sessionId);
+    }
+    res.json({ ok: true, validFor: 300 });
+  });
+
   router.post('/me/2fa/disable', authMiddleware, (req: AuthedRequest, res) => {
+    if (!requireFreshMfa(req, res)) return;
     const { password } = req.body as { password?: string };
     const db = getDb();
     const row = db.prepare('SELECT password_hash FROM accounts WHERE id = ?').get(req.auth!.account.id) as {

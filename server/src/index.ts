@@ -21,9 +21,15 @@ import { createAccountRouter } from './routes/accountRoutes.js';
 import { createSettingsRouter } from './routes/settingsRoutes.js';
 import { createUpdateRouter } from './routes/updateRoutes.js';
 import { createSubRouter } from './routes/subRoutes.js';
+import { createXrayRouter } from './routes/xrayRoutes.js';
+import { createEventsRouter } from './routes/eventsRoutes.js';
+import { createTemplateRouter } from './routes/templateRoutes.js';
+import { createMetricsRouter } from './routes/metricsRoutes.js';
+import { createBackupDestinationsRouter } from './routes/backupRoutes.js';
 import { startCollectorLoop } from './services/collector.js';
 import { reconcileRunningInboundsOnBoot } from './services/syncService.js';
 import { startTelegramBackupScheduler } from './services/telegramBackup.js';
+import { startOffsiteBackupScheduler } from './services/offsiteBackup.js';
 import { startAutoUpdateScheduler } from './services/updater.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -56,8 +62,18 @@ export function createApp(initialConfig: RuntimeConfig) {
     const subPrefix = `/${runtimeConfig.subPath}`;
     if (req.path === subPrefix || req.path.startsWith(`${subPrefix}/`)) {
       req.url = req.url.slice(subPrefix.length) || '/';
-      // Route /sub/:token/data or /sub/:token/profile/:id to API; otherwise serve SPA index.html
-      if (/^\/[^/]+\/(data|profile)(\/|$)/.test(req.path)) {
+      const ua = String(req.headers['user-agent'] || '');
+      const accept = String(req.headers.accept || '');
+      const isProxyAppUa =
+        /happ|v2ray|hiddify|shadowrocket|streisand|nekobox|karing|clash|sing-box|flclash|foxray|v2box|stash|quantumult|loon|surge/i.test(
+          ua,
+        );
+      const wantsProxyFeed =
+        /^\/[^/]+\/(data|profile|proxy|raw)(\/|$)/.test(req.path) ||
+        Boolean(req.query.format) ||
+        isProxyAppUa ||
+        (req.path !== '/' && !req.path.includes('/assets/') && !accept.includes('text/html'));
+      if (wantsProxyFeed) {
         subRouter(req, res, next);
         return;
       }
@@ -65,6 +81,17 @@ export function createApp(initialConfig: RuntimeConfig) {
       req.url = `${subPrefix}${req.url === '/' ? '' : req.url}`;
     }
     next();
+  });
+
+  // Optional root /metrics endpoint when metricsRoot is enabled
+  const metricsRouter = createMetricsRouter();
+  app.use('/metrics', (req, res, next) => {
+    const general = getSetting('general', DEFAULT_GENERAL_SETTINGS);
+    if (!general.metricsRoot) {
+      next();
+      return;
+    }
+    authMiddleware(req, res, () => metricsRouter(req, res, next));
   });
 
   // Secret path guard for panel API & SPA
@@ -92,17 +119,24 @@ export function createApp(initialConfig: RuntimeConfig) {
 
   // API routes
   const api = express.Router();
-  api.get('/health', (_req, res) => res.json({ ok: true, version: '1.0.4', driverMode }));
+  api.get('/health', (_req, res) => res.json({ ok: true, version: '2.0.0-beta.3', driverMode }));
   api.use('/auth', createAuthRouter(authMiddleware, () => runtimeConfig.trustProxy));
   api.use('/dashboard', authMiddleware, createDashboardRouter(driverMode));
   api.use('/clients', authMiddleware, createClientRouter());
+  api.use('/client-templates', authMiddleware, createTemplateRouter());
   api.use('/groups', authMiddleware, createGroupRouter());
-  api.use('/inbounds', authMiddleware, createInboundRouter(driverMode));
+  const inboundRouter = createInboundRouter(driverMode);
+  api.use('/inbounds', authMiddleware, inboundRouter);
+  api.use('/instances', authMiddleware, inboundRouter);
+  api.use('/xray', authMiddleware, createXrayRouter());
   api.use('/nodes', authMiddleware, createNodeRouter());
   api.use('/connections', authMiddleware, createConnectionRouter());
   api.use('/routing', authMiddleware, createRoutingRouter());
   api.use('/certificates', authMiddleware, createCertRouter());
   api.use('/accounts', authMiddleware, createAccountRouter());
+  api.use('/backup/destinations', authMiddleware, createBackupDestinationsRouter());
+  api.use('/metrics', authMiddleware, metricsRouter);
+  api.use('/', authMiddleware, createEventsRouter());
   api.use(
     '/settings',
     authMiddleware,
@@ -199,6 +233,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   reconcileRunningInboundsOnBoot().catch(() => undefined);
   startCollectorLoop();
   startTelegramBackupScheduler();
+  startOffsiteBackupScheduler();
   startAutoUpdateScheduler();
   const app = createApp(runtimeConfig);
 

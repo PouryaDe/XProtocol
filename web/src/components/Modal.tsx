@@ -7,10 +7,19 @@ interface ModalProps {
   title: string;
   subtitle?: string;
   maxWidth?: string;
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   children: React.ReactNode;
 }
 
-export function Modal({ open, onClose, title, subtitle, maxWidth = 'max-w-xl', children }: ModalProps) {
+const SIZE_WIDTHS: Record<'sm' | 'md' | 'lg' | 'xl', string> = {
+  sm: 'max-w-md',
+  md: 'max-w-xl',
+  lg: 'max-w-2xl',
+  xl: 'max-w-4xl',
+};
+
+export function Modal({ open, onClose, title, subtitle, maxWidth, size, children }: ModalProps) {
+  const widthClass = maxWidth || (size ? SIZE_WIDTHS[size] : 'max-w-xl');
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -30,7 +39,7 @@ export function Modal({ open, onClose, title, subtitle, maxWidth = 'max-w-xl', c
       }}
     >
       <div
-        className={`xp-dialog w-full ${maxWidth} max-h-[90vh] overflow-hidden border border-(--border-strong) bg-(--bg-surface) flex flex-col`}
+        className={`xp-dialog w-full ${widthClass} max-h-[90vh] overflow-hidden border border-(--border-strong) bg-(--bg-surface) flex flex-col`}
       >
         <div className="flex items-start justify-between border-b border-(--border-subtle) px-5 py-4">
           <div>

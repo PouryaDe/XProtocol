@@ -1,18 +1,19 @@
 # XProtocol Open-Core VPN Panel — Agent Workspace Instructions
 
-This repository contains the clean-room, open-core **XProtocol** VPN control panel (reverse-engineered parity copy of Ovira) targeting **Ubuntu 22.04+ Linux** (`server/` backend + `web/` frontend + `deploy/` Ubuntu installers and `xprotocol` CLI).
+This repository contains the clean-room, open-core **XProtocol** VPN control panel (Ovira `2.0.0-beta.3` parity) targeting **Ubuntu 22.04+ Linux** (`server/` backend + `web/` frontend + `deploy/` Ubuntu installers and `xprotocol` CLI).
 
-## Tech Stack
-- **Backend (`server/`)**: Node.js 24+ (`node:sqlite` WAL), Express 5, TypeScript (`tsx --test` test runner).
-  - `drivers/`: `linuxEngine.ts` (WireGuard/AmneziaWG, OpenVPN, ocserv, strongSwan IKEv2/L2TP, Xray systemd routing, `tc` HTB/IFB shaping, multi-protocol live collectors), `pki.ts` (OpenVPN CA/server/client certs, `ta.key`, salted scrypt `ovpn-auth`, TLS certs), `runtime.ts`.
-  - `services/`: `peerResolver.ts` (CIDR math, collision-free IP allocation, quota/expiry/group eligibility, bandwidth limit resolution), `syncService.ts` (non-disruptive live peer sync & real session kicks), `collector.ts` (5s live telemetry, quota/expiry/device-limit eviction, periodic reset scheduler).
-  - `generators/`: `configs.ts` (protocol daemon configs with CRLF/quote sanitization + Xray routing), `profiles.ts` (client `.conf` / `.ovpn` downloads).
+## Tech Stack & Modules
+- **Backend (`server/`)**: Node.js 24+ (`node:sqlite` WAL), Express 5, TypeScript (`tsx --test`).
+  - `drivers/`: `xrayEngine.ts` (VLESS/VMess/Trojan/SS2022, Reality X25519, SNI probe/scan, unified `/etc/xray/config.json` + `127.0.0.1:10085` StatsService), `linuxEngine.ts` (WireGuard/AmneziaWG, OpenVPN, ocserv, strongSwan IKEv2/L2TP, Xray routing, `tc` HTB/IFB), `pki.ts`, `runtime.ts`.
+  - `services/`: `peerResolver.ts`, `syncService.ts`, `collector.ts` (5s live telemetry, quota/expiry/device eviction), `resetSchedule.ts` (Gregorian, `every_n_days`, Jalali `Asia/Tehran`), `subOrigins.ts`, `events.ts` (bell, Telegram, HMAC webhooks), `nodeHealth.ts`, `offsiteBackup.ts` (S3 SigV4, SFTP, `.ovbk` AES-256-GCM).
+  - `security/`: `auth.ts` (scrypt, Reality/SS keygen), `loginGuard.ts` (CIDR allowlist + escalating bans), `rbac.ts`, `totp.ts`.
+  - `generators/`: `configs.ts`, `profiles.ts`.
 - **Frontend (`web/`)**: React 19, Vite 6, Tailwind CSS v4, Lucide icons, `qrcode`.
-  - Brand mark: geometric interlocking **X** SVG in `UiPrimitives.tsx` (`BrandMark`), `web/public/xprotocol-logo.svg`, and `web/index.html`.
-  - Inbounds: list (`/inbounds`), 3-step wizard (`/inbounds/new`), deployment & protocol editor (`/inbounds/:id` via `InboundDetailPage.tsx` + `InboundSubforms.tsx`).
-- **Deployment (`deploy/`)**: Ubuntu 22.04+ bash installer (`install.sh`), remote node installer (`node.sh`), interactive management CLI (`xprotocol-cli.sh`), TUI helper (`xprotocol-tui.sh`), systemd unit (`xprotocol.service`).
+  - Shell: `BrandMark` geometric X, `CommandPalette.tsx` (`Ctrl+K`), `NotificationsDrawer.tsx`, `MfaConfirmModal.tsx` (auto `403 mfa_confirm_required` retry via `api.ts`).
+  - Pages & Wizards: `InboundsPage`/`InboundDetailPage` (`XrayWizard`, `XrayInboundEditor`), `ClientsPage`/`ClientDetailPage` (bulk actions, Xray share links), `TemplatesPage`, `NodesPage` (90d uptime, health charts, allow-from/rotate-key), `SubscriptionPage` (V2Ray + Happ), modular `SettingsPage` + `Settings*` tabs.
+- **Deployment (`deploy/`)**: `install.sh`, `node.sh` (`--panel-ip` + Xray), `xprotocol-cli.sh`, `xprotocol-tui.sh`, `xprotocol.service`.
 
-## Codebase Navigation (Graphify First)
-- A persistent knowledge graph exists in `graphify-out/graph.json` (`GRAPH_REPORT.md`, `graph.html`).
-- Prefer querying the graph (`graphify query "..."`, `graphify path ...`, `graphify explain ...`) before broad codebase sweeps.
-- Run `npm run typecheck && npm run build && npm test` (or PowerShell `;` equivalents) after edits.
+## Token-Saving Navigation & Verification
+- Read `.agents/rules/xprotocol-architecture.md` and load ONLY the matching skill in `.agents/skills/` (`xprotocol-backend-db`, `xprotocol-xray-drivers`, `xprotocol-frontend-ui`, `xprotocol-security-ops-sub`, `xprotocol-deploy-verify`, or `graphify`).
+- Query `graphify-out/graph.json` or use `.agents/skills/xprotocol-deploy-verify/scripts/locate.ps1` (`Select-String`; `rg` is not installed on Windows).
+- Always finish with `.agents/skills/xprotocol-deploy-verify/scripts/verify.ps1` (`npm run typecheck; npm run build; npm test`).

@@ -1,18 +1,33 @@
+import crypto from 'node:crypto';
 import { Router } from 'express';
 import { getDb, getSetting, DEFAULT_GENERAL_SETTINGS } from '../db/database.js';
-import { generateWireGuardKeypair, randomToken } from '../security/auth.js';
+import { generateSs2022Key, generateWireGuardKeypair, randomToken } from '../security/auth.js';
 import { recordAudit } from '../services/audit.js';
 import { computeClientState, ensureAccountOperational, type AuthedRequest } from './context.js';
 import { getEffectiveLimits } from '../security/rbac.js';
+
+type AuthedAccount = NonNullable<AuthedRequest['auth']>['account'];
+type EffectiveLimits = ReturnType<typeof getEffectiveLimits>;
 import { generateClientProfile } from '../generators/profiles.js';
 import type { InboundRow } from '../generators/configs.js';
+import { buildClientXrayServerViews } from '../drivers/xrayEngine.js';
 import { ensureClientCertificate, ensureOpenVpnPki } from '../drivers/pki.js';
 import { parseOptionalMbps } from '../services/peerResolver.js';
 import { kickClientConnections, syncRunningInbounds } from '../services/syncService.js';
+import { computeNextResetIso, normalizeResetStrategy } from '../services/resetSchedule.js';
+import { emitEvent } from '../services/events.js';
+import type { TemplateSettings } from './templateRoutes.js';
 
 const GB = 1024 * 1024 * 1024;
 
-export function resolveClientInbounds(clientId: number): (InboundRow & { node_name: string; node_address: string; connect_addresses_json: string })[] {
+type JoinedInboundRow = InboundRow & {
+  node_name: string;
+  node_address: string;
+  connect_addresses_json: string;
+};
+
+/** Resolve all enabled inbounds reachable by a client via enabled groups or direct grants. */
+export function resolveClientInbounds(clientId: number): JoinedInboundRow[] {
   const db = getDb();
   const groupRows = db
     .prepare(
@@ -43,7 +58,7 @@ export function resolveClientInbounds(clientId: number): (InboundRow & { node_na
          JOIN nodes n ON n.id = i.node_id
          WHERE i.enabled = 1 AND n.enabled = 1`,
       )
-      .all() as unknown as (InboundRow & { node_name: string; node_address: string; connect_addresses_json: string })[];
+      .all() as unknown as JoinedInboundRow[];
   }
 
   const direct = db.prepare('SELECT inbound_id FROM client_inbounds WHERE client_id = ?').all(clientId) as {
@@ -60,7 +75,63 @@ export function resolveClientInbounds(clientId: number): (InboundRow & { node_na
        JOIN nodes n ON n.id = i.node_id
        WHERE i.id IN (${placeholders}) AND i.enabled = 1 AND n.enabled = 1`,
     )
-    .all(...inboundIds) as unknown as (InboundRow & { node_name: string; node_address: string; connect_addresses_json: string })[];
+    .all(...inboundIds) as unknown as JoinedInboundRow[];
+}
+
+function canMutateClient(acc: AuthedAccount, ownerId: number, perm: 'edit' | 'delete' | 'resetTraffic'): boolean {
+  const level = acc.permissions.clients[perm];
+  if (level === 'none') return false;
+  if (!acc.isOwner && level === 'own' && ownerId !== acc.id) return false;
+  return true;
+}
+
+/** Validate client plan quotas against a non-owner role's effective limits. */
+function validateRoleQuotaBounds(
+  limits: EffectiveLimits,
+  opts: {
+    trafficLimitBytes: number | null;
+    deviceLimit: number | null;
+    expiresAt: string | null;
+    groupCount?: number;
+  },
+): string | null {
+  if (!limits.allowUnlimitedTraffic && opts.trafficLimitBytes === null) {
+    return 'Traffic limit is required for your role';
+  }
+  if (limits.maxTrafficPerClientGb !== null && opts.trafficLimitBytes !== null && opts.trafficLimitBytes > limits.maxTrafficPerClientGb * GB) {
+    return `Max traffic per client is ${limits.maxTrafficPerClientGb} GB`;
+  }
+  if (limits.maxDevicesPerClient !== null && (!opts.deviceLimit || opts.deviceLimit > limits.maxDevicesPerClient)) {
+    return `Max devices per client is ${limits.maxDevicesPerClient}`;
+  }
+  if (limits.maxLifetimeDays !== null && opts.expiresAt) {
+    const capMs = Date.now() + limits.maxLifetimeDays * 86400_000 + 60_000;
+    if (Date.parse(opts.expiresAt) > capMs) {
+      return `Max lifetime is ${limits.maxLifetimeDays} days`;
+    }
+  }
+  if (limits.requireGroup && opts.groupCount !== undefined && opts.groupCount === 0) {
+    return 'At least one group must be selected';
+  }
+  return null;
+}
+
+function loadValidatedTemplate(acc: AuthedAccount, limits: EffectiveLimits, templateId: number): { error?: string; status?: number; settings?: TemplateSettings } {
+  const tplRow = getDb().prepare('SELECT id, settings_json, enabled FROM client_templates WHERE id = ?').get(templateId) as
+    | { id: number; settings_json: string; enabled: number }
+    | undefined;
+  if (!tplRow || (!acc.isOwner && !tplRow.enabled)) {
+    return { status: 400, error: 'Selected client template is not available' };
+  }
+  if (!acc.isOwner && limits.allowedTemplateIds.length > 0 && !limits.allowedTemplateIds.includes(tplRow.id)) {
+    return { status: 403, error: 'You are not allowed to use this client template' };
+  }
+  return { settings: JSON.parse(tplRow.settings_json || '{}') as TemplateSettings };
+}
+
+function filterAllowedIds(acc: AuthedAccount, requested: number[], allowed: number[]): number[] {
+  if (acc.isOwner || allowed.length === 0) return requested;
+  return requested.filter((id) => allowed.includes(id));
 }
 
 export function createClientRouter(): Router {
@@ -153,6 +224,12 @@ export function createClientRouter(): Router {
         uploadMbps: r.upload_mbps === null || r.upload_mbps === undefined ? null : Number(r.upload_mbps),
         onlineCount,
         resetPeriod: String(r.reset_period),
+        resetEveryDays: Number(r.reset_every_days || 0),
+        resetAnchor: Number(r.reset_anchor || 0),
+        nextResetAt: r.next_reset_at ? String(r.next_reset_at) : null,
+        templateId: Number(r.template_id || 0),
+        subUpdateHours: Number(r.sub_update_hours || 0),
+        subAnnounce: String(r.sub_announce || ''),
         fixedIp: String(r.fixed_ip || ''),
         enabled: Boolean(r.enabled),
         note: String(r.note || ''),
@@ -163,6 +240,7 @@ export function createClientRouter(): Router {
         createdAt: String(r.created_at),
         lastOnlineAt: r.last_online_at ? String(r.last_online_at) : null,
         vpnPassword: String(r.vpn_password || ''),
+        xrayUuid: String(r.xray_uuid || ''),
       };
     });
 
@@ -186,12 +264,17 @@ export function createClientRouter(): Router {
       prefix?: string;
       startNumber?: number;
       count?: number;
+      templateId?: number;
       trafficGb?: number | null;
       expiryMode?: 'unlimited' | 'days' | 'first_connect' | 'date';
       expiryDays?: number;
       expiresAt?: string;
       deviceLimit?: number | null;
-      resetPeriod?: 'never' | 'daily' | 'weekly' | 'monthly';
+      resetPeriod?: string;
+      resetEveryDays?: number;
+      resetAnchor?: number;
+      subUpdateHours?: number;
+      subAnnounce?: string;
       fixedIp?: string;
       vpnPassword?: string;
       note?: string;
@@ -205,8 +288,85 @@ export function createClientRouter(): Router {
 
     const db = getDb();
     const limits = getEffectiveLimits(acc);
-    const count = Math.min(50, Math.max(1, Number(body.count || 1)));
+    const count = Math.min(200, Math.max(1, Number(body.count || 1)));
     const isBulk = count > 1;
+
+    const tplId = Number(body.templateId || 0);
+    let tplSettings: TemplateSettings | null = null;
+    if (tplId > 0) {
+      const loaded = loadValidatedTemplate(acc, limits, tplId);
+      if (loaded.error) {
+        res.status(loaded.status || 400).json({ error: loaded.error });
+        return;
+      }
+      tplSettings = loaded.settings!;
+    } else if (!acc.isOwner && limits.templatesOnly) {
+      res.status(403).json({ error: 'Your role may only create clients from approved templates' });
+      return;
+    }
+
+    const useTemplateValues = Boolean(tplSettings && (acc.isOwner ? body.trafficGb === undefined : limits.templatesOnly));
+    const trafficLimitBytes =
+      useTemplateValues && tplSettings
+        ? tplSettings.trafficLimit > 0
+          ? tplSettings.trafficLimit
+          : null
+        : body.trafficGb === null || body.trafficGb === undefined || body.trafficGb <= 0
+          ? null
+          : Math.round(body.trafficGb * GB);
+
+    const effDeviceLimit =
+      useTemplateValues && tplSettings
+        ? tplSettings.maxDevices > 0
+          ? tplSettings.maxDevices
+          : null
+        : (body.deviceLimit ?? null);
+
+    const effResetPeriod = normalizeResetStrategy(
+      (useTemplateValues && tplSettings ? tplSettings.resetStrategy : body.resetPeriod) || 'never',
+    );
+    const effResetEveryDays =
+      effResetPeriod === 'every_n_days'
+        ? Math.max(1, Math.min(365, Math.trunc(Number((useTemplateValues && tplSettings ? tplSettings.resetEveryDays : body.resetEveryDays) || 30))))
+        : 0;
+    const effResetAnchor = Number((useTemplateValues && tplSettings ? tplSettings.resetAnchor : body.resetAnchor) || 0) ? 1 : 0;
+
+    const effDlMbps =
+      useTemplateValues && tplSettings
+        ? tplSettings.speedDown > 0
+          ? tplSettings.speedDown / 1000
+          : null
+        : parseOptionalMbps(body.downloadMbps);
+    const effUlMbps =
+      useTemplateValues && tplSettings
+        ? tplSettings.speedUp > 0
+          ? tplSettings.speedUp / 1000
+          : null
+        : parseOptionalMbps(body.uploadMbps);
+
+    let expiresAt: string | null = null;
+    let firstConnectDays: number | null = null;
+    if (useTemplateValues && tplSettings) {
+      if (tplSettings.days > 0 && tplSettings.startOnFirstUse) firstConnectDays = tplSettings.days;
+      else if (tplSettings.days > 0) expiresAt = new Date(Date.now() + tplSettings.days * 86400_000).toISOString();
+    } else if (body.expiryMode === 'days' && body.expiryDays && body.expiryDays > 0) {
+      expiresAt = new Date(Date.now() + body.expiryDays * 86400_000).toISOString();
+    } else if (body.expiryMode === 'first_connect' && body.expiryDays && body.expiryDays > 0) {
+      firstConnectDays = body.expiryDays;
+    } else if (body.expiryMode === 'date' && body.expiresAt) {
+      expiresAt = new Date(body.expiresAt).toISOString();
+    }
+
+    const groupIds = filterAllowedIds(
+      acc,
+      useTemplateValues && tplSettings && tplSettings.groups.length > 0 ? tplSettings.groups : body.groupIds || [],
+      acc.allowedGroupIds,
+    );
+    const inboundIds = filterAllowedIds(
+      acc,
+      useTemplateValues && tplSettings && tplSettings.instances.length > 0 ? tplSettings.instances : body.inboundIds || [],
+      acc.allowedInboundIds,
+    );
 
     const currentOwnedCount = (
       db.prepare('SELECT COUNT(*) as cnt FROM clients WHERE owner_id = ?').get(acc.id) as { cnt: number }
@@ -216,21 +376,15 @@ export function createClientRouter(): Router {
       return;
     }
 
-    if (!acc.isOwner) {
-      if (!limits.allowUnlimitedTraffic && (body.trafficGb === null || body.trafficGb === undefined || body.trafficGb <= 0)) {
-        res.status(400).json({ error: 'Traffic limit is required for your role' });
-        return;
-      }
-      if (limits.maxTrafficPerClientGb !== null && body.trafficGb && body.trafficGb > limits.maxTrafficPerClientGb) {
-        res.status(400).json({ error: `Max traffic per client is ${limits.maxTrafficPerClientGb} GB` });
-        return;
-      }
-      if (limits.maxDevicesPerClient !== null && (!body.deviceLimit || body.deviceLimit > limits.maxDevicesPerClient)) {
-        res.status(400).json({ error: `Max devices per client is ${limits.maxDevicesPerClient}` });
-        return;
-      }
-      if (limits.requireGroup && (!body.groupIds || body.groupIds.length === 0)) {
-        res.status(400).json({ error: 'At least one group must be selected' });
+    if (!acc.isOwner && !(limits.templatesOnly && tplSettings)) {
+      const boundErr = validateRoleQuotaBounds(limits, {
+        trafficLimitBytes,
+        deviceLimit: effDeviceLimit,
+        expiresAt,
+        groupCount: groupIds.length,
+      });
+      if (boundErr) {
+        res.status(400).json({ error: boundErr });
         return;
       }
     }
@@ -241,37 +395,29 @@ export function createClientRouter(): Router {
       return;
     }
 
-    const trafficLimitBytes =
-      body.trafficGb === null || body.trafficGb === undefined || body.trafficGb <= 0
-        ? null
-        : Math.round(body.trafficGb * GB);
-
-    let expiresAt: string | null = null;
-    let firstConnectDays: number | null = null;
-    if (body.expiryMode === 'days' && body.expiryDays && body.expiryDays > 0) {
-      expiresAt = new Date(Date.now() + body.expiryDays * 86400_000).toISOString();
-    } else if (body.expiryMode === 'first_connect' && body.expiryDays && body.expiryDays > 0) {
-      firstConnectDays = body.expiryDays;
-    } else if (body.expiryMode === 'date' && body.expiresAt) {
-      expiresAt = new Date(body.expiresAt).toISOString();
-    }
+    const general = getSetting('general', DEFAULT_GENERAL_SETTINGS);
+    const nextResetAt = computeNextResetIso(effResetPeriod, {
+      fromMs: Date.now(),
+      timeZone: general.timezone || 'Asia/Tehran',
+      resetEveryDays: effResetEveryDays,
+      resetAnchor: effResetAnchor,
+      anchorStartMs: Date.now(),
+    });
 
     const createdIds: number[] = [];
+    const createdItems: Array<{ id: number; name: string; subToken: string }> = [];
     const now = new Date().toISOString();
     const insert = db.prepare(
-      `INSERT INTO clients (name, owner_id, traffic_limit_bytes, expires_at, first_connect_days, device_limit, reset_period, fixed_ip, enabled, note, contact, sub_token, wg_private_key, wg_public_key, vpn_password, download_mbps, upload_mbps, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO clients (name, owner_id, traffic_limit_bytes, expires_at, first_connect_days, device_limit, reset_period, reset_every_days, reset_anchor, next_reset_at, template_id, sub_update_hours, sub_announce, fixed_ip, enabled, note, contact, sub_token, wg_private_key, wg_public_key, vpn_password, xray_uuid, ss_password, download_mbps, upload_mbps, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
 
-    const dlMbps = parseOptionalMbps(body.downloadMbps);
-    const ulMbps = parseOptionalMbps(body.uploadMbps);
-
-    const groupIds = (body.groupIds || []).filter((id) =>
-      acc.isOwner || acc.allowedGroupIds.length === 0 ? true : acc.allowedGroupIds.includes(id),
-    );
-    const inboundIds = (body.inboundIds || []).filter((id) =>
-      acc.isOwner || acc.allowedInboundIds.length === 0 ? true : acc.allowedInboundIds.includes(id),
-    );
+    const subUpdateHours = useTemplateValues && tplSettings
+      ? tplSettings.subUpdateHours || 0
+      : Math.max(0, Math.min(720, Math.trunc(Number(body.subUpdateHours || 0))));
+    const subAnnounce = useTemplateValues && tplSettings
+      ? tplSettings.subAnnounce || ''
+      : String(body.subAnnounce || '').slice(0, 200);
 
     try {
       const startNum = Math.max(1, Number(body.startNumber || 1));
@@ -280,33 +426,51 @@ export function createClientRouter(): Router {
         const name = isBulk ? `${baseName}-${String(seq).padStart(2, '0')}` : baseName;
         const keys = generateWireGuardKeypair();
         const vpnPass = !isBulk && body.vpnPassword?.trim() ? body.vpnPassword.trim() : randomToken(12);
+        const subTok = randomToken(18);
         const info = insert.run(
           name,
           acc.id,
           trafficLimitBytes,
           expiresAt,
           firstConnectDays,
-          body.deviceLimit ?? null,
-          body.resetPeriod || 'never',
+          effDeviceLimit,
+          effResetPeriod,
+          effResetEveryDays,
+          effResetAnchor,
+          nextResetAt,
+          tplId,
+          subUpdateHours,
+          subAnnounce,
           isBulk ? '' : body.fixedIp || '',
           body.enabled === false ? 0 : 1,
           body.note || '',
           body.contact || '',
-          randomToken(18),
+          subTok,
           keys.privateKey,
           keys.publicKey,
           vpnPass,
-          dlMbps,
-          ulMbps,
+          crypto.randomUUID(),
+          generateSs2022Key('2022-blake3-aes-128-gcm'),
+          effDlMbps,
+          effUlMbps,
           now,
         );
         const cid = Number(info.lastInsertRowid);
         createdIds.push(cid);
+        createdItems.push({ id: cid, name, subToken: subTok });
         for (const gid of groupIds) {
           db.prepare('INSERT OR IGNORE INTO client_groups (client_id, group_id) VALUES (?, ?)').run(cid, gid);
         }
         for (const iid of inboundIds) {
           db.prepare('INSERT OR IGNORE INTO client_inbounds (client_id, inbound_id) VALUES (?, ?)').run(cid, iid);
+        }
+        if (!isBulk) {
+          emitEvent({
+            type: 'client.created',
+            ownerId: acc.id,
+            subject: `client:${cid}`,
+            data: { clientId: cid, name },
+          });
         }
       }
     } catch (err) {
@@ -323,7 +487,7 @@ export function createClientRouter(): Router {
     });
 
     await syncRunningInbounds().catch(() => undefined);
-    res.status(201).json({ ids: createdIds });
+    res.status(201).json({ ids: createdIds, items: createdItems });
   });
 
   router.patch('/:id', async (req: AuthedRequest, res) => {
@@ -335,7 +499,7 @@ export function createClientRouter(): Router {
       res.status(404).json({ error: 'Client not found' });
       return;
     }
-    if (acc.permissions.clients.edit === 'none' || (!acc.isOwner && acc.permissions.clients.edit === 'own' && Number(existing.owner_id) !== acc.id)) {
+    if (!canMutateClient(acc, Number(existing.owner_id), 'edit')) {
       res.status(403).json({ error: 'No permission to edit this client' });
       return;
     }
@@ -347,6 +511,10 @@ export function createClientRouter(): Router {
       addTrafficGb?: number;
       deviceLimit?: number | null;
       resetPeriod?: string;
+      resetEveryDays?: number;
+      resetAnchor?: number;
+      subUpdateHours?: number;
+      subAnnounce?: string;
       fixedIp?: string;
       vpnPassword?: string;
       note?: string;
@@ -358,53 +526,102 @@ export function createClientRouter(): Router {
       uploadMbps?: number | null;
     };
 
+    const prevTrafficLimit = existing.traffic_limit_bytes === null ? null : Number(existing.traffic_limit_bytes);
     let trafficLimitBytes =
       body.trafficGb !== undefined
         ? body.trafficGb === null || body.trafficGb <= 0
           ? null
           : Math.round(body.trafficGb * GB)
-        : existing.traffic_limit_bytes === null
-          ? null
-          : Number(existing.traffic_limit_bytes);
+        : prevTrafficLimit;
 
     if (body.addTrafficGb && body.addTrafficGb > 0) {
       trafficLimitBytes = (trafficLimitBytes ?? Number(existing.traffic_used_bytes)) + Math.round(body.addTrafficGb * GB);
     }
 
-    let expiresAt = body.expiresAt !== undefined ? body.expiresAt : (existing.expires_at as string | null);
+    const prevExpiresAt = (existing.expires_at as string | null) ?? null;
+    let expiresAt = body.expiresAt !== undefined ? body.expiresAt : prevExpiresAt;
     if (body.addDays && body.addDays > 0) {
       const baseMs = expiresAt && new Date(expiresAt).getTime() > Date.now() ? new Date(expiresAt).getTime() : Date.now();
       expiresAt = new Date(baseMs + body.addDays * 86400_000).toISOString();
     }
 
-    const nextDlMbps =
-      body.downloadMbps !== undefined
-        ? parseOptionalMbps(body.downloadMbps)
-        : parseOptionalMbps(existing.download_mbps);
-    const nextUlMbps =
-      body.uploadMbps !== undefined
-        ? parseOptionalMbps(body.uploadMbps)
-        : parseOptionalMbps(existing.upload_mbps);
+    const prevDeviceLimit = existing.device_limit === null ? null : Number(existing.device_limit);
+    const nextDeviceLimit = body.deviceLimit !== undefined ? body.deviceLimit : prevDeviceLimit;
+    const prevDlMbps = parseOptionalMbps(existing.download_mbps);
+    const prevUlMbps = parseOptionalMbps(existing.upload_mbps);
+    const nextDlMbps = body.downloadMbps !== undefined ? parseOptionalMbps(body.downloadMbps) : prevDlMbps;
+    const nextUlMbps = body.uploadMbps !== undefined ? parseOptionalMbps(body.uploadMbps) : prevUlMbps;
+
+    const prevResetPeriod = String(existing.reset_period);
+    const nextResetPeriod = body.resetPeriod !== undefined ? normalizeResetStrategy(body.resetPeriod) : prevResetPeriod;
+    const prevResetEveryDays = Number(existing.reset_every_days || 0);
+    const nextResetEveryDays =
+      body.resetEveryDays !== undefined
+        ? Math.max(0, Math.min(365, Math.trunc(Number(body.resetEveryDays))))
+        : prevResetEveryDays;
+    const prevResetAnchor = Number(existing.reset_anchor || 0);
+    const nextResetAnchor = body.resetAnchor !== undefined ? (body.resetAnchor ? 1 : 0) : prevResetAnchor;
+
+    // Enforce reseller limits & templatesOnly even on PATCH (only block templatesOnly if plan fields actually changed)
+    if (!acc.isOwner) {
+      const limits = getEffectiveLimits(acc);
+      const planChanged =
+        trafficLimitBytes !== prevTrafficLimit ||
+        expiresAt !== prevExpiresAt ||
+        nextDeviceLimit !== prevDeviceLimit ||
+        nextDlMbps !== prevDlMbps ||
+        nextUlMbps !== prevUlMbps ||
+        nextResetPeriod !== prevResetPeriod ||
+        nextResetEveryDays !== prevResetEveryDays ||
+        nextResetAnchor !== prevResetAnchor;
+
+      if (limits.templatesOnly && planChanged) {
+        res.status(403).json({ error: 'Your role may only change plans via approved templates' });
+        return;
+      }
+      if (planChanged || body.groupIds !== undefined) {
+        const boundErr = validateRoleQuotaBounds(limits, {
+          trafficLimitBytes,
+          deviceLimit: nextDeviceLimit,
+          expiresAt,
+          groupCount: body.groupIds?.length,
+        });
+        if (boundErr) {
+          res.status(400).json({ error: boundErr });
+          return;
+        }
+      }
+    }
+
+    const general = getSetting('general', DEFAULT_GENERAL_SETTINGS);
+    const nextResetAt =
+      body.resetPeriod !== undefined || body.resetEveryDays !== undefined || body.resetAnchor !== undefined
+        ? computeNextResetIso(nextResetPeriod, {
+            fromMs: Date.now(),
+            timeZone: general.timezone || 'Asia/Tehran',
+            resetEveryDays: nextResetEveryDays,
+            resetAnchor: nextResetAnchor,
+            anchorStartMs: Date.parse(String(existing.created_at)) || Date.now(),
+          })
+        : (existing.next_reset_at as string | null);
 
     db.prepare(
       `UPDATE clients SET
-         traffic_limit_bytes = ?,
-         expires_at = ?,
-         device_limit = ?,
-         reset_period = ?,
-         fixed_ip = ?,
-         vpn_password = ?,
-         note = ?,
-         contact = ?,
-         enabled = ?,
-         download_mbps = ?,
-         upload_mbps = ?
+         traffic_limit_bytes = ?, expires_at = ?, device_limit = ?,
+         reset_period = ?, reset_every_days = ?, reset_anchor = ?, next_reset_at = ?,
+         sub_update_hours = ?, sub_announce = ?, fixed_ip = ?, vpn_password = ?,
+         note = ?, contact = ?, enabled = ?, download_mbps = ?, upload_mbps = ?
        WHERE id = ?`,
     ).run(
       trafficLimitBytes,
       expiresAt,
-      body.deviceLimit !== undefined ? body.deviceLimit : (existing.device_limit === null ? null : Number(existing.device_limit)),
-      body.resetPeriod ?? String(existing.reset_period),
+      nextDeviceLimit,
+      nextResetPeriod,
+      nextResetEveryDays,
+      nextResetAnchor,
+      nextResetAt,
+      body.subUpdateHours !== undefined ? Math.max(0, Math.min(720, Math.trunc(Number(body.subUpdateHours)))) : Number(existing.sub_update_hours || 0),
+      body.subAnnounce !== undefined ? String(body.subAnnounce).slice(0, 200) : String(existing.sub_announce || ''),
       body.fixedIp !== undefined ? body.fixedIp : String(existing.fixed_ip || ''),
       body.vpnPassword !== undefined && body.vpnPassword.trim() ? body.vpnPassword.trim() : String(existing.vpn_password || ''),
       body.note !== undefined ? body.note : String(existing.note || ''),
@@ -416,14 +633,16 @@ export function createClientRouter(): Router {
     );
 
     if (body.groupIds !== undefined) {
+      const nextGroups = filterAllowedIds(acc, body.groupIds, acc.allowedGroupIds);
       db.prepare('DELETE FROM client_groups WHERE client_id = ?').run(id);
-      for (const gid of body.groupIds) {
+      for (const gid of nextGroups) {
         db.prepare('INSERT OR IGNORE INTO client_groups (client_id, group_id) VALUES (?, ?)').run(id, gid);
       }
     }
     if (body.inboundIds !== undefined) {
+      const nextInbs = filterAllowedIds(acc, body.inboundIds, acc.allowedInboundIds);
       db.prepare('DELETE FROM client_inbounds WHERE client_id = ?').run(id);
-      for (const iid of body.inboundIds) {
+      for (const iid of nextInbs) {
         db.prepare('INSERT OR IGNORE INTO client_inbounds (client_id, inbound_id) VALUES (?, ?)').run(id, iid);
       }
     }
@@ -453,11 +672,17 @@ export function createClientRouter(): Router {
       res.status(404).json({ error: 'Client not found' });
       return;
     }
-    if (acc.permissions.clients.resetTraffic === 'none' || (!acc.isOwner && acc.permissions.clients.resetTraffic === 'own' && existing.owner_id !== acc.id)) {
+    if (!canMutateClient(acc, existing.owner_id, 'resetTraffic')) {
       res.status(403).json({ error: 'No permission' });
       return;
     }
     db.prepare('UPDATE clients SET traffic_used_bytes = 0, upload_bytes = 0, download_bytes = 0 WHERE id = ?').run(id);
+    emitEvent({
+      type: 'client.reset',
+      ownerId: existing.owner_id,
+      subject: `client:${id}`,
+      data: { clientId: id, name: existing.name },
+    });
     recordAudit({ accountId: acc.id, username: acc.username, action: 'client.update', target: existing.name, details: 'reset traffic', ip: req.clientIp });
     await syncRunningInbounds().catch(() => undefined);
     res.json({ ok: true });
@@ -474,7 +699,7 @@ export function createClientRouter(): Router {
       res.status(404).json({ error: 'Client not found' });
       return;
     }
-    if (acc.permissions.clients.edit === 'none' || (!acc.isOwner && acc.permissions.clients.edit === 'own' && existing.owner_id !== acc.id)) {
+    if (!canMutateClient(acc, existing.owner_id, 'edit')) {
       res.status(403).json({ error: 'No permission' });
       return;
     }
@@ -483,16 +708,108 @@ export function createClientRouter(): Router {
     res.json({ subToken: token });
   });
 
-  router.post('/bulk', async (req: AuthedRequest, res) => {
+  router.get('/:id/xray', (req: AuthedRequest, res) => {
+    const id = Number(req.params.id);
     const acc = req.auth!.account;
-    const { ids, action, addDays, addTrafficGb, groupId, groupIds, groupOp } = req.body as {
+    if (acc.permissions.clients.view === 'none') {
+      res.status(403).json({ error: 'No permission' });
+      return;
+    }
+    const client = getDb().prepare('SELECT * FROM clients WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!client) {
+      res.status(404).json({ error: 'Client not found' });
+      return;
+    }
+    if (!acc.isOwner && acc.permissions.clients.view === 'own' && Number(client.owner_id) !== acc.id) {
+      res.status(403).json({ error: 'No permission' });
+      return;
+    }
+    const general = getSetting('general', DEFAULT_GENERAL_SETTINGS);
+    const xrayInbounds = resolveClientInbounds(id).filter((i) => i.protocol === 'xray');
+    const servers = buildClientXrayServerViews(
+      {
+        id,
+        name: String(client.name),
+        xrayUuid: String(client.xray_uuid || ''),
+        vpnPassword: String(client.vpn_password || ''),
+        ssPassword: String(client.ss_password || ''),
+      },
+      xrayInbounds,
+      general.publicAddress || '127.0.0.1',
+    );
+    res.json({ servers });
+  });
+
+  router.post('/:id/xray/rotate', async (req: AuthedRequest, res) => {
+    const id = Number(req.params.id);
+    const acc = req.auth!.account;
+    const db = getDb();
+    const existing = db.prepare('SELECT id, name, owner_id FROM clients WHERE id = ?').get(id) as
+      | { id: number; name: string; owner_id: number }
+      | undefined;
+    if (!existing) {
+      res.status(404).json({ error: 'Client not found' });
+      return;
+    }
+    if (!canMutateClient(acc, existing.owner_id, 'edit')) {
+      res.status(403).json({ error: 'No permission' });
+      return;
+    }
+    const nextUuid = crypto.randomUUID();
+    const nextSsPass = generateSs2022Key('2022-blake3-aes-128-gcm');
+    const nextVpnPass = randomToken(12);
+    db.prepare('UPDATE clients SET xray_uuid = ?, ss_password = ?, vpn_password = ? WHERE id = ?').run(
+      nextUuid,
+      nextSsPass,
+      nextVpnPass,
+      id,
+    );
+    await kickClientConnections(id, 'credentials_rotated').catch(() => 0);
+    await syncRunningInbounds().catch(() => undefined);
+    recordAudit({ accountId: acc.id, username: acc.username, action: 'client.xray.rotate', target: existing.name, ip: req.clientIp });
+    res.json({ ok: true, xrayUuid: nextUuid });
+  });
+
+  const handleBulkAction = async (req: AuthedRequest, res: import('express').Response) => {
+    const acc = req.auth!.account;
+    const {
+      ids,
+      action,
+      addDays,
+      days,
+      addTrafficGb,
+      bytes,
+      groupId,
+      groupIds,
+      groupOp,
+      ownerId,
+      downloadMbps,
+      uploadMbps,
+      speedLimitDown,
+      speedLimitUp,
+      maxDevices,
+      templateId,
+      subUpdateHours,
+      subAnnounce,
+    } = req.body as {
       ids?: number[];
-      action?: 'enable' | 'disable' | 'reset_traffic' | 'disconnect' | 'delete' | 'extend' | 'group';
+      action?: string;
       addDays?: number;
+      days?: number;
       addTrafficGb?: number;
+      bytes?: number;
       groupId?: number;
       groupIds?: number[];
       groupOp?: 'add' | 'remove' | 'replace';
+      ownerId?: number;
+      downloadMbps?: number | null;
+      uploadMbps?: number | null;
+      speedLimitDown?: number;
+      speedLimitUp?: number;
+      maxDevices?: number | null;
+      templateId?: number;
+      subUpdateHours?: number;
+      subAnnounce?: string;
     };
     if (!ids || ids.length === 0 || !action) {
       res.status(400).json({ error: 'ids and action are required' });
@@ -500,40 +817,169 @@ export function createClientRouter(): Router {
     }
 
     const db = getDb();
-    const targetGroupIds = Array.isArray(groupIds)
-      ? groupIds.map(Number).filter((x) => Number.isFinite(x) && x > 0)
-      : groupId
-        ? [Number(groupId)]
-        : [];
+    const limits = getEffectiveLimits(acc);
+    const targetGroupIds = filterAllowedIds(
+      acc,
+      Array.isArray(groupIds) ? groupIds.map(Number).filter((x) => Number.isFinite(x) && x > 0) : groupId ? [Number(groupId)] : [],
+      acc.allowedGroupIds,
+    );
 
-    for (const id of ids) {
+    const effAddDays = Number(addDays ?? days ?? 0);
+    const effAddBytes = addTrafficGb && addTrafficGb > 0 ? Math.round(addTrafficGb * GB) : Number(bytes || 0);
+
+    if (action === 'move_owner') {
+      if (!acc.isOwner) {
+        res.status(403).json({ error: 'Only panel owner can move clients' });
+        return;
+      }
+      const targetAcc = db.prepare('SELECT id, active FROM accounts WHERE id = ?').get(Number(ownerId || 0)) as
+        | { id: number; active: number }
+        | undefined;
+      if (!targetAcc || !targetAcc.active) {
+        res.json({ done: 0, failed: ['Target account not found or inactive'] });
+        return;
+      }
+      const ph = ids.map(() => '?').join(',');
+      const info = db.prepare(`UPDATE clients SET owner_id = ? WHERE id IN (${ph})`).run(targetAcc.id, ...ids);
+      recordAudit({ accountId: acc.id, username: acc.username, action: 'client.bulk.move_owner', target: `${ids.length} -> ${targetAcc.id}`, ip: req.clientIp });
+      res.json({ ok: true, done: Number(info.changes || 0), failed: [] });
+      return;
+    }
+
+    let tplSettings: TemplateSettings | null = null;
+    if ((action === 'apply_template' || action === 'renew') && templateId) {
+      const loaded = loadValidatedTemplate(acc, limits, Number(templateId));
+      if (loaded.error) {
+        res.status(loaded.status || 400).json({ error: loaded.error });
+        return;
+      }
+      tplSettings = loaded.settings!;
+    }
+
+    let done = 0;
+    const failed: string[] = [];
+    const general = getSetting('general', DEFAULT_GENERAL_SETTINGS);
+
+    for (const id of ids.slice(0, 1000)) {
       const existing = db.prepare('SELECT * FROM clients WHERE id = ?').get(id) as Record<string, unknown> | undefined;
-      if (!existing) continue;
-      if (!acc.isOwner && Number(existing.owner_id) !== acc.id && acc.permissions.clients.edit !== 'all') continue;
+      if (!existing) {
+        failed.push(`Client #${id} not found`);
+        continue;
+      }
+      if (!acc.isOwner && Number(existing.owner_id) !== acc.id && acc.permissions.clients.edit !== 'all') {
+        failed.push(`${existing.name}: no permission`);
+        continue;
+      }
 
-      if (action === 'enable') db.prepare('UPDATE clients SET enabled = 1 WHERE id = ?').run(id);
-      else if (action === 'disable') {
+      if (action === 'enable') {
+        db.prepare('UPDATE clients SET enabled = 1 WHERE id = ?').run(id);
+      } else if (action === 'disable') {
         db.prepare('UPDATE clients SET enabled = 0 WHERE id = ?').run(id);
         await kickClientConnections(id, 'client_disabled').catch(() => 0);
-      } else if (action === 'reset_traffic')
+      } else if (action === 'reset_traffic' || action === 'reset') {
+        if (!canMutateClient(acc, Number(existing.owner_id), 'resetTraffic')) {
+          failed.push(`${existing.name}: no traffic reset permission`);
+          continue;
+        }
         db.prepare('UPDATE clients SET traffic_used_bytes = 0, upload_bytes = 0, download_bytes = 0 WHERE id = ?').run(id);
-      else if (action === 'disconnect') await kickClientConnections(id, 'admin_kick').catch(() => 0);
-      else if (action === 'delete') {
+      } else if (action === 'disconnect' || action === 'kick') {
+        await kickClientConnections(id, 'admin_kick').catch(() => 0);
+      } else if (action === 'delete') {
+        if (!canMutateClient(acc, Number(existing.owner_id), 'delete')) {
+          failed.push(`${existing.name}: no delete permission`);
+          continue;
+        }
         await kickClientConnections(id, 'client_deleted').catch(() => 0);
         db.prepare('DELETE FROM clients WHERE id = ?').run(id);
-      }
-      else if (action === 'extend') {
-        if (addDays && addDays > 0) {
-          const cur = existing.expires_at ? new Date(String(existing.expires_at)).getTime() : Date.now();
-          const next = new Date(Math.max(cur, Date.now()) + addDays * 86400_000).toISOString();
-          db.prepare('UPDATE clients SET expires_at = ? WHERE id = ?').run(next, id);
+        emitEvent({ type: 'client.deleted', ownerId: Number(existing.owner_id), subject: `client:${id}`, data: { clientId: id, name: String(existing.name) } });
+      } else if (action === 'extend') {
+        if (!acc.isOwner && limits.templatesOnly) {
+          failed.push(`${existing.name}: templatesOnly role cannot manually extend quota/expiry`);
+          continue;
         }
-        if (addTrafficGb && addTrafficGb > 0 && existing.traffic_limit_bytes !== null) {
-          db.prepare('UPDATE clients SET traffic_limit_bytes = traffic_limit_bytes + ? WHERE id = ?').run(
-            Math.round(addTrafficGb * GB),
-            id,
-          );
+        const curExp = existing.expires_at ? new Date(String(existing.expires_at)).getTime() : Date.now();
+        const nextExp = effAddDays > 0 ? new Date(Math.max(curExp, Date.now()) + effAddDays * 86400_000).toISOString() : (existing.expires_at as string | null);
+        const curLimit = existing.traffic_limit_bytes === null ? null : Number(existing.traffic_limit_bytes);
+        const nextLimit = effAddBytes > 0 && curLimit !== null ? curLimit + effAddBytes : curLimit;
+        if (!acc.isOwner) {
+          const boundErr = validateRoleQuotaBounds(limits, {
+            trafficLimitBytes: nextLimit,
+            deviceLimit: existing.device_limit === null ? null : Number(existing.device_limit),
+            expiresAt: nextExp,
+          });
+          if (boundErr) {
+            failed.push(`${existing.name}: ${boundErr}`);
+            continue;
+          }
         }
+        db.prepare('UPDATE clients SET expires_at = ?, traffic_limit_bytes = ? WHERE id = ?').run(nextExp, nextLimit, id);
+      } else if (action === 'set_speed') {
+        if (!acc.isOwner && limits.templatesOnly) {
+          failed.push(`${existing.name}: templatesOnly role cannot override speed limit`);
+          continue;
+        }
+        const dl = speedLimitDown !== undefined ? (speedLimitDown > 0 ? speedLimitDown / 1000 : null) : parseOptionalMbps(downloadMbps);
+        const ul = speedLimitUp !== undefined ? (speedLimitUp > 0 ? speedLimitUp / 1000 : null) : parseOptionalMbps(uploadMbps);
+        db.prepare('UPDATE clients SET download_mbps = ?, upload_mbps = ? WHERE id = ?').run(dl, ul, id);
+      } else if (action === 'set_devices') {
+        if (!acc.isOwner && limits.templatesOnly) {
+          failed.push(`${existing.name}: templatesOnly role cannot override device limit`);
+          continue;
+        }
+        const cap = maxDevices !== undefined && maxDevices !== null && maxDevices > 0 ? Math.min(1000, Math.trunc(maxDevices)) : null;
+        if (!acc.isOwner && limits.maxDevicesPerClient !== null && (!cap || cap > limits.maxDevicesPerClient)) {
+          failed.push(`${existing.name}: exceeds role max devices (${limits.maxDevicesPerClient})`);
+          continue;
+        }
+        db.prepare('UPDATE clients SET device_limit = ? WHERE id = ?').run(cap, id);
+      } else if (action === 'set_sub') {
+        const nextHrs =
+          subUpdateHours !== undefined ? Math.max(0, Math.min(720, Math.trunc(Number(subUpdateHours)))) : Number(existing.sub_update_hours || 0);
+        const nextAnn = subAnnounce !== undefined ? String(subAnnounce).slice(0, 200) : String(existing.sub_announce || '');
+        db.prepare('UPDATE clients SET sub_update_hours = ?, sub_announce = ? WHERE id = ?').run(nextHrs, nextAnn, id);
+      } else if (action === 'apply_template' && tplSettings) {
+        const nextReset = normalizeResetStrategy(tplSettings.resetStrategy);
+        const nextResetAt = computeNextResetIso(nextReset, {
+          fromMs: Date.now(),
+          timeZone: general.timezone || 'Asia/Tehran',
+          resetEveryDays: tplSettings.resetEveryDays,
+          resetAnchor: tplSettings.resetAnchor,
+        });
+        const expAt = tplSettings.days > 0 && !tplSettings.startOnFirstUse ? new Date(Date.now() + tplSettings.days * 86400_000).toISOString() : null;
+        const firstDays = tplSettings.days > 0 && tplSettings.startOnFirstUse ? tplSettings.days : null;
+        db.prepare(
+          `UPDATE clients SET traffic_limit_bytes = ?, expires_at = ?, first_connect_days = ?, device_limit = ?,
+           reset_period = ?, reset_every_days = ?, reset_anchor = ?, next_reset_at = ?, template_id = ?,
+           download_mbps = ?, upload_mbps = ?, sub_update_hours = ?, sub_announce = ? WHERE id = ?`,
+        ).run(
+          tplSettings.trafficLimit > 0 ? tplSettings.trafficLimit : null,
+          expAt,
+          firstDays,
+          tplSettings.maxDevices > 0 ? tplSettings.maxDevices : null,
+          nextReset,
+          tplSettings.resetEveryDays || 0,
+          tplSettings.resetAnchor || 0,
+          nextResetAt,
+          Number(templateId),
+          tplSettings.speedDown > 0 ? tplSettings.speedDown / 1000 : null,
+          tplSettings.speedUp > 0 ? tplSettings.speedUp / 1000 : null,
+          tplSettings.subUpdateHours || 0,
+          tplSettings.subAnnounce || '',
+          id,
+        );
+      } else if (action === 'renew' && tplSettings) {
+        const curExp = existing.expires_at ? Date.parse(String(existing.expires_at)) : 0;
+        const baseMs = curExp > Date.now() ? curExp : Date.now();
+        const nextExp = tplSettings.days > 0 ? new Date(baseMs + tplSettings.days * 86400_000).toISOString() : (existing.expires_at as string | null);
+        const curLimit = existing.traffic_limit_bytes === null ? null : Number(existing.traffic_limit_bytes);
+        const nextLimit = tplSettings.trafficLimit > 0 ? (curLimit ?? Number(existing.traffic_used_bytes)) + tplSettings.trafficLimit : null;
+        db.prepare('UPDATE clients SET expires_at = ?, traffic_limit_bytes = ?, template_id = ? WHERE id = ?').run(
+          nextExp,
+          nextLimit,
+          Number(templateId),
+          id,
+        );
+        emitEvent({ type: 'client.renewed', ownerId: Number(existing.owner_id), subject: `client:${id}`, data: { clientId: id, name: String(existing.name) } });
       } else if (action === 'group') {
         if (groupOp === 'replace') {
           db.prepare('DELETE FROM client_groups WHERE client_id = ?').run(id);
@@ -550,20 +996,24 @@ export function createClientRouter(): Router {
           }
         }
       }
+      done += 1;
     }
 
     recordAudit({
       accountId: acc.id,
       username: acc.username,
       action: `client.bulk.${action}`,
-      target: `${ids.length} clients`,
+      target: `${done}/${ids.length} clients`,
       ip: req.clientIp,
     });
-    if (action !== 'disconnect') {
+    if (action !== 'disconnect' && action !== 'kick') {
       await syncRunningInbounds().catch(() => undefined);
     }
-    res.json({ ok: true });
-  });
+    res.json({ ok: true, done, failed });
+  };
+
+  router.post('/bulk', handleBulkAction);
+  router.post('/bulk-action', handleBulkAction);
 
   router.delete('/:id', async (req: AuthedRequest, res) => {
     const id = Number(req.params.id);
@@ -576,12 +1026,18 @@ export function createClientRouter(): Router {
       res.status(404).json({ error: 'Client not found' });
       return;
     }
-    if (acc.permissions.clients.delete === 'none' || (!acc.isOwner && acc.permissions.clients.delete === 'own' && existing.owner_id !== acc.id)) {
+    if (!canMutateClient(acc, existing.owner_id, 'delete')) {
       res.status(403).json({ error: 'No permission to delete this client' });
       return;
     }
     await kickClientConnections(id, 'client_deleted').catch(() => 0);
     db.prepare('DELETE FROM clients WHERE id = ?').run(id);
+    emitEvent({
+      type: 'client.deleted',
+      ownerId: existing.owner_id,
+      subject: `client:${id}`,
+      data: { clientId: id, name: existing.name },
+    });
     await syncRunningInbounds().catch(() => undefined);
     recordAudit({ accountId: acc.id, username: acc.username, action: 'client.delete', target: existing.name, ip: req.clientIp });
     res.json({ ok: true });
@@ -595,9 +1051,9 @@ export function createClientRouter(): Router {
       res.status(404).json({ error: 'Client not found' });
       return;
     }
-    const inbounds = resolveClientInbounds(id);
+    const inbounds = resolveClientInbounds(id).filter((i) => i.protocol !== 'xray');
     if (inbounds.length === 0) {
-      res.status(400).json({ error: 'Client has no active inbounds assigned' });
+      res.status(400).json({ error: 'Client has no tunnel profile inbounds assigned' });
       return;
     }
     const reqInboundId = req.query.inboundId ? Number(req.query.inboundId) : inbounds[0].id;

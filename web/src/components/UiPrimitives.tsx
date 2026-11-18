@@ -345,22 +345,28 @@ export function Select({
 export function StatusPill({
   tone,
   label,
+  children,
 }: {
-  tone: 'green' | 'lime' | 'amber' | 'red' | 'gray' | 'blue';
-  label: string;
+  tone: 'green' | 'lime' | 'amber' | 'red' | 'gray' | 'blue' | 'good' | 'warn' | 'bad' | 'neutral';
+  label?: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   const tagClass: Record<string, string> = {
     green: 'tag tag-active',
+    good: 'tag tag-active',
     lime: 'tag tag-online',
     amber: 'tag tag-pending',
+    warn: 'tag tag-pending',
     red: 'tag tag-expired',
+    bad: 'tag tag-expired',
     blue: 'tag tag-online',
     gray: 'tag tag-disabled',
+    neutral: 'tag tag-disabled',
   };
   return (
     <span className={tagClass[tone] || 'tag tag-disabled'}>
       <span className="dot" />
-      {label}
+      {label ?? children}
     </span>
   );
 }

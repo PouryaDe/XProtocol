@@ -4,6 +4,7 @@ export const fa: TranslationDict = {
   nav: {
     overview: 'نمای کلی',
     clients: 'کاربران',
+    templates: 'قالب‌ها',
     groups: 'گروه‌ها',
     inbounds: 'اینباندها',
     nodes: 'نودها',
@@ -201,6 +202,7 @@ export const fa: TranslationDict = {
       subscription: 'صفحه سابسکریپشن',
       panelAccess: 'دسترسی پنل',
       api: 'API و توکن‌ها',
+      webhooks: 'وب‌هوک‌ها',
       myAccount: 'حساب من',
       backup: 'پشتیبان‌گیری',
       audit: 'گزارش فعالیت‌ها',

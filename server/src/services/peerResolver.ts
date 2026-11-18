@@ -128,7 +128,7 @@ export function getEligiblePeersForInbound(inboundId: number, subnet: string): P
 
   const clientRows = db
     .prepare(
-      `SELECT DISTINCT c.id, c.name, c.wg_public_key, c.vpn_password, c.fixed_ip,
+      `SELECT DISTINCT c.id, c.name, c.wg_public_key, c.vpn_password, c.xray_uuid, c.ss_password, c.fixed_ip,
               c.enabled, c.expires_at, c.traffic_limit_bytes, c.traffic_used_bytes,
               c.download_mbps, c.upload_mbps, c.device_limit
        FROM clients c
@@ -145,6 +145,8 @@ export function getEligiblePeersForInbound(inboundId: number, subnet: string): P
     name: string;
     wg_public_key: string;
     vpn_password: string;
+    xray_uuid: string;
+    ss_password: string;
     fixed_ip: string;
     enabled: number;
     expires_at: string | null;
@@ -190,6 +192,8 @@ export function getEligiblePeersForInbound(inboundId: number, subnet: string): P
       name: c.name,
       wgPublicKey: c.wg_public_key,
       vpnPassword: c.vpn_password,
+      xrayUuid: c.xray_uuid,
+      ssPassword: c.ss_password,
       tunnelIp,
       downloadMbps: c.download_mbps ?? minPositive(groupDlMap.get(c.id) || []),
       uploadMbps: c.upload_mbps ?? minPositive(groupUlMap.get(c.id) || []),

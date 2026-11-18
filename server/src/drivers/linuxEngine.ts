@@ -17,10 +17,15 @@ import {
   ensureOpenVpnPki,
   syncOpenVpnAuthScript,
 } from './pki.js';
+import {
+  collectXrayLiveStats,
+  kickXrayClient,
+  syncAndApplyXrayEngine,
+} from './xrayEngine.js';
 
 const execFileAsync = promisify(execFile);
 
-export type ProtocolName = 'openvpn' | 'wireguard' | 'amneziawg' | 'openconnect' | 'ikev2' | 'l2tp';
+export type ProtocolName = 'openvpn' | 'wireguard' | 'amneziawg' | 'openconnect' | 'ikev2' | 'l2tp' | 'xray';
 
 export interface ProtocolStatus {
   protocol: ProtocolName;
@@ -47,6 +52,7 @@ const PROTOCOL_BINARIES: Record<ProtocolName, { bin: string; apt: string[] }> = 
   openconnect: { bin: 'ocserv', apt: ['ocserv'] },
   ikev2: { bin: 'swanctl', apt: ['strongswan', 'strongswan-swanctl', 'libcharon-extra-plugins'] },
   l2tp: { bin: 'xl2tpd', apt: ['xl2tpd', 'strongswan', 'strongswan-swanctl'] },
+  xray: { bin: 'xray', apt: ['curl', 'unzip'] },
 };
 
 async function runCmd(cmd: string, args: string[], timeout = 15000): Promise<{ ok: boolean; stdout: string; stderr: string }> {
@@ -421,6 +427,16 @@ export async function applyLinuxInbound(
   const extraFiles = renderInboundExtraFiles(inbound, peers);
   const logs: string[] = [];
 
+  if (inbound.protocol === 'xray') {
+    if (process.platform === 'linux' && action !== 'stop') {
+      const transport = String(settings.transport || 'raw');
+      await openFirewallPort(inbound.port, transport === 'kcp' ? 'udp' : 'tcp');
+    }
+    const r = await syncAndApplyXrayEngine();
+    logs.push(`[${new Date().toISOString()}] Xray ${action} ${inbound.name} (${peers.length} peers): ${r.statusMessage}`);
+    return { ok: r.ok, logs };
+  }
+
   if (inbound.protocol === 'openvpn') {
     await ensureOpenVpnPki();
     syncOpenVpnAuthScript(inbound.name, peers);
@@ -579,6 +595,11 @@ export async function syncLinuxInboundPeers(inbound: InboundRow, peers: PeerEntr
     return;
   }
 
+  if (inbound.protocol === 'xray') {
+    await syncAndApplyXrayEngine();
+    return;
+  }
+
   if (process.platform !== 'linux') return;
 
   fs.mkdirSync(path.dirname(rendered.path), { recursive: true });
@@ -692,6 +713,10 @@ export async function disconnectLinuxPeer(
       await runCmd('ip', ['link', 'set', dev, 'down'], 3000);
       return true;
     }
+  }
+
+  if (inbound.protocol === 'xray') {
+    return kickXrayClient(inbound.name, opts.clientName);
   }
 
   return false;
@@ -884,61 +909,32 @@ export async function collectLinuxLiveTunnels(
     }
   }
 
+  // Collect active Xray user traffic deltas if any Xray inbound is running
+  const xrayInbounds = inbounds.filter((i) => i.running && i.protocol === 'xray');
+  if (xrayInbounds.length > 0) {
+    const xrStats = await collectXrayLiveStats();
+    const firstXrayId = xrayInbounds[0].id;
+    for (const xs of xrStats) {
+      samples.push({
+        id: `xray-${firstXrayId}-${xs.clientName}`,
+        clientName: xs.clientName,
+        inboundId: firstXrayId,
+        remoteIp: xs.remoteIp,
+        tunnelIp: '',
+        device: 'Xray',
+        bytesIn: xs.uplink,
+        bytesOut: xs.downlink,
+      });
+    }
+  }
+
   return samples;
 }
 
 export async function applyXrayRouting(enabled: boolean, configJson: string): Promise<{ ok: boolean; statusMessage: string }> {
-  const dir = process.platform === 'linux' ? '/usr/local/lib/xprotocol/xray' : path.join(os.tmpdir(), 'xprotocol-xray');
-  fs.mkdirSync(dir, { recursive: true });
-  const cfgPath = path.join(dir, 'config.json');
-  fs.writeFileSync(cfgPath, configJson, { mode: 0o600 });
-
-  if (process.platform !== 'linux') {
-    return {
-      ok: true,
-      statusMessage: enabled
-        ? `Saved Xray routing config (${cfgPath}); live execution runs on Ubuntu Linux`
-        : 'Policy disabled',
-    };
-  }
-
-  const whichXray = await runCmd('which', ['xray'], 3000);
-  if (!whichXray.ok) {
-    return {
-      ok: false,
-      statusMessage: enabled ? 'xray binary not installed on host' : 'Disabled (xray not installed)',
-    };
-  }
-
-  const xrayBin = whichXray.stdout.trim();
-  const unitPath = '/etc/systemd/system/xprotocol-xray.service';
-  if (!fs.existsSync(unitPath)) {
-    fs.writeFileSync(
-      unitPath,
-      `[Unit]
-Description=XProtocol Xray Routing Engine
-After=network-online.target
-
-[Service]
-Type=simple
-ExecStart=${xrayBin} run -c ${cfgPath}
-Restart=on-failure
-RestartSec=3
-
-[Install]
-WantedBy=multi-user.target
-`,
-    );
-    await runCmd('systemctl', ['daemon-reload'], 5000);
-  }
-
-  if (enabled) {
-    const r = await runCmd('systemctl', ['restart', 'xprotocol-xray'], 8000);
-    return { ok: r.ok, statusMessage: r.ok ? 'Xray routing running' : r.stderr };
-  } else {
-    await runCmd('systemctl', ['stop', 'xprotocol-xray'], 5000);
-    return { ok: true, statusMessage: 'Stopped' };
-  }
+  void enabled;
+  void configJson;
+  return syncAndApplyXrayEngine();
 }
 
 /** Query live runtime diagnostic output for an inbound on Ubuntu Linux. */
@@ -946,7 +942,10 @@ export async function getInboundRuntimeStatus(inbound: InboundRow): Promise<stri
   if (process.platform !== 'linux') return [];
   const settings = parseInboundSettings(inbound);
   const out: string[] = [];
-  if (inbound.protocol === 'wireguard' || inbound.protocol === 'amneziawg') {
+  if (inbound.protocol === 'xray') {
+    const r = await runCmd('systemctl', ['status', 'xprotocol-xray', '--no-pager', '-n', '15'], 3000);
+    if (r.stdout || r.stderr) out.push((r.stdout || r.stderr).trim());
+  } else if (inbound.protocol === 'wireguard' || inbound.protocol === 'amneziawg') {
     const wgBin = isAmneziaInbound(inbound.protocol, settings) ? 'awg' : 'wg';
     const r = await runCmd(wgBin, ['show', inbound.name], 3000);
     out.push(r.ok ? r.stdout.trim() || `${wgBin} ${inbound.name}: up (0 peers)` : `${wgBin} show ${inbound.name} error: ${r.stderr.trim()}`);

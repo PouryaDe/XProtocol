@@ -12,6 +12,7 @@ export interface AuthContext {
   account: AccountRecord;
   sessionId?: string;
   csrfToken?: string;
+  mfaConfirmedAt?: number;
   viaApiToken: boolean;
   apiScopes?: string[];
 }
@@ -57,12 +58,14 @@ export function loadAccountById(accountId: number): AccountRecord | null {
     expiresAt: row.expires_at ? String(row.expires_at) : null,
     allowedGroupIds: JSON.parse(String(row.allowed_group_ids_json || '[]')) as number[],
     allowedInboundIds: JSON.parse(String(row.allowed_inbound_ids_json || '[]')) as number[],
+    allowedTemplateIds: JSON.parse(String(row.override_allowed_templates_json || '[]')) as number[],
     overrideClientLimit: row.override_client_limit === null ? null : Number(row.override_client_limit),
     overrideRequireGroup: row.override_require_group === null ? null : Boolean(row.override_require_group),
     overrideMaxTrafficGb: row.override_max_traffic_gb === null ? null : Number(row.override_max_traffic_gb),
     overrideMaxLifetimeDays: row.override_max_lifetime_days === null ? null : Number(row.override_max_lifetime_days),
     overrideMaxDevices: row.override_max_devices === null ? null : Number(row.override_max_devices),
     overrideAllowUnlimited: row.override_allow_unlimited === null ? null : Boolean(row.override_allow_unlimited),
+    overrideTemplatesOnly: row.override_templates_only === null || row.override_templates_only === undefined ? null : Boolean(row.override_templates_only),
   };
 }
 
@@ -120,8 +123,8 @@ export function requireAuth(trustProxy: () => boolean) {
       return;
     }
     const sessionRow = db
-      .prepare('SELECT id, account_id, csrf_token, last_seen_at FROM sessions WHERE id = ?')
-      .get(sid) as { id: string; account_id: number; csrf_token: string; last_seen_at: string } | undefined;
+      .prepare('SELECT id, account_id, csrf_token, last_seen_at, mfa_confirmed_at FROM sessions WHERE id = ?')
+      .get(sid) as { id: string; account_id: number; csrf_token: string; last_seen_at: string; mfa_confirmed_at?: number } | undefined;
     if (!sessionRow) {
       res.status(401).json({ error: 'Session expired' });
       return;
@@ -155,10 +158,28 @@ export function requireAuth(trustProxy: () => boolean) {
       account,
       sessionId: sessionRow.id,
       csrfToken: sessionRow.csrf_token,
+      mfaConfirmedAt: Number(sessionRow.mfa_confirmed_at || 0),
       viaApiToken: false,
     };
     next();
   };
+}
+
+export function requireFreshMfa(req: AuthedRequest, res: Response, maxAgeSec = 300): boolean {
+  if (!req.auth || req.auth.viaApiToken) return true;
+  const row = getDb()
+    .prepare('SELECT totp_enabled FROM accounts WHERE id = ?')
+    .get(req.auth.account.id) as { totp_enabled: number } | undefined;
+  if (!row?.totp_enabled) return true;
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (nowSec - (req.auth.mfaConfirmedAt || 0) > maxAgeSec) {
+    res.status(403).json({
+      error: 'Please enter a fresh two-factor code to confirm this sensitive action.',
+      code: 'mfa_confirm_required',
+    });
+    return false;
+  }
+  return true;
 }
 
 export function requireOwner(req: AuthedRequest, res: Response, next: NextFunction): void {

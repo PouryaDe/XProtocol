@@ -2,6 +2,7 @@ export const en = {
   nav: {
     overview: 'Overview',
     clients: 'Clients',
+    templates: 'Templates',
     groups: 'Groups',
     inbounds: 'Inbounds',
     nodes: 'Nodes',
@@ -199,6 +200,7 @@ export const en = {
       subscription: 'Subscription page',
       panelAccess: 'Panel access',
       api: 'API',
+      webhooks: 'Webhooks',
       myAccount: 'My account',
       backup: 'Backup',
       audit: 'Activity log',

@@ -1,4 +1,4 @@
-export type InboundKind = 'openvpn' | 'openconnect' | 'ocserv' | 'wireguard' | 'amneziawg' | 'ikev2' | 'l2tp';
+export type InboundKind = 'openvpn' | 'openconnect' | 'ocserv' | 'wireguard' | 'amneziawg' | 'ikev2' | 'l2tp' | 'xray';
 
 export interface InboundRemote {
   label: string;
@@ -141,6 +141,7 @@ export function normalizeKind(raw: string): 'openvpn' | 'ocserv' | 'wireguard' |
 
 export function formatKindBadge(kind: string, obfuscation?: string): string {
   const k = kind.toLowerCase();
+  if (k === 'xray') return 'Xray';
   if (k === 'amneziawg' || (k === 'wireguard' && obfuscation === 'amnezia')) return 'AmneziaWG';
   if (k === 'ocserv' || k === 'openconnect') return 'OpenConnect';
   if (k === 'ikev2') return 'IKEv2';

@@ -7,6 +7,7 @@ interface XpGlobals {
 
 const KNOWN_SEGMENTS = [
   'clients',
+  'templates',
   'connections',
   'inbounds',
   'nodes',

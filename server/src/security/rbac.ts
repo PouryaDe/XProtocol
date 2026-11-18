@@ -27,6 +27,9 @@ export interface RolePermissions {
     view: ScopeBool;
     manage: ScopeBool;
   };
+  webhooks?: boolean;
+  ownSubOrigins?: boolean;
+  metrics?: boolean;
 }
 
 export interface RoleLimits {
@@ -37,6 +40,8 @@ export interface RoleLimits {
   maxLifetimeDays: number | null;
   maxDevicesPerClient: number | null;
   allowUnlimitedTraffic: boolean;
+  allowedTemplates?: number[];
+  templatesOnly?: boolean;
 }
 
 export interface AccountRecord {
@@ -53,12 +58,14 @@ export interface AccountRecord {
   expiresAt: string | null;
   allowedGroupIds: number[];
   allowedInboundIds: number[];
+  allowedTemplateIds: number[];
   overrideClientLimit: number | null;
   overrideRequireGroup: boolean | null;
   overrideMaxTrafficGb: number | null;
   overrideMaxLifetimeDays: number | null;
   overrideMaxDevices: number | null;
   overrideAllowUnlimited: boolean | null;
+  overrideTemplatesOnly: boolean | null;
 }
 
 export const OWNER_PERMISSIONS: RolePermissions = {
@@ -67,6 +74,9 @@ export const OWNER_PERMISSIONS: RolePermissions = {
   groups: { view: 'all', manage: 'all' },
   inbounds: { view: 'all', manage: 'all' },
   nodes: { view: 'all', manage: 'all' },
+  webhooks: true,
+  ownSubOrigins: true,
+  metrics: true,
 };
 
 export const ADMIN_PERMISSIONS: RolePermissions = {
@@ -75,6 +85,9 @@ export const ADMIN_PERMISSIONS: RolePermissions = {
   groups: { view: 'all', manage: 'all' },
   inbounds: { view: 'all', manage: 'all' },
   nodes: { view: 'all', manage: 'all' },
+  webhooks: true,
+  ownSubOrigins: false,
+  metrics: false,
 };
 
 export const RESELLER_PERMISSIONS: RolePermissions = {
@@ -83,6 +96,9 @@ export const RESELLER_PERMISSIONS: RolePermissions = {
   groups: { view: 'granted', manage: 'none' },
   inbounds: { view: 'granted', manage: 'none' },
   nodes: { view: 'none', manage: 'none' },
+  webhooks: false,
+  ownSubOrigins: false,
+  metrics: false,
 };
 
 export function getEffectiveLimits(acc: AccountRecord) {
@@ -93,6 +109,8 @@ export function getEffectiveLimits(acc: AccountRecord) {
     maxLifetimeDays: acc.overrideMaxLifetimeDays ?? acc.roleLimits.maxLifetimeDays,
     maxDevicesPerClient: acc.overrideMaxDevices ?? acc.roleLimits.maxDevicesPerClient,
     allowUnlimitedTraffic: acc.overrideAllowUnlimited ?? acc.roleLimits.allowUnlimitedTraffic,
+    templatesOnly: acc.overrideTemplatesOnly ?? Boolean(acc.roleLimits.templatesOnly),
+    allowedTemplateIds: acc.allowedTemplateIds.length > 0 ? acc.allowedTemplateIds : acc.roleLimits.allowedTemplates || [],
   };
 }
 

@@ -2,9 +2,10 @@ import { Router } from 'express';
 import crypto from 'node:crypto';
 import { getDb } from '../db/database.js';
 import { recordAudit } from '../services/audit.js';
+import { buildNodeUptimeSummary, getNodeHealthSeries } from '../services/nodeHealth.js';
 import { testTcpLatency } from '../drivers/runtime.js';
 import { detectInstalledProtocols, installProtocolPackage, type ProtocolName } from '../drivers/linuxEngine.js';
-import type { AuthedRequest } from './context.js';
+import { requireFreshMfa, type AuthedRequest } from './context.js';
 
 export function createNodeRouter(): Router {
   const router = Router();
@@ -52,12 +53,15 @@ export function createNodeRouter(): Router {
           diskPct: Number(n.disk_pct),
           uptimeSec: Number(n.uptime_sec),
           realTrafficBytes: Number(n.real_traffic_bytes),
-          xprotocolVersion: String(n.xprotocol_version ?? n.ovira_version ?? '1.0.4'),
+          xprotocolVersion: String(n.xprotocol_version ?? n.ovira_version ?? '2.0.0-beta.3'),
           openvpnVersion: String(n.openvpn_version),
           wireguardReady: Boolean(n.wireguard_ready),
           openconnectVersion: String(n.openconnect_version),
           ikev2Ready: Boolean(n.ikev2_ready),
           l2tpReady: Boolean(n.l2tp_ready),
+          xrayReady: true,
+          uptime: buildNodeUptimeSummary(id, 90),
+          allowFrom: JSON.parse(String(n.allow_from_json || '[]')) as string[],
           onlineCount: liveMap.get(id) || 0,
           inbounds: inbounds
             .filter((i) => i.node_id === id)
@@ -234,6 +238,104 @@ export function createNodeRouter(): Router {
     }
     getDb().prepare('UPDATE nodes SET real_traffic_bytes = 0 WHERE id = ?').run(Number(req.params.id));
     res.json({ ok: true });
+  });
+
+  router.get('/health', (req: AuthedRequest, res) => {
+    const acc = req.auth!.account;
+    if (!acc.isOwner && acc.permissions.nodes.view === 'none') {
+      res.status(403).json({ error: 'No permission' });
+      return;
+    }
+    const nodes = getDb()
+      .prepare('SELECT id, name, enabled, is_local, status FROM nodes ORDER BY is_local DESC, id ASC')
+      .all() as Array<{ id: number; name: string; enabled: number; is_local: number; status: string }>;
+    res.json({
+      items: nodes.map((n) => ({
+        id: n.id,
+        name: n.name,
+        enabled: Boolean(n.enabled),
+        online: !n.enabled ? null : Boolean(n.is_local || n.status === 'connected'),
+        uptime: buildNodeUptimeSummary(n.id, 90),
+      })),
+    });
+  });
+
+  router.get('/:id/health', (req: AuthedRequest, res) => {
+    const acc = req.auth!.account;
+    if (!acc.isOwner && acc.permissions.nodes.view === 'none') {
+      res.status(403).json({ error: 'No permission' });
+      return;
+    }
+    const id = Number(req.params.id);
+    const range = String(req.query.range || '24h');
+    res.json(getNodeHealthSeries(id, range));
+  });
+
+  router.get('/:id/allow-from', (req: AuthedRequest, res) => {
+    if (!req.auth!.account.isOwner) {
+      res.status(403).json({ error: 'Owner permission required' });
+      return;
+    }
+    const id = Number(req.params.id);
+    const node = getDb().prepare('SELECT id, is_local, status, allow_from_json FROM nodes WHERE id = ?').get(id) as
+      | { id: number; is_local: number; status: string; allow_from_json: string }
+      | undefined;
+    if (!node) {
+      res.status(404).json({ error: 'Node not found' });
+      return;
+    }
+    res.json({
+      allowFromSupported: true,
+      rotateSupported: true,
+      online: Boolean(node.is_local || node.status === 'connected'),
+      allowFrom: JSON.parse(String(node.allow_from_json || '[]')) as string[],
+      panelIp: req.clientIp || '127.0.0.1',
+    });
+  });
+
+  router.put('/:id/allow-from', (req: AuthedRequest, res) => {
+    if (!req.auth!.account.isOwner) {
+      res.status(403).json({ error: 'Owner permission required' });
+      return;
+    }
+    const id = Number(req.params.id);
+    const node = getDb().prepare('SELECT id, name, is_local, status FROM nodes WHERE id = ?').get(id) as
+      | { id: number; name: string; is_local: number; status: string }
+      | undefined;
+    if (!node) {
+      res.status(404).json({ error: 'Node not found' });
+      return;
+    }
+    const allowFrom = Array.isArray((req.body as { allowFrom?: string[] }).allowFrom)
+      ? (req.body as { allowFrom: string[] }).allowFrom.map((s) => String(s).trim()).filter(Boolean)
+      : [];
+    getDb().prepare('UPDATE nodes SET allow_from_json = ? WHERE id = ?').run(JSON.stringify(allowFrom), id);
+    recordAudit({ accountId: req.auth!.account.id, username: req.auth!.account.username, action: 'node.allow_from', target: node.name, details: allowFrom.join(','), ip: req.clientIp });
+    res.json({
+      allowFromSupported: true,
+      rotateSupported: true,
+      online: Boolean(node.is_local || node.status === 'connected'),
+      allowFrom,
+      panelIp: req.clientIp || '127.0.0.1',
+    });
+  });
+
+  router.post('/:id/rotate-key', (req: AuthedRequest, res) => {
+    if (!req.auth!.account.isOwner) {
+      res.status(403).json({ error: 'Owner permission required' });
+      return;
+    }
+    if (!requireFreshMfa(req, res)) return;
+    const id = Number(req.params.id);
+    const node = getDb().prepare('SELECT id, name FROM nodes WHERE id = ?').get(id) as { id: number; name: string } | undefined;
+    if (!node) {
+      res.status(404).json({ error: 'Node not found' });
+      return;
+    }
+    const nextKey = crypto.randomBytes(24).toString('hex');
+    getDb().prepare('UPDATE nodes SET node_key = ? WHERE id = ?').run(nextKey, id);
+    recordAudit({ accountId: req.auth!.account.id, username: req.auth!.account.username, action: 'node.rotate_key', target: node.name, ip: req.clientIp });
+    res.json({ ok: true, nodeKey: nextKey });
   });
 
   router.delete('/:id', (req: AuthedRequest, res) => {

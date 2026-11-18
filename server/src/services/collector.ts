@@ -1,4 +1,4 @@
-import { getDb } from '../db/database.js';
+import { getDb, getSetting, DEFAULT_GENERAL_SETTINGS } from '../db/database.js';
 import {
   applyDedicatedSessionLimits,
   applyInterfaceSpeedLimits,
@@ -8,7 +8,10 @@ import {
 } from '../drivers/linuxEngine.js';
 import { writeLiveClientCounts } from '../drivers/pki.js';
 import type { InboundRow, PeerEntry } from '../generators/configs.js';
+import { emitEvent, pruneOldEvents } from './events.js';
+import { recordNodeHealthSample } from './nodeHealth.js';
 import { isClientActiveQuota } from './peerResolver.js';
+import { computeNextResetIso } from './resetSchedule.js';
 import { kickClientConnections, scheduleSyncRunningInbounds } from './syncService.js';
 
 let collectorTimer: NodeJS.Timeout | null = null;
@@ -57,56 +60,62 @@ export function selectSessionsWithinLimit(
   return { keepIds, evictIds };
 }
 
-function computeNextResetIso(period: string, fromMs = Date.now()): string | null {
-  const d = new Date(fromMs);
-  if (period === 'daily') {
-    d.setUTCDate(d.getUTCDate() + 1);
-    d.setUTCHours(0, 0, 0, 0);
-    return d.toISOString();
-  }
-  if (period === 'weekly') {
-    d.setUTCDate(d.getUTCDate() + 7);
-    d.setUTCHours(0, 0, 0, 0);
-    return d.toISOString();
-  }
-  if (period === 'monthly') {
-    d.setUTCMonth(d.getUTCMonth() + 1);
-    d.setUTCHours(0, 0, 0, 0);
-    return d.toISOString();
-  }
-  return null;
-}
-
 export async function runPeriodicResets(): Promise<boolean> {
   const db = getDb();
   const nowMs = Date.now();
+  const general = getSetting('general', DEFAULT_GENERAL_SETTINGS);
+  const timeZone = general.timezone || 'Asia/Tehran';
   const rows = db
     .prepare(
-      `SELECT id, reset_period, next_reset_at, traffic_limit_bytes, traffic_used_bytes
+      `SELECT id, name, owner_id, reset_period, reset_every_days, reset_anchor, next_reset_at, traffic_limit_bytes, traffic_used_bytes, created_at
        FROM clients
-       WHERE reset_period IN ('daily', 'weekly', 'monthly')`,
+       WHERE reset_period IN ('daily', 'weekly', 'monthly', 'yearly', 'every_n_days', 'jalali_monthly', 'jalali_yearly')`,
     )
     .all() as Array<{
     id: number;
+    name: string;
+    owner_id: number;
     reset_period: string;
+    reset_every_days: number;
+    reset_anchor: number;
     next_reset_at: string | null;
     traffic_limit_bytes: number | null;
     traffic_used_bytes: number;
+    created_at: string;
   }>;
 
   let anyReactivated = false;
   for (const r of rows) {
+    const anchorStartMs = Date.parse(r.created_at) || nowMs;
     if (!r.next_reset_at) {
-      const nextIso = computeNextResetIso(r.reset_period, nowMs);
+      const nextIso = computeNextResetIso(r.reset_period, {
+        fromMs: nowMs,
+        timeZone,
+        resetEveryDays: r.reset_every_days,
+        resetAnchor: r.reset_anchor,
+        anchorStartMs,
+      });
       if (nextIso) db.prepare('UPDATE clients SET next_reset_at = ? WHERE id = ?').run(nextIso, r.id);
       continue;
     }
     if (Date.parse(r.next_reset_at) <= nowMs) {
       const wasUsedUp = r.traffic_limit_bytes !== null && r.traffic_used_bytes >= r.traffic_limit_bytes;
-      const nextIso = computeNextResetIso(r.reset_period, nowMs);
+      const nextIso = computeNextResetIso(r.reset_period, {
+        fromMs: nowMs,
+        timeZone,
+        resetEveryDays: r.reset_every_days,
+        resetAnchor: r.reset_anchor,
+        anchorStartMs,
+      });
       db.prepare(
         'UPDATE clients SET traffic_used_bytes = 0, upload_bytes = 0, download_bytes = 0, next_reset_at = ? WHERE id = ?',
       ).run(nextIso, r.id);
+      emitEvent({
+        type: 'client.reset',
+        ownerId: r.owner_id,
+        subject: `client:${r.id}`,
+        data: { clientId: r.id, name: r.name, strategy: r.reset_period },
+      });
       if (wasUsedUp) anyReactivated = true;
     }
   }
@@ -118,6 +127,12 @@ export async function runPeriodicResets(): Promise<boolean> {
 
 export async function runCollectorTick(): Promise<void> {
   await runPeriodicResets().catch(() => false);
+  try {
+    recordNodeHealthSample();
+    pruneOldEvents();
+  } catch {
+    // ignore in non-initialized test states
+  }
   if (process.platform !== 'linux') return;
 
   const db = getDb();
@@ -233,14 +248,15 @@ export async function runCollectorTick(): Promise<void> {
     const nodeId = inbound.node_id || 1;
     const mult = nodeMult.get(nodeId) ?? 1.0;
 
-    // On first collector pass after startup, baseline persistent WireGuard interface counters so
-    // bytes transferred prior to restart are not double-counted; per-session counters start at 0.
+    // On first collector pass after startup, baseline persistent WireGuard interface counters;
+    // Xray StatsService uses -reset so each reading is already a pure delta.
+    const isXraySample = s.id.startsWith('xray-');
     const defaultPrev = !bootBaselineDone && s.id.startsWith('wg-') ? { in: s.bytesIn, out: s.bytesOut } : { in: 0, out: 0 };
-    const prev = lastTunnelBytes.get(s.id) ?? defaultPrev;
+    const prev = isXraySample ? { in: 0, out: 0 } : lastTunnelBytes.get(s.id) ?? defaultPrev;
     // Counter reset (tunnel restart): treat full current reading as new traffic delta
-    const deltaIn = s.bytesIn >= prev.in ? s.bytesIn - prev.in : s.bytesIn;
-    const deltaOut = s.bytesOut >= prev.out ? s.bytesOut - prev.out : s.bytesOut;
-    lastTunnelBytes.set(s.id, { in: s.bytesIn, out: s.bytesOut });
+    const deltaIn = isXraySample ? s.bytesIn : s.bytesIn >= prev.in ? s.bytesIn - prev.in : s.bytesIn;
+    const deltaOut = isXraySample ? s.bytesOut : s.bytesOut >= prev.out ? s.bytesOut - prev.out : s.bytesOut;
+    if (!isXraySample) lastTunnelBytes.set(s.id, { in: s.bytesIn, out: s.bytesOut });
     if (deltaIn > 0 || !lastActivityAt.has(s.id)) {
       lastActivityAt.set(s.id, nowMs);
     }
@@ -254,6 +270,12 @@ export async function runCollectorTick(): Promise<void> {
       db.prepare('UPDATE clients SET first_connected_at = ?, expires_at = ? WHERE id = ?').run(nowIso, exp, client.id);
       client.first_connected_at = nowIso;
       client.expires_at = exp;
+      emitEvent({
+        type: 'client.first_connect',
+        ownerId: client.owner_id,
+        subject: `client:${client.id}`,
+        data: { clientId: client.id, name: client.name, expireAt: Math.floor(Date.parse(exp) / 1000) },
+      });
     }
 
     if (weightedDelta > 0) {
@@ -273,6 +295,13 @@ export async function runCollectorTick(): Promise<void> {
     }
 
     if (!isClientActiveQuota(client, nowMs)) {
+      const expired = client.expires_at && Date.parse(client.expires_at) <= nowMs;
+      emitEvent({
+        type: expired ? 'client.expired' : 'client.limited',
+        ownerId: client.owner_id,
+        subject: `client:${client.id}`,
+        data: { clientId: client.id, name: client.name },
+      });
       clientsToKick.add(client.id);
       continue;
     }

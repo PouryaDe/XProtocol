@@ -15,8 +15,23 @@ import { getSubPath, navigate, toPanelUrl } from '../lib/router';
 import { useUi } from '../i18n/context';
 import { Button, EqLoader, Input, Lamps, PageHead, Select, StatusPill } from '../components/UiPrimitives';
 import { Drawer } from '../components/Drawer';
+import { Modal } from '../components/Modal';
 import { QrCode } from '../components/QrCode';
 import type { ClientItem } from './ClientsPage';
+
+interface XrayServerItem {
+  key: string;
+  name: string;
+  instanceId: number;
+  instance: string;
+  node: string;
+  host: string;
+  port: number;
+  protocol: string;
+  transport: string;
+  security: string;
+  links: string[];
+}
 
 interface LiveSession {
   id: string;
@@ -72,14 +87,23 @@ export function ClientDetailPage({ clientId }: { clientId: number }) {
   const [history, setHistory] = useState<HistSession[]>([]);
   const [inbounds, setInbounds] = useState<InboundSummary[]>([]);
   const [groups, setGroups] = useState<GroupSummary[]>([]);
+  const [xrayServers, setXrayServers] = useState<XrayServerItem[]>([]);
+  const [xrayQrLink, setXrayQrLink] = useState<{ title: string; link: string } | null>(null);
+  const [copiedXrayKey, setCopiedXrayKey] = useState('');
   const [copied, setCopied] = useState(false);
   const [busyAction, setBusyAction] = useState(false);
 
   // Edit drawer
   const [editOpen, setEditOpen] = useState(false);
   const [trafficGb, setTrafficGb] = useState('');
+  const [downloadMbps, setDownloadMbps] = useState('');
+  const [uploadMbps, setUploadMbps] = useState('');
   const [deviceLimit, setDeviceLimit] = useState('');
-  const [resetPeriod, setResetPeriod] = useState<'never' | 'daily' | 'weekly' | 'monthly'>('never');
+  const [resetPeriod, setResetPeriod] = useState('never');
+  const [resetEveryDays, setResetEveryDays] = useState('30');
+  const [resetAnchor, setResetAnchor] = useState(0);
+  const [subUpdateHours, setSubUpdateHours] = useState('0');
+  const [subAnnounce, setSubAnnounce] = useState('');
   const [fixedIp, setFixedIp] = useState('');
   const [vpnPassword, setVpnPassword] = useState('');
   const [note, setNote] = useState('');
@@ -90,12 +114,13 @@ export function ClientDetailPage({ clientId }: { clientId: number }) {
 
   const load = useCallback(async () => {
     try {
-      const [cRes, lRes, hRes, iRes, gRes] = await Promise.all([
+      const [cRes, lRes, hRes, iRes, gRes, xRes] = await Promise.all([
         apiFetch<{ clients: ClientItem[] }>('/clients'),
         apiFetch<{ connections: LiveSession[] }>('/connections/live').catch(() => ({ connections: [] })),
         apiFetch<{ history: HistSession[] }>('/connections/history').catch(() => ({ history: [] })),
         apiFetch<{ inbounds: InboundSummary[] }>('/inbounds').catch(() => ({ inbounds: [] })),
         apiFetch<{ groups: GroupSummary[] }>('/groups').catch(() => ({ groups: [] })),
+        apiFetch<{ servers: XrayServerItem[] }>(`/clients/${clientId}/xray`).catch(() => ({ servers: [] })),
       ]);
       const found = cRes.clients.find((c) => c.id === clientId);
       if (!found) {
@@ -109,6 +134,7 @@ export function ClientDetailPage({ clientId }: { clientId: number }) {
       setHistory(hRes.history.filter((s) => s.clientName === found.name));
       setInbounds(iRes.inbounds);
       setGroups(gRes.groups);
+      setXrayServers(xRes.servers || []);
     } catch {
       setNotFound(true);
     }
@@ -123,8 +149,14 @@ export function ClientDetailPage({ clientId }: { clientId: number }) {
   const openEdit = () => {
     if (!client) return;
     setTrafficGb(client.trafficLimitBytes ? String(Math.round(client.trafficLimitBytes / 1024 ** 3)) : '');
+    setDownloadMbps(client.downloadMbps ? String(client.downloadMbps) : '');
+    setUploadMbps(client.uploadMbps ? String(client.uploadMbps) : '');
     setDeviceLimit(client.deviceLimit ? String(client.deviceLimit) : '');
-    setResetPeriod(client.resetPeriod);
+    setResetPeriod(client.resetPeriod || 'never');
+    setResetEveryDays(String(client.resetEveryDays || 30));
+    setResetAnchor(client.resetAnchor || 0);
+    setSubUpdateHours(String(client.subUpdateHours || 0));
+    setSubAnnounce(client.subAnnounce || '');
     setFixedIp(client.fixedIp);
     setVpnPassword(client.vpnPassword || '');
     setNote(client.note);
@@ -144,8 +176,14 @@ export function ClientDetailPage({ clientId }: { clientId: number }) {
         method: 'PATCH',
         body: JSON.stringify({
           trafficGb: trafficGb ? Number(trafficGb) : null,
+          downloadMbps: downloadMbps ? Number(downloadMbps) : null,
+          uploadMbps: uploadMbps ? Number(uploadMbps) : null,
           deviceLimit: deviceLimit ? Number(deviceLimit) : null,
           resetPeriod,
+          resetEveryDays: resetPeriod === 'every_n_days' ? Number(resetEveryDays || 30) : 0,
+          resetAnchor,
+          subUpdateHours: Number(subUpdateHours || 0),
+          subAnnounce,
           fixedIp,
           vpnPassword: vpnPassword.trim() || undefined,
           note,
@@ -546,11 +584,74 @@ export function ClientDetailPage({ clientId }: { clientId: number }) {
             </div>
           </section>
 
+          {xrayServers.length > 0 && (
+            <section className="panel">
+              <header className="panel-head">
+                <h2>{lang === 'fa' ? 'لینک‌های Xray / V2Ray' : 'V2Ray / Xray configs'}</h2>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={busyAction}
+                  onClick={() => {
+                    if (!confirm(lang === 'fa' ? 'کلیدهای Xray این کاربر تعویض شود؟ لینک‌های قبلی از کار می‌افتند.' : 'Rotate Xray keys? Old links will stop working.')) return;
+                    void runAction(() => apiFetch(`/clients/${client.id}/xray/rotate`, { method: 'POST' }));
+                  }}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  {lang === 'fa' ? 'تعویض کلید' : 'Rotate keys'}
+                </Button>
+              </header>
+              <div className="space-y-2.5">
+                {xrayServers.map((srv) => {
+                  const link = srv.links[0] || '';
+                  return (
+                    <div
+                      key={srv.key}
+                      className="rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-3 space-y-2"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold text-(--text-primary) truncate">{srv.name}</div>
+                          <div className="text-[11px] font-mono text-(--text-muted)">
+                            {srv.protocol.toUpperCase()} · {srv.transport} · {srv.security} · :{srv.port}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setXrayQrLink({ title: srv.name, link })}
+                          >
+                            QR
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={async () => {
+                              await navigator.clipboard.writeText(link);
+                              setCopiedXrayKey(srv.key);
+                              setTimeout(() => setCopiedXrayKey(''), 1500);
+                            }}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            {copiedXrayKey === srv.key ? t.common.copied : t.common.copy}
+                          </Button>
+                        </div>
+                      </div>
+                      <code className="block truncate text-[11px] text-(--text-secondary)" dir="ltr">
+                        {link}
+                      </code>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           <section className="panel">
             <header className="panel-head">
               <h2>{lang === 'fa' ? 'پروفایل‌های آماده دانلود' : 'Direct config profiles'}</h2>
             </header>
-            {assignedInbounds.length === 0 ? (
+            {assignedInbounds.filter((ib) => ib.protocol !== 'xray').length === 0 ? (
               <p className="text-xs text-(--text-muted)">
                 {lang === 'fa'
                   ? 'هیچ اینباندی از طریق گروه یا مستقیم به این کاربر اختصاص نیافته است.'
@@ -558,7 +659,7 @@ export function ClientDetailPage({ clientId }: { clientId: number }) {
               </p>
             ) : (
               <div className="space-y-2">
-                {assignedInbounds.map((ib) => (
+                {assignedInbounds.filter((ib) => ib.protocol !== 'xray').map((ib) => (
                   <a
                     key={ib.id}
                     href={`${getApiBase()}/clients/${client.id}/profile?inboundId=${ib.id}`}
@@ -599,16 +700,78 @@ export function ClientDetailPage({ clientId }: { clientId: number }) {
             />
           </div>
 
-          <Select
-            label={t.clients.resetPeriod}
-            value={resetPeriod}
-            onChange={(e) => setResetPeriod(e.target.value as typeof resetPeriod)}
-          >
-            <option value="never">Never</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </Select>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input
+              label={lang === 'fa' ? 'محدودیت دانلود (Mbps)' : 'Download speed (Mbps)'}
+              type="number"
+              min="0"
+              step="0.5"
+              value={downloadMbps}
+              onChange={(e) => setDownloadMbps(e.target.value)}
+            />
+            <Input
+              label={lang === 'fa' ? 'محدودیت آپلود (Mbps)' : 'Upload speed (Mbps)'}
+              type="number"
+              min="0"
+              step="0.5"
+              value={uploadMbps}
+              onChange={(e) => setUploadMbps(e.target.value)}
+            />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Select
+              label={t.clients.resetPeriod}
+              value={resetPeriod}
+              onChange={(e) => setResetPeriod(e.target.value)}
+            >
+              <option value="never">{lang === 'fa' ? 'هیچ‌وقت' : 'Never'}</option>
+              <option value="daily">{lang === 'fa' ? 'روزانه' : 'Every day'}</option>
+              <option value="weekly">{lang === 'fa' ? 'هفتگی' : 'Every week'}</option>
+              <option value="monthly">{lang === 'fa' ? 'ماهانه میلادی' : 'Every month'}</option>
+              <option value="yearly">{lang === 'fa' ? 'سالانه میلادی' : 'Every year'}</option>
+              <option value="jalali_monthly">{lang === 'fa' ? 'ماهانه شمسی' : 'Every Persian month'}</option>
+              <option value="jalali_yearly">{lang === 'fa' ? 'سالانه شمسی' : 'Every Persian year'}</option>
+              <option value="every_n_days">{lang === 'fa' ? 'هر N روز' : 'Every N days'}</option>
+            </Select>
+            {resetPeriod === 'every_n_days' && (
+              <Input
+                label={lang === 'fa' ? 'تعداد روز دوره' : 'Every N days'}
+                type="number"
+                min="1"
+                max="365"
+                value={resetEveryDays}
+                onChange={(e) => setResetEveryDays(e.target.value)}
+              />
+            )}
+            {['monthly', 'yearly', 'jalali_monthly', 'jalali_yearly'].includes(resetPeriod) && (
+              <Select
+                label={lang === 'fa' ? 'مبنای ریست' : 'Count from'}
+                value={String(resetAnchor)}
+                onChange={(e) => setResetAnchor(Number(e.target.value))}
+              >
+                <option value="0">{lang === 'fa' ? 'ابتدای تقویم' : 'Calendar start'}</option>
+                <option value="1">{lang === 'fa' ? 'شروع کاربر' : 'Client start'}</option>
+              </Select>
+            )}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input
+              label={lang === 'fa' ? 'بازه بروزرسانی اپ‌ها (ساعت)' : 'Proxy app refresh (h)'}
+              type="number"
+              min="0"
+              max="720"
+              value={subUpdateHours}
+              onChange={(e) => setSubUpdateHours(e.target.value)}
+            />
+            <Input
+              label={lang === 'fa' ? 'پیام اعلان اپ‌ها' : 'Proxy app announcement'}
+              maxLength={200}
+              value={subAnnounce}
+              onChange={(e) => setSubAnnounce(e.target.value)}
+            />
+          </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Input
@@ -679,6 +842,17 @@ export function ClientDetailPage({ clientId }: { clientId: number }) {
           </div>
         </form>
       </Drawer>
+
+      <Modal open={Boolean(xrayQrLink)} onClose={() => setXrayQrLink(null)} title={xrayQrLink?.title || ''}>
+        {xrayQrLink && (
+          <div className="flex flex-col items-center space-y-3 text-center">
+            <QrCode value={xrayQrLink.link} size={220} />
+            <code className="w-full break-all rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-2.5 text-xs" dir="ltr">
+              {xrayQrLink.link}
+            </code>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

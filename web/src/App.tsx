@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { UiProvider, useUi, type AccentName } from './i18n/context';
-import { apiFetch, setCsrfToken } from './lib/api';
+import { apiFetch, registerMfaConfirmHandler, setCsrfToken } from './lib/api';
 import { Layout, NAV_PATHS, type CurrentAccount, type NavKey } from './components/Layout';
 import { Ambient, EqLoader } from './components/UiPrimitives';
+import { MfaConfirmModal } from './components/MfaConfirmModal';
 import { useLocationState } from './lib/router';
 import { LoginPage } from './pages/LoginPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { ClientsPage } from './pages/ClientsPage';
 import { ClientDetailPage } from './pages/ClientDetailPage';
+import { TemplatesPage } from './pages/TemplatesPage';
 import { GroupsPage } from './pages/GroupsPage';
 import { InboundsPage } from './pages/InboundsPage';
 import { InboundDetailPage } from './pages/InboundDetailPage';
@@ -41,6 +43,7 @@ function resolveRoute(pathname: string): {
   if (clean === '/certificates') return { nav: 'certificates' };
   if (clean === '/routing') return { nav: 'routing', routingTab: 'rules' };
   if (clean === '/routing/outbounds') return { nav: 'routing', routingTab: 'outbounds' };
+  if (clean === '/templates') return { nav: 'templates' };
   if (clean === '/groups') return { nav: 'groups' };
   if (clean === '/accounts' || clean === '/admins') return { nav: 'accounts' };
   if (clean === '/updates') return { nav: 'updates' };
@@ -54,6 +57,18 @@ function PanelRoot() {
   const [checking, setChecking] = useState(true);
   const { pathname, navigate } = useLocationState();
   const [newClientSignal, setNewClientSignal] = useState(0);
+  const [mfaPromptOpen, setMfaPromptOpen] = useState(false);
+  const [mfaResolve, setMfaResolve] = useState<((ok: boolean) => void) | null>(null);
+
+  useEffect(() => {
+    registerMfaConfirmHandler(
+      () =>
+        new Promise<boolean>((resolve) => {
+          setMfaPromptOpen(true);
+          setMfaResolve(() => resolve);
+        }),
+    );
+  }, []);
 
   const route = resolveRoute(pathname);
   const nav = route.nav;
@@ -153,6 +168,7 @@ function PanelRoot() {
         )}
         {nav === 'clients' && route.clientId !== undefined && <ClientDetailPage clientId={route.clientId} />}
         {nav === 'clients' && route.clientId === undefined && <ClientsPage openCreateTrigger={newClientSignal} />}
+        {nav === 'templates' && <TemplatesPage isOwner={account.isOwner} />}
         {nav === 'groups' && <GroupsPage />}
         {nav === 'inbounds' && route.inboundId !== undefined && <InboundDetailPage inboundId={route.inboundId} />}
         {nav === 'inbounds' && route.inboundId === undefined && <InboundsPage />}
@@ -164,6 +180,19 @@ function PanelRoot() {
         {nav === 'updates' && <UpdatesPage />}
         {nav === 'settings' && <SettingsPage account={account} />}
       </Layout>
+      <MfaConfirmModal
+        open={mfaPromptOpen}
+        onConfirmed={() => {
+          setMfaPromptOpen(false);
+          mfaResolve?.(true);
+          setMfaResolve(null);
+        }}
+        onCancel={() => {
+          setMfaPromptOpen(false);
+          mfaResolve?.(false);
+          setMfaResolve(null);
+        }}
+      />
     </>
   );
 }

@@ -1,8 +1,19 @@
+import fs from 'node:fs';
 import { Router } from 'express';
 import { getDb } from '../db/database.js';
-import { generateWireGuardKeypair } from '../security/auth.js';
+import { generateRealityKeypair, generateShortId, generateSs2022Key, generateWireGuardKeypair } from '../security/auth.js';
 import { applyInboundRuntime } from '../drivers/runtime.js';
-import { getInboundRuntimeStatus } from '../drivers/linuxEngine.js';
+import { getInboundRuntimeStatus, issueLetsEncryptCert } from '../drivers/linuxEngine.js';
+import {
+  CURATED_SNI_DOMAINS,
+  buildXrayPresetDefaults,
+  probeRealitySni,
+  sanitizeXraySettingsForClient,
+  saveSniResult,
+  syncAndApplyXrayEngine,
+  validateXraySettings,
+  type XrayPresetId,
+} from '../drivers/xrayEngine.js';
 import { renderInboundServerConfig, type InboundRow, type PeerEntry } from '../generators/configs.js';
 import { recordAudit } from '../services/audit.js';
 import { getEligiblePeersForInbound } from '../services/peerResolver.js';
@@ -107,7 +118,8 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
     res.json({
       inbounds: rows.map((r) => {
         const id = Number(r.id);
-        const settings = JSON.parse(String(r.settings_json || '{}')) as Record<string, unknown>;
+        const rawSettings = JSON.parse(String(r.settings_json || '{}')) as Record<string, unknown>;
+        const settings = String(r.protocol) === 'xray' ? sanitizeXraySettingsForClient(rawSettings) : rawSettings;
         return {
           id,
           nodeId: r.node_id === null ? null : Number(r.node_id),
@@ -132,6 +144,37 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
           onlineCount: liveMap.get(id) || 0,
           allowedClientsCount: countAllowedClients(id),
           createdAt: String(r.created_at),
+        };
+      }),
+    });
+  });
+
+  router.get('/defaults', (req, res) => {
+    const kind = String(req.query.kind || 'xray');
+    if (kind === 'xray') {
+      const preset = (String(req.query.preset || 'direct') as XrayPresetId);
+      const node = Number(req.query.node || 0) || 0;
+      res.json(buildXrayPresetDefaults(preset, node));
+      return;
+    }
+    res.json({ port: 51820, proto: 'udp', network: '10.66.0.0/24', settings: {} });
+  });
+
+  router.get('/brief', (req: AuthedRequest, res) => {
+    const rows = getDb()
+      .prepare('SELECT id, name, protocol, port, enabled, running, settings_json FROM inbounds ORDER BY id ASC')
+      .all() as Array<Record<string, unknown>>;
+    res.json({
+      items: rows.map((r) => {
+        const s = JSON.parse(String(r.settings_json || '{}')) as Record<string, unknown>;
+        return {
+          id: Number(r.id),
+          name: String(r.name),
+          displayName: String(s.displayName || r.name),
+          protocol: String(r.protocol),
+          port: Number(r.port),
+          enabled: Boolean(r.enabled),
+          running: Boolean(r.running),
         };
       }),
     });
@@ -185,9 +228,12 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       nodeIds?: number[];
       ports?: Record<number, number>;
       protocol?: string;
+      kind?: string;
+      preset?: XrayPresetId;
       name?: string;
       displayName?: string;
       transport?: string;
+      proto?: string;
       port?: number;
       subnet?: string;
       authMode?: string;
@@ -199,9 +245,48 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       groupIds?: number[];
     };
 
-    const protocol = body.protocol || 'wireguard';
-    const transport = body.transport || 'udp';
-    const port = Number(body.port || 0);
+    const protocol = body.protocol || body.kind || 'wireguard';
+    const isXray = protocol === 'xray';
+
+    let settingsObj: Record<string, unknown> = {
+      ...(body.settings || (isXray ? {} : { dns: '1.1.1.1, 8.8.8.8' })),
+      ...(body.displayName ? { displayName: body.displayName.trim() } : {}),
+    };
+    let transport = body.transport || body.proto || (isXray ? 'tcp' : 'udp');
+    let port = Number(body.port || 0);
+    let keys = { privateKey: '', publicKey: '' };
+
+    const db = getDb();
+
+    if (isXray) {
+      const defaults = buildXrayPresetDefaults(body.preset || 'direct', Number(body.nodeId || 0));
+      settingsObj = { ...defaults.settings, ...settingsObj };
+      if (!port) port = defaults.port;
+      transport = String(settingsObj.transport || '') === 'kcp' ? 'udp' : 'tcp';
+      const errMsg = validateXraySettings(settingsObj);
+      if (errMsg) {
+        res.status(400).json({ error: errMsg });
+        return;
+      }
+      if (String(settingsObj.security || '') === 'reality') {
+        if (!settingsObj.realityPublicKey || !settingsObj._realityPrivateKey) {
+          const rk = generateRealityKeypair();
+          settingsObj.realityPublicKey = rk.publicKey;
+          settingsObj._realityPrivateKey = rk.privateKey;
+        }
+        keys = {
+          publicKey: String(settingsObj.realityPublicKey),
+          privateKey: String(settingsObj._realityPrivateKey),
+        };
+      } else if (String(settingsObj.protocol || '') === 'shadowsocks') {
+        const method = String(settingsObj.ssMethod || '2022-blake3-aes-128-gcm');
+        const ssKey = String(settingsObj._ssServerKey || generateSs2022Key(method));
+        keys = { publicKey: ssKey, privateKey: ssKey };
+      }
+    } else if (protocol === 'wireguard' || protocol === 'amneziawg') {
+      keys = generateWireGuardKeypair();
+    }
+
     if (port < 1 || port > 65535) {
       res.status(400).json({ error: 'Port must be 1-65535' });
       return;
@@ -213,23 +298,24 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
     }
 
     const name = resolveUniqueSlug(body.name, body.displayName, protocol, transport, port);
-    const keys =
-      protocol === 'wireguard' || protocol === 'amneziawg'
-        ? generateWireGuardKeypair()
-        : { privateKey: '', publicKey: '' };
 
-    const db = getDb();
+    const resolveNodeId = (rawId: number | null | undefined): number | null => {
+      if (rawId === null || rawId === undefined || rawId < 0) return null;
+      if (rawId === 0) {
+        const local = db.prepare('SELECT id FROM nodes WHERE is_local = 1 ORDER BY id ASC LIMIT 1').get() as { id: number } | undefined;
+        return local?.id ?? 1;
+      }
+      return rawId;
+    };
+
     const targetNodeIds =
       body.nodeIds && body.nodeIds.length > 0
-        ? body.nodeIds
-        : body.nodeId
-          ? [body.nodeId]
-          : [null];
-
-    const settingsObj: Record<string, unknown> = {
-      ...(body.settings || { dns: '1.1.1.1, 8.8.8.8' }),
-      ...(body.displayName ? { displayName: body.displayName.trim() } : {}),
-    };
+        ? body.nodeIds.map((nid) => resolveNodeId(nid))
+        : body.nodeId !== undefined && body.nodeId !== null
+          ? [resolveNodeId(body.nodeId)]
+          : isXray
+            ? [resolveNodeId(0)]
+            : [null];
 
     const existingSubnets = new Set(
       (db.prepare('SELECT subnet FROM inbounds').all() as { subnet: string }[]).map((r) => r.subnet),
@@ -334,10 +420,24 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
 
     const existingSettings = JSON.parse(existing.settings_json || '{}') as Record<string, unknown>;
     const nextSettings = body.settings
-      ? { ...existingSettings, ...body.settings, ...(body.displayName !== undefined ? { displayName: body.displayName } : {}) }
+      ? {
+          ...existingSettings,
+          ...body.settings,
+          ...(existingSettings._realityPrivateKey ? { _realityPrivateKey: existingSettings._realityPrivateKey } : {}),
+          ...(existingSettings._ssServerKey ? { _ssServerKey: existingSettings._ssServerKey } : {}),
+          ...(body.displayName !== undefined ? { displayName: body.displayName } : {}),
+        }
       : body.displayName !== undefined
         ? { ...existingSettings, displayName: body.displayName }
         : existingSettings;
+
+    if (existing.protocol === 'xray') {
+      const errMsg = validateXraySettings(nextSettings);
+      if (errMsg) {
+        res.status(400).json({ error: errMsg });
+        return;
+      }
+    }
 
     db.prepare(
       `UPDATE inbounds SET transport = ?, port = ?, subnet = ?, auth_mode = ?, description = ?, public_address_override = ?, enabled = ?, cert_id = ?, settings_json = ? WHERE id = ?`,
@@ -550,8 +650,177 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       await applyInboundRuntime(driverMode, row, [], 'stop');
     }
     db.prepare('DELETE FROM inbounds WHERE id = ?').run(id);
+    if (row.protocol === 'xray' && row.running) {
+      await syncAndApplyXrayEngine().catch(() => undefined);
+    }
     recordAudit({ accountId: acc.id, username: acc.username, action: 'instance.delete', target: row.name, ip: req.clientIp });
     res.json({ ok: true });
+  });
+
+  router.post('/:id/xray/reality-keys', async (req: AuthedRequest, res) => {
+    const acc = req.auth!.account;
+    if (!acc.isOwner && acc.permissions.inbounds.manage === 'none') {
+      res.status(403).json({ error: 'No permission' });
+      return;
+    }
+    const { confirm } = req.body as { confirm?: boolean };
+    if (!confirm) {
+      res.status(400).json({ error: 'Confirmation required: rotating Reality keys changes every client link' });
+      return;
+    }
+    const id = Number(req.params.id);
+    const db = getDb();
+    const row = db.prepare('SELECT * FROM inbounds WHERE id = ?').get(id) as InboundRow | undefined;
+    if (!row || row.protocol !== 'xray') {
+      res.status(404).json({ error: 'Xray inbound not found' });
+      return;
+    }
+    const settings = JSON.parse(row.settings_json || '{}') as Record<string, unknown>;
+    const rk = generateRealityKeypair();
+    const sid = generateShortId(4);
+    const reality = (settings.reality && typeof settings.reality === 'object' ? settings.reality : {}) as Record<string, unknown>;
+    reality.shortIds = [sid];
+    settings.reality = reality;
+    settings.realityPublicKey = rk.publicKey;
+    settings._realityPrivateKey = rk.privateKey;
+
+    db.prepare('UPDATE inbounds SET server_public_key = ?, server_private_key = ?, settings_json = ? WHERE id = ?').run(
+      rk.publicKey,
+      rk.privateKey,
+      JSON.stringify(settings),
+      id,
+    );
+    let warning = '';
+    if (row.running) {
+      const r = await syncAndApplyXrayEngine();
+      if (!r.ok) warning = r.statusMessage;
+    }
+    res.json({ ok: true, publicKey: rk.publicKey, shortId: sid, warning: warning || undefined });
+  });
+
+  router.post('/:id/xray/sni/replace', async (req: AuthedRequest, res) => {
+    const acc = req.auth!.account;
+    if (!acc.isOwner && acc.permissions.inbounds.manage === 'none') {
+      res.status(403).json({ error: 'No permission' });
+      return;
+    }
+    const { confirm } = req.body as { confirm?: boolean };
+    if (!confirm) {
+      res.status(400).json({ error: 'Confirmation required: replacing camouflage site changes every client link' });
+      return;
+    }
+    const id = Number(req.params.id);
+    const db = getDb();
+    const row = db.prepare('SELECT * FROM inbounds WHERE id = ?').get(id) as InboundRow | undefined;
+    if (!row || row.protocol !== 'xray') {
+      res.status(404).json({ error: 'Xray inbound not found' });
+      return;
+    }
+    const settings = JSON.parse(row.settings_json || '{}') as Record<string, unknown>;
+    const reality = (settings.reality && typeof settings.reality === 'object' ? settings.reality : {}) as Record<string, unknown>;
+    const currentSni = Array.isArray(reality.serverNames) ? String(reality.serverNames[0] || '') : '';
+
+    let bestResult = null;
+    for (const c of CURATED_SNI_DOMAINS) {
+      if (c.domain === currentSni) continue;
+      const r = await probeRealitySni(c.domain, c.tag);
+      saveSniResult(row.node_id || 0, r);
+      if (r.grade === 'green') {
+        bestResult = r;
+        break;
+      }
+    }
+    if (!bestResult) {
+      bestResult = await probeRealitySni(CURATED_SNI_DOMAINS[0].domain, CURATED_SNI_DOMAINS[0].tag);
+    }
+
+    reality.serverNames = [bestResult.domain];
+    reality.target = `${bestResult.domain}:443`;
+    settings.reality = reality;
+    settings.sniTested = true;
+    settings.sniChecked = bestResult.checkedAt;
+    settings.sniMillis = bestResult.tlsMs;
+    settings.sniGrade = bestResult.grade;
+    settings.sniReasons = bestResult.reasons;
+
+    db.prepare('UPDATE inbounds SET settings_json = ? WHERE id = ?').run(JSON.stringify(settings), id);
+    let warning = '';
+    if (row.running) {
+      const r = await syncAndApplyXrayEngine();
+      if (!r.ok) warning = r.statusMessage;
+    }
+    res.json({ ok: true, result: bestResult, warning: warning || undefined });
+  });
+
+  router.post('/:id/xray/certificate', async (req: AuthedRequest, res) => {
+    const acc = req.auth!.account;
+    if (!acc.isOwner && acc.permissions.inbounds.manage === 'none') {
+      res.status(403).json({ error: 'No permission' });
+      return;
+    }
+    const id = Number(req.params.id);
+    const db = getDb();
+    const row = db.prepare('SELECT * FROM inbounds WHERE id = ?').get(id) as InboundRow | undefined;
+    if (!row || row.protocol !== 'xray') {
+      res.status(404).json({ error: 'Xray inbound not found' });
+      return;
+    }
+    const settings = JSON.parse(row.settings_json || '{}') as Record<string, unknown>;
+    const host = String(settings.tlsHost || settings.cdnHost || row.public_address_override || '').trim();
+    if (!host) {
+      res.status(400).json({ error: 'TLS domain name (tlsHost / cdnHost) is required before issuing a certificate' });
+      return;
+    }
+    const certRes = await issueLetsEncryptCert(host);
+    if (!certRes.ok) {
+      res.status(502).json({ error: certRes.log || 'Certificate issuance failed' });
+      return;
+    }
+    const tlsObj = (settings.tls && typeof settings.tls === 'object' ? settings.tls : {}) as Record<string, unknown>;
+    tlsObj.certFile = certRes.certPath;
+    tlsObj.keyFile = certRes.keyPath;
+    settings.tls = tlsObj;
+    db.prepare('UPDATE inbounds SET settings_json = ? WHERE id = ?').run(JSON.stringify(settings), id);
+    if (row.running) await syncAndApplyXrayEngine().catch(() => undefined);
+    res.json({ ok: true, certFile: certRes.certPath, keyFile: certRes.keyPath });
+  });
+
+  router.get('/:id/xray/proxy-check', (req: AuthedRequest, res) => {
+    const id = Number(req.params.id);
+    const row = getDb().prepare('SELECT * FROM inbounds WHERE id = ?').get(id) as InboundRow | undefined;
+    if (!row || row.protocol !== 'xray') {
+      res.status(404).json({ error: 'Xray inbound not found' });
+      return;
+    }
+    const settings = JSON.parse(row.settings_json || '{}') as Record<string, unknown>;
+    const relays = Array.isArray(settings.allowFrom) ? settings.allowFrom.map(String) : [];
+    let lastIp = '';
+    let lastSeenAt = 0;
+    const accessLog = '/var/log/xprotocol/xray-access.log';
+    if (process.platform === 'linux' && fs.existsSync(accessLog)) {
+      try {
+        const tail = fs.readFileSync(accessLog, 'utf8').split('\n').slice(-40);
+        for (const line of tail.reverse()) {
+          const m = line.match(/from\s+(?:tcp:|udp:)?(\d{1,3}(?:\.\d{1,3}){3}):\d+/);
+          if (m) {
+            lastIp = m[1];
+            lastSeenAt = Math.floor(fs.statSync(accessLog).mtimeMs / 1000);
+            break;
+          }
+        }
+      } catch {
+        // ignore log read errors
+      }
+    }
+    res.json({
+      enabled: Boolean(settings.proxyProtocol),
+      running: Boolean(row.running),
+      relays,
+      headerReceived: Boolean(lastIp),
+      lastIp,
+      lastSeenAt,
+      looksLikeRelay: Boolean(lastIp && relays.includes(lastIp)),
+    });
   });
 
   return router;

@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import crypto from 'node:crypto';
 import { getDbPath } from '../config.js';
-import { hashPassword, generateWireGuardKeypair, randomToken } from '../security/auth.js';
+import { hashPassword, generateWireGuardKeypair, generateSs2022Key, randomToken } from '../security/auth.js';
 import {
   ADMIN_PERMISSIONS,
   OWNER_PERMISSIONS,
@@ -31,9 +31,11 @@ export function closeDb(): void {
 export interface GeneralSettings {
   brandName: string;
   publicAddress: string;
+  panelUrl: string;
   subscriptionLinkAddress: string;
   supportTelegram: string;
   defaultSubLanguage: 'en' | 'fa';
+  timezone: string;
   panelColor: 'lime' | 'cyan' | 'mint' | 'amber' | 'coral' | 'rose' | 'violet' | 'sky';
   warnExpiresWithinDays: number;
   warnTrafficPercent: number;
@@ -41,10 +43,16 @@ export interface GeneralSettings {
   retentionTrafficDays: number;
   retentionConnectionDays: number;
   retentionActivityDays: number;
+  eventRetainDays: number;
+  nodeSampleRawDays: number;
+  nodeSampleKeepDays: number;
+  metricsRoot: boolean;
+  loginAllowCidrs: string[];
+  loginOnlyAllowCidrs: boolean;
 }
 
 export interface SubPageProtocolConfig {
-  id: 'openvpn' | 'wireguard' | 'amneziawg' | 'openconnect' | 'ikev2' | 'l2tp';
+  id: 'openvpn' | 'wireguard' | 'amneziawg' | 'openconnect' | 'ikev2' | 'l2tp' | 'xray';
   shown: boolean;
   tabName: string;
   guideNote: string;
@@ -66,12 +74,30 @@ export interface SubscriptionPageSettings {
   protocols: SubPageProtocolConfig[];
 }
 
+export interface ProxyAppsSettings {
+  updateHours: number;
+  titlePattern: string;
+  supportUrl: string;
+  announce: string;
+  expiredEntry: boolean;
+  providerId: string;
+  happ: {
+    routingEnable?: boolean;
+    hideSettings?: boolean;
+    showTraffic?: boolean;
+    showExpire?: boolean;
+    renewUrl?: string;
+  };
+}
+
 export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   brandName: 'XProtocol',
   publicAddress: process.env.XPROTOCOL_PUBLIC_IP || '127.0.0.1',
+  panelUrl: '',
   subscriptionLinkAddress: '',
   supportTelegram: '',
   defaultSubLanguage: 'en',
+  timezone: 'Asia/Tehran',
   panelColor: 'mint',
   warnExpiresWithinDays: 5,
   warnTrafficPercent: 85,
@@ -79,6 +105,28 @@ export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   retentionTrafficDays: 30,
   retentionConnectionDays: 30,
   retentionActivityDays: 90,
+  eventRetainDays: 30,
+  nodeSampleRawDays: 7,
+  nodeSampleKeepDays: 90,
+  metricsRoot: false,
+  loginAllowCidrs: [],
+  loginOnlyAllowCidrs: false,
+};
+
+export const DEFAULT_PROXY_APPS: ProxyAppsSettings = {
+  updateHours: 6,
+  titlePattern: '{brand} · {user}',
+  supportUrl: '',
+  announce: '',
+  expiredEntry: true,
+  providerId: '',
+  happ: {
+    routingEnable: false,
+    hideSettings: false,
+    showTraffic: true,
+    showExpire: true,
+    renewUrl: '',
+  },
 };
 
 export const DEFAULT_SUB_SETTINGS: SubscriptionPageSettings = {
@@ -89,6 +137,14 @@ export const DEFAULT_SUB_SETTINGS: SubscriptionPageSettings = {
   supportButtonText: '',
   channelLink: '',
   protocols: [
+    {
+      id: 'xray',
+      shown: true,
+      tabName: '',
+      guideNote: '',
+      useRecommendedApps: true,
+      customApps: { android: [], ios: [], desktop: [] },
+    },
     {
       id: 'wireguard',
       shown: true,
@@ -413,6 +469,130 @@ export function initDatabase(): { initialPasswordGenerated?: string } {
       details TEXT NOT NULL DEFAULT '',
       ip TEXT NOT NULL DEFAULT ''
     );
+
+    CREATE TABLE IF NOT EXISTS client_templates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      settings_json TEXT NOT NULL,
+      sort INTEGER NOT NULL DEFAULT 0,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS sub_origins (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      admin_id INTEGER NOT NULL DEFAULT 0,
+      url TEXT NOT NULL,
+      is_primary INTEGER NOT NULL DEFAULT 0,
+      note TEXT NOT NULL DEFAULT '',
+      behind_cdn INTEGER NOT NULL DEFAULT 0,
+      tls_status TEXT NOT NULL DEFAULT 'ok',
+      added_at TEXT NOT NULL,
+      UNIQUE(admin_id, url)
+    );
+
+    CREATE TABLE IF NOT EXISTS events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      at INTEGER NOT NULL,
+      owner_id INTEGER NOT NULL DEFAULT 0,
+      subject TEXT NOT NULL DEFAULT '',
+      data_json TEXT NOT NULL DEFAULT '{}'
+    );
+
+    CREATE TABLE IF NOT EXISTS account_event_reads (
+      account_id INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+      last_seen_event_id INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS webhooks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL DEFAULT 0,
+      url TEXT NOT NULL,
+      secret TEXT NOT NULL,
+      events_json TEXT NOT NULL DEFAULT '[]',
+      include_sub_link INTEGER NOT NULL DEFAULT 0,
+      allow_private INTEGER NOT NULL DEFAULT 0,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS webhook_deliveries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      webhook_id INTEGER NOT NULL REFERENCES webhooks(id) ON DELETE CASCADE,
+      event_id INTEGER NOT NULL,
+      event_type TEXT NOT NULL,
+      status_code INTEGER NOT NULL DEFAULT 0,
+      ok INTEGER NOT NULL DEFAULT 0,
+      error TEXT NOT NULL DEFAULT '',
+      duration_ms INTEGER NOT NULL DEFAULT 0,
+      delivered_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS backup_destinations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      kind TEXT NOT NULL,
+      name TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      encrypt INTEGER NOT NULL DEFAULT 0,
+      config_json TEXT NOT NULL DEFAULT '{}',
+      secrets_json TEXT NOT NULL DEFAULT '{}',
+      schedule_json TEXT NOT NULL DEFAULT '{"mode":"daily","hour":3}',
+      retention_json TEXT NOT NULL DEFAULT '{"keepLast":7,"maxDays":30}',
+      last_at INTEGER NOT NULL DEFAULT 0,
+      last_size INTEGER NOT NULL DEFAULT 0,
+      last_name TEXT NOT NULL DEFAULT '',
+      last_error TEXT NOT NULL DEFAULT '',
+      last_error_at INTEGER NOT NULL DEFAULT 0,
+      last_prune TEXT NOT NULL DEFAULT '',
+      next_at INTEGER NOT NULL DEFAULT 0,
+      running INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS node_health_samples (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      node_id INTEGER NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+      ts INTEGER NOT NULL,
+      granularity TEXT NOT NULL DEFAULT 'raw',
+      online INTEGER NOT NULL DEFAULT 1,
+      cpu REAL,
+      mem_used INTEGER,
+      mem_total INTEGER,
+      disk_used INTEGER,
+      disk_total INTEGER,
+      upload INTEGER NOT NULL DEFAULT 0,
+      download INTEGER NOT NULL DEFAULT 0,
+      clients INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_node_health_lookup ON node_health_samples(node_id, granularity, ts);
+
+    CREATE TABLE IF NOT EXISTS xray_sni_results (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      node_id INTEGER NOT NULL DEFAULT 0,
+      domain TEXT NOT NULL,
+      tag TEXT NOT NULL DEFAULT 'general',
+      grade TEXT NOT NULL,
+      reasons_json TEXT NOT NULL DEFAULT '[]',
+      tcp_ms INTEGER NOT NULL DEFAULT 0,
+      tls_ms INTEGER NOT NULL DEFAULT 0,
+      checked_at INTEGER NOT NULL,
+      UNIQUE(node_id, domain)
+    );
+
+    CREATE TABLE IF NOT EXISTS security_bans (
+      key TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      target TEXT NOT NULL,
+      level INTEGER NOT NULL DEFAULT 1,
+      fail_count INTEGER NOT NULL DEFAULT 0,
+      fail_window_start INTEGER NOT NULL DEFAULT 0,
+      until INTEGER NOT NULL DEFAULT 0,
+      last_fail INTEGER NOT NULL DEFAULT 0
+    );
   `);
 
   // Idempotent schema migrations for pre-existing databases
@@ -426,7 +606,33 @@ export function initDatabase(): { initialPasswordGenerated?: string } {
   ensureCol('groups', 'upload_mbps', 'REAL');
   ensureCol('clients', 'download_mbps', 'REAL');
   ensureCol('clients', 'upload_mbps', 'REAL');
+  ensureCol('clients', 'xray_uuid', "TEXT NOT NULL DEFAULT ''");
+  ensureCol('clients', 'ss_password', "TEXT NOT NULL DEFAULT ''");
+  ensureCol('clients', 'reset_every_days', 'INTEGER NOT NULL DEFAULT 0');
+  ensureCol('clients', 'reset_anchor', 'INTEGER NOT NULL DEFAULT 0');
+  ensureCol('clients', 'template_id', 'INTEGER NOT NULL DEFAULT 0');
+  ensureCol('clients', 'sub_update_hours', 'INTEGER NOT NULL DEFAULT 0');
+  ensureCol('clients', 'sub_announce', "TEXT NOT NULL DEFAULT ''");
   ensureCol('routing_policies', 'inbound_routes_json', "TEXT NOT NULL DEFAULT '[]'");
+  ensureCol('accounts', 'override_allowed_templates_json', "TEXT NOT NULL DEFAULT '[]'");
+  ensureCol('accounts', 'override_templates_only', 'INTEGER');
+  ensureCol('accounts', 'telegram_chat_id', "TEXT NOT NULL DEFAULT ''");
+  ensureCol('accounts', 'telegram_chat_name', "TEXT NOT NULL DEFAULT ''");
+  ensureCol('accounts', 'telegram_link_token', "TEXT NOT NULL DEFAULT ''");
+  ensureCol('accounts', 'notification_prefs_json', "TEXT NOT NULL DEFAULT '{\"off\":[],\"locale\":\"\",\"scope\":\"all\"}'");
+  ensureCol('accounts', 'sub_apps_json', "TEXT NOT NULL DEFAULT '{}'");
+  ensureCol('sessions', 'mfa_confirmed_at', 'INTEGER NOT NULL DEFAULT 0');
+  ensureCol('nodes', 'allow_from_json', "TEXT NOT NULL DEFAULT '[]'");
+
+  // Backfill Xray UUID / SS2022 password for existing clients missing them
+  const missingXrayClients = db
+    .prepare("SELECT id FROM clients WHERE xray_uuid = '' OR ss_password = ''")
+    .all() as Array<{ id: number }>;
+  for (const mc of missingXrayClients) {
+    db.prepare(
+      "UPDATE clients SET xray_uuid = CASE WHEN xray_uuid = '' THEN ? ELSE xray_uuid END, ss_password = CASE WHEN ss_password = '' THEN ? ELSE ss_password END WHERE id = ?",
+    ).run(crypto.randomUUID(), generateSs2022Key('2022-blake3-aes-128-gcm'), mc.id);
+  }
 
   const now = new Date().toISOString();
 
@@ -441,6 +647,8 @@ export function initDatabase(): { initialPasswordGenerated?: string } {
       maxLifetimeDays: null,
       maxDevicesPerClient: null,
       allowUnlimitedTraffic: true,
+      allowedTemplates: [],
+      templatesOnly: false,
     };
     const resellerLimits: RoleLimits = {
       defaultTrafficPoolGb: 100,
@@ -450,6 +658,8 @@ export function initDatabase(): { initialPasswordGenerated?: string } {
       maxLifetimeDays: 90,
       maxDevicesPerClient: 3,
       allowUnlimitedTraffic: false,
+      allowedTemplates: [],
+      templatesOnly: false,
     };
     const insertRole = db.prepare(
       'INSERT INTO roles (id, name, built_in, is_owner, permissions_json, limits_json, created_at) VALUES (?, ?, 1, ?, ?, ?, ?)',
@@ -465,6 +675,25 @@ export function initDatabase(): { initialPasswordGenerated?: string } {
   }
   if (!db.prepare('SELECT key FROM settings WHERE key = ?').get('subscription_page')) {
     setSetting('subscription_page', DEFAULT_SUB_SETTINGS);
+  } else {
+    const subCfg = getSetting('subscription_page', DEFAULT_SUB_SETTINGS);
+    if (!subCfg.protocols.some((p) => p.id === 'xray')) {
+      subCfg.protocols = [
+        {
+          id: 'xray',
+          shown: true,
+          tabName: '',
+          guideNote: '',
+          useRecommendedApps: true,
+          customApps: { android: [], ios: [], desktop: [] },
+        },
+        ...subCfg.protocols,
+      ];
+      setSetting('subscription_page', subCfg);
+    }
+  }
+  if (!db.prepare('SELECT key FROM settings WHERE key = ?').get('proxy_apps')) {
+    setSetting('proxy_apps', DEFAULT_PROXY_APPS);
   }
 
   // Seed owner account

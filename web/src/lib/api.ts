@@ -13,13 +13,21 @@ export function getApiBase(): string {
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  code?: string;
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
-export async function apiFetch<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
+let mfaConfirmHandler: (() => Promise<boolean>) | null = null;
+
+export function registerMfaConfirmHandler(fn: (() => Promise<boolean>) | null): void {
+  mfaConfirmHandler = fn;
+}
+
+export async function apiFetch<T = unknown>(path: string, init: RequestInit = {}, _retriedMfa = false): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
@@ -36,13 +44,21 @@ export async function apiFetch<T = unknown>(path: string, init: RequestInit = {}
 
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
+    let code: string | undefined;
     try {
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json()) as { error?: string; code?: string };
       if (data.error) msg = data.error;
+      if (data.code) code = data.code;
     } catch {
       // ignore
     }
-    throw new ApiError(res.status, msg);
+    if (res.status === 403 && code === 'mfa_confirm_required' && !_retriedMfa && mfaConfirmHandler) {
+      const confirmed = await mfaConfirmHandler();
+      if (confirmed) {
+        return apiFetch<T>(path, init, true);
+      }
+    }
+    throw new ApiError(res.status, msg, code);
   }
 
   const contentType = res.headers.get('content-type') || '';

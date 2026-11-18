@@ -31,6 +31,8 @@ import { Modal } from '../components/Modal';
 import { Drawer } from '../components/Drawer';
 import { QrCode } from '../components/QrCode';
 
+import type { ClientTemplateItem } from './TemplatesPage';
+
 export interface ClientItem {
   id: number;
   name: string;
@@ -46,8 +48,16 @@ export interface ClientItem {
   firstConnectDays: number | null;
   firstConnectedAt?: string | null;
   deviceLimit: number | null;
+  downloadMbps?: number | null;
+  uploadMbps?: number | null;
   onlineCount: number;
-  resetPeriod: 'never' | 'daily' | 'weekly' | 'monthly';
+  resetPeriod: string;
+  resetEveryDays?: number;
+  resetAnchor?: number;
+  nextResetAt?: string | null;
+  templateId?: number;
+  subUpdateHours?: number;
+  subAnnounce?: string;
   fixedIp: string;
   enabled: boolean;
   note: string;
@@ -79,6 +89,10 @@ export function ClientsPage({
 
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [groups, setGroups] = useState<GroupOption[]>([]);
+  const [templates, setTemplates] = useState<ClientTemplateItem[]>([]);
+  const [owners, setOwners] = useState<Array<{ id: number; username: string }>>([]);
+  const [isOwner, setIsOwner] = useState(true);
+  const [templatesOnly, setTemplatesOnly] = useState(false);
   const [search, setSearch] = useState(qParam);
   const [sortBy, setSortBy] = useState<'newest' | 'name' | 'traffic' | 'ending'>('newest');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -90,6 +104,20 @@ export function ClientsPage({
   const [extendClient, setExtendClient] = useState<ClientItem | null>(null);
   const [bulkExtendOpen, setBulkExtendOpen] = useState(false);
   const [bulkGroupsOpen, setBulkGroupsOpen] = useState(false);
+  const [bulkSpeedOpen, setBulkSpeedOpen] = useState(false);
+  const [bulkDevicesOpen, setBulkDevicesOpen] = useState(false);
+  const [bulkSubOpen, setBulkSubOpen] = useState(false);
+  const [bulkMoveOpen, setBulkMoveOpen] = useState(false);
+  const [bulkTplOpen, setBulkTplOpen] = useState(false);
+  const [bulkCreatedItems, setBulkCreatedItems] = useState<Array<{ id: number; name: string; subToken: string }>>([]);
+  const [bulkSpeedDl, setBulkSpeedDl] = useState('');
+  const [bulkSpeedUl, setBulkSpeedUl] = useState('');
+  const [bulkDevCap, setBulkDevCap] = useState('');
+  const [bulkSubHrs, setBulkSubHrs] = useState('0');
+  const [bulkSubAnn, setBulkSubAnn] = useState('');
+  const [bulkMoveOwnerId, setBulkMoveOwnerId] = useState('');
+  const [bulkTplId, setBulkTplId] = useState('');
+  const [bulkTplOp, setBulkTplOp] = useState<'apply_template' | 'renew'>('apply_template');
   const [bulkGroupOp, setBulkGroupOp] = useState<'add' | 'replace' | 'remove'>('add');
   const [bulkGroupIds, setBulkGroupIds] = useState<number[]>([]);
   const [extDays, setExtDays] = useState('30');
@@ -97,14 +125,21 @@ export function ClientsPage({
   const [copiedId, setCopiedId] = useState<number | null>(null);
 
   // Form fields
+  const [templateId, setTemplateId] = useState<number>(0);
   const [name, setName] = useState('');
   const [startNumber, setStartNumber] = useState('1');
   const [bulkCount, setBulkCount] = useState('10');
   const [trafficGb, setTrafficGb] = useState('50');
+  const [downloadMbps, setDownloadMbps] = useState('');
+  const [uploadMbps, setUploadMbps] = useState('');
   const [expiryMode, setExpiryMode] = useState<'unlimited' | 'days' | 'first_connect'>('days');
   const [expiryDays, setExpiryDays] = useState('30');
   const [deviceLimit, setDeviceLimit] = useState('2');
-  const [resetPeriod, setResetPeriod] = useState<'never' | 'daily' | 'weekly' | 'monthly'>('never');
+  const [resetPeriod, setResetPeriod] = useState('never');
+  const [resetEveryDays, setResetEveryDays] = useState('30');
+  const [resetAnchor, setResetAnchor] = useState(0);
+  const [subUpdateHours, setSubUpdateHours] = useState('0');
+  const [subAnnounce, setSubAnnounce] = useState('');
   const [fixedIp, setFixedIp] = useState('');
   const [vpnPassword, setVpnPassword] = useState('');
   const [enabled, setEnabled] = useState(true);
@@ -115,12 +150,25 @@ export function ClientsPage({
   const [formError, setFormError] = useState('');
 
   const load = async () => {
-    const [cRes, gRes] = await Promise.all([
+    const [cRes, gRes, tRes, meRes] = await Promise.all([
       apiFetch<{ clients: ClientItem[] }>('/clients'),
       apiFetch<{ groups: GroupOption[] }>('/groups').catch(() => ({ groups: [] })),
+      apiFetch<{ items: ClientTemplateItem[] }>('/client-templates').catch(() => ({ items: [] })),
+      apiFetch<{ account?: { isOwner?: boolean; effectiveLimits?: { templatesOnly?: boolean } } }>('/auth/me').catch(
+        () => ({ account: undefined }),
+      ),
     ]);
     setClients(cRes.clients);
     setGroups(gRes.groups);
+    setTemplates(tRes.items || []);
+    const ownerFlag = Boolean(meRes.account?.isOwner ?? true);
+    setIsOwner(ownerFlag);
+    setTemplatesOnly(Boolean(!ownerFlag && meRes.account?.effectiveLimits?.templatesOnly));
+    if (ownerFlag) {
+      apiFetch<{ accounts: Array<{ id: number; username: string }> }>('/accounts')
+        .then((a) => setOwners(a.accounts || []))
+        .catch(() => undefined);
+    }
   };
 
   useEffect(() => {
@@ -137,6 +185,9 @@ export function ClientsPage({
     if (searchParams.get('new') === '1') {
       openNew(false);
       updateSearchParams((p) => p.delete('new'), { replace: true });
+    } else if (searchParams.get('bulk') === '1') {
+      openNew(true);
+      updateSearchParams((p) => p.delete('bulk'), { replace: true });
     }
   }, [searchParams]);
 
@@ -164,17 +215,44 @@ export function ClientsPage({
     }, { replace: true });
   };
 
+  const applyTemplateToForm = (tpl: ClientTemplateItem) => {
+    setTemplateId(tpl.id);
+    setTrafficGb(tpl.settings.trafficLimit > 0 ? String(Math.round((tpl.settings.trafficLimit / 1024 ** 3) * 100) / 100) : '');
+    setDownloadMbps(tpl.settings.speedDown > 0 ? String(tpl.settings.speedDown / 1000) : '');
+    setUploadMbps(tpl.settings.speedUp > 0 ? String(tpl.settings.speedUp / 1000) : '');
+    if (tpl.settings.days > 0) {
+      setExpiryMode(tpl.settings.startOnFirstUse ? 'first_connect' : 'days');
+      setExpiryDays(String(tpl.settings.days));
+    } else {
+      setExpiryMode('unlimited');
+    }
+    setDeviceLimit(tpl.settings.maxDevices > 0 ? String(tpl.settings.maxDevices) : '');
+    setResetPeriod(tpl.settings.resetStrategy === 'none' ? 'never' : tpl.settings.resetStrategy || 'never');
+    setResetEveryDays(String(tpl.settings.resetEveryDays || 30));
+    setResetAnchor(tpl.settings.resetAnchor || 0);
+    setSubUpdateHours(String(tpl.settings.subUpdateHours || 0));
+    setSubAnnounce(tpl.settings.subAnnounce || '');
+    if (tpl.settings.groups?.length) setSelectedGroupIds(tpl.settings.groups);
+  };
+
   const openNew = (isBulk: boolean) => {
     setEditing(null);
     setBulkMode(isBulk);
+    setTemplateId(0);
     setName('');
     setStartNumber('1');
     setBulkCount('10');
     setTrafficGb('50');
+    setDownloadMbps('');
+    setUploadMbps('');
     setExpiryMode('days');
     setExpiryDays('30');
     setDeviceLimit('2');
     setResetPeriod('never');
+    setResetEveryDays('30');
+    setResetAnchor(0);
+    setSubUpdateHours('0');
+    setSubAnnounce('');
     setFixedIp('');
     setVpnPassword('');
     setEnabled(true);
@@ -183,22 +261,32 @@ export function ClientsPage({
     setShowMoreOptions(false);
     setSelectedGroupIds(groups.length > 0 ? [groups[0].id] : []);
     setFormError('');
+    if (templatesOnly && templates.length > 0) {
+      applyTemplateToForm(templates[0]);
+    }
     setFormOpen(true);
   };
 
   const openEdit = (c: ClientItem) => {
     setEditing(c);
     setBulkMode(false);
+    setTemplateId(c.templateId || 0);
     setName(c.name);
     setTrafficGb(c.trafficLimitBytes ? String(Math.round(c.trafficLimitBytes / 1024 ** 3)) : '');
+    setDownloadMbps(c.downloadMbps ? String(c.downloadMbps) : '');
+    setUploadMbps(c.uploadMbps ? String(c.uploadMbps) : '');
     setDeviceLimit(c.deviceLimit ? String(c.deviceLimit) : '');
-    setResetPeriod(c.resetPeriod);
+    setResetPeriod(c.resetPeriod || 'never');
+    setResetEveryDays(String(c.resetEveryDays || 30));
+    setResetAnchor(c.resetAnchor || 0);
+    setSubUpdateHours(String(c.subUpdateHours || 0));
+    setSubAnnounce(c.subAnnounce || '');
     setFixedIp(c.fixedIp);
     setVpnPassword(c.vpnPassword || '');
     setEnabled(c.enabled);
     setNote(c.note);
     setContact(c.contact);
-    setShowMoreOptions(Boolean(c.fixedIp || c.note || c.contact || !c.enabled));
+    setShowMoreOptions(Boolean(c.fixedIp || c.note || c.contact || !c.enabled || c.subUpdateHours || c.subAnnounce));
     setSelectedGroupIds(c.groups.map((g) => g.id));
     setFormError('');
     setFormOpen(true);
@@ -213,8 +301,14 @@ export function ClientsPage({
           method: 'PATCH',
           body: JSON.stringify({
             trafficGb: trafficGb ? Number(trafficGb) : null,
+            downloadMbps: downloadMbps ? Number(downloadMbps) : null,
+            uploadMbps: uploadMbps ? Number(uploadMbps) : null,
             deviceLimit: deviceLimit ? Number(deviceLimit) : null,
             resetPeriod,
+            resetEveryDays: resetPeriod === 'every_n_days' ? Number(resetEveryDays || 30) : 0,
+            resetAnchor,
+            subUpdateHours: Number(subUpdateHours || 0),
+            subAnnounce,
             fixedIp,
             vpnPassword: vpnPassword.trim() || undefined,
             enabled,
@@ -224,18 +318,25 @@ export function ClientsPage({
           }),
         });
       } else {
-        await apiFetch('/clients', {
+        const res = await apiFetch<{ ids: number[]; items?: Array<{ id: number; name: string; subToken: string }> }>('/clients', {
           method: 'POST',
           body: JSON.stringify({
             name: bulkMode ? undefined : name,
             prefix: bulkMode ? name : undefined,
             startNumber: bulkMode ? Number(startNumber || 1) : undefined,
             count: bulkMode ? Number(bulkCount) : 1,
+            templateId: templateId || undefined,
             trafficGb: trafficGb ? Number(trafficGb) : null,
+            downloadMbps: downloadMbps ? Number(downloadMbps) : null,
+            uploadMbps: uploadMbps ? Number(uploadMbps) : null,
             expiryMode,
             expiryDays: Number(expiryDays || 30),
             deviceLimit: deviceLimit ? Number(deviceLimit) : null,
             resetPeriod,
+            resetEveryDays: resetPeriod === 'every_n_days' ? Number(resetEveryDays || 30) : 0,
+            resetAnchor,
+            subUpdateHours: Number(subUpdateHours || 0),
+            subAnnounce,
             fixedIp,
             vpnPassword: !bulkMode && vpnPassword.trim() ? vpnPassword.trim() : undefined,
             enabled,
@@ -244,6 +345,9 @@ export function ClientsPage({
             groupIds: selectedGroupIds,
           }),
         });
+        if (bulkMode && res.items && res.items.length > 0) {
+          setBulkCreatedItems(res.items);
+        }
       }
       setFormOpen(false);
       await load();
@@ -471,7 +575,7 @@ export function ClientsPage({
       </div>
 
       {selectedIds.length > 0 && (
-        <div className="bulkbar" role="region" aria-label={`${selectedIds.length} selected`}>
+        <div className="bulkbar flex-wrap" role="region" aria-label={`${selectedIds.length} selected`}>
           <strong className="num">
             {selectedIds.length} {lang === 'fa' ? 'انتخاب‌شده' : 'selected'}
           </strong>
@@ -483,8 +587,27 @@ export function ClientsPage({
               setBulkExtendOpen(true);
             }}
           >
-            {lang === 'fa' ? 'تمدید...' : 'Extend...'}
+            {lang === 'fa' ? 'تمدید...' : 'Extend…'}
           </Button>
+          <Button size="sm" onClick={() => { setBulkSpeedDl(''); setBulkSpeedUl(''); setBulkSpeedOpen(true); }}>
+            {lang === 'fa' ? 'سرعت...' : 'Speed…'}
+          </Button>
+          <Button size="sm" onClick={() => { setBulkDevCap(''); setBulkDevicesOpen(true); }}>
+            {lang === 'fa' ? 'دستگاه‌ها...' : 'Devices…'}
+          </Button>
+          <Button size="sm" onClick={() => { setBulkSubHrs('0'); setBulkSubAnn(''); setBulkSubOpen(true); }}>
+            {lang === 'fa' ? 'اشتراک اپ‌ها...' : 'Proxy app sub…'}
+          </Button>
+          {templates.length > 0 && (
+            <Button size="sm" onClick={() => { setBulkTplId(String(templates[0].id)); setBulkTplOp('apply_template'); setBulkTplOpen(true); }}>
+              {lang === 'fa' ? 'قالب...' : 'Template…'}
+            </Button>
+          )}
+          {isOwner && owners.length > 1 && (
+            <Button size="sm" onClick={() => { setBulkMoveOwnerId(String(owners[0].id)); setBulkMoveOpen(true); }}>
+              {lang === 'fa' ? 'انتقال مالک...' : 'Move…'}
+            </Button>
+          )}
           <Button
             size="sm"
             onClick={() => {
@@ -719,6 +842,38 @@ export function ClientsPage({
         widthClass="max-w-xl"
       >
         <form onSubmit={submitForm} className="space-y-4">
+          {!editing && templates.length > 0 && (
+            <div className="space-y-1.5">
+              <Select
+                label={lang === 'fa' ? 'انتخاب از قالب آماده' : 'Plan template'}
+                value={String(templateId)}
+                onChange={(e) => {
+                  const id = Number(e.target.value);
+                  if (!id) {
+                    setTemplateId(0);
+                  } else {
+                    const tpl = templates.find((tItem) => tItem.id === id);
+                    if (tpl) applyTemplateToForm(tpl);
+                  }
+                }}
+              >
+                {!templatesOnly && <option value="0">{lang === 'fa' ? '— تنظیم دستی —' : '— Custom plan —'}</option>}
+                {templates.map((tpl) => (
+                  <option key={tpl.id} value={tpl.id}>
+                    {tpl.name}
+                  </option>
+                ))}
+              </Select>
+              {templatesOnly && (
+                <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
+                  {lang === 'fa'
+                    ? 'حساب شما فقط مجاز به فروش از روی قالب‌های مجاز است.'
+                    : 'Your role sells from approved templates only.'}
+                </p>
+              )}
+            </div>
+          )}
+
           {!editing && !bulkMode && (
             <Input
               label={t.common.name}
@@ -892,16 +1047,69 @@ export function ClientsPage({
             </div>
           )}
 
-          <Select
-            label={t.clients.resetPeriod}
-            value={resetPeriod}
-            onChange={(e) => setResetPeriod(e.target.value as typeof resetPeriod)}
-          >
-            <option value="never">Never</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </Select>
+          {(!templatesOnly || editing) && (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input
+                  label={lang === 'fa' ? 'محدودیت دانلود (Mbps)' : 'Download speed (Mbps)'}
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={downloadMbps}
+                  onChange={(e) => setDownloadMbps(e.target.value)}
+                  placeholder={lang === 'fa' ? 'نامحدود' : 'Unlimited'}
+                />
+                <Input
+                  label={lang === 'fa' ? 'محدودیت آپلود (Mbps)' : 'Upload speed (Mbps)'}
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={uploadMbps}
+                  onChange={(e) => setUploadMbps(e.target.value)}
+                  placeholder={lang === 'fa' ? 'نامحدود' : 'Unlimited'}
+                />
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Select
+                  label={t.clients.resetPeriod}
+                  value={resetPeriod}
+                  onChange={(e) => setResetPeriod(e.target.value)}
+                >
+                  <option value="never">{lang === 'fa' ? 'هیچ‌وقت' : 'Never'}</option>
+                  <option value="daily">{lang === 'fa' ? 'روزانه' : 'Every day'}</option>
+                  <option value="weekly">{lang === 'fa' ? 'هفتگی' : 'Every week'}</option>
+                  <option value="monthly">{lang === 'fa' ? 'ماهانه میلادی' : 'Every month'}</option>
+                  <option value="yearly">{lang === 'fa' ? 'سالانه میلادی' : 'Every year'}</option>
+                  <option value="jalali_monthly">{lang === 'fa' ? 'ماهانه شمسی' : 'Every Persian month'}</option>
+                  <option value="jalali_yearly">{lang === 'fa' ? 'سالانه شمسی' : 'Every Persian year'}</option>
+                  <option value="every_n_days">{lang === 'fa' ? 'هر N روز' : 'Every N days'}</option>
+                </Select>
+
+                {resetPeriod === 'every_n_days' && (
+                  <Input
+                    label={lang === 'fa' ? 'هر چند روز (۱ تا ۳۶۵)' : 'Every N days (1-365)'}
+                    type="number"
+                    min="1"
+                    max="365"
+                    value={resetEveryDays}
+                    onChange={(e) => setResetEveryDays(e.target.value)}
+                  />
+                )}
+
+                {['monthly', 'yearly', 'jalali_monthly', 'jalali_yearly'].includes(resetPeriod) && (
+                  <Select
+                    label={lang === 'fa' ? 'مبنای ریست' : 'Count from'}
+                    value={String(resetAnchor)}
+                    onChange={(e) => setResetAnchor(Number(e.target.value))}
+                  >
+                    <option value="0">{lang === 'fa' ? 'ابتدای تقویم' : 'Calendar start'}</option>
+                    <option value="1">{lang === 'fa' ? 'تاریخ ساخت کاربر' : 'Client start'}</option>
+                  </Select>
+                )}
+              </div>
+            </>
+          )}
 
           {groups.length > 0 && (
             <div>
@@ -963,6 +1171,22 @@ export function ClientsPage({
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Input label={t.clients.contact} value={contact} onChange={(e) => setContact(e.target.value)} />
                   <Input label={t.common.note} value={note} onChange={(e) => setNote(e.target.value)} />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Input
+                    label={lang === 'fa' ? 'بازه بروزرسانی در اپ‌ها (ساعت)' : 'Proxy app refresh (hours)'}
+                    type="number"
+                    min="0"
+                    max="720"
+                    value={subUpdateHours}
+                    onChange={(e) => setSubUpdateHours(e.target.value)}
+                  />
+                  <Input
+                    label={lang === 'fa' ? 'پیام اعلان اپ‌ها' : 'Proxy app announcement'}
+                    maxLength={200}
+                    value={subAnnounce}
+                    onChange={(e) => setSubAnnounce(e.target.value)}
+                  />
                 </div>
                 <label className="flex items-center justify-between rounded-xl border border-(--border-subtle) bg-(--bg-surface) px-3 py-2 text-xs text-(--text-primary) cursor-pointer">
                   <span>{lang === 'fa' ? 'حساب کاربر فعال باشد' : 'Enabled'}</span>
@@ -1140,6 +1364,190 @@ export function ClientsPage({
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Bulk Speed Modal */}
+      <Modal open={bulkSpeedOpen} onClose={() => setBulkSpeedOpen(false)} title={lang === 'fa' ? 'تنظیم سرعت گروهی' : 'Set speed limit'}>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            await apiFetch('/clients/bulk-action', {
+              method: 'POST',
+              body: JSON.stringify({
+                ids: selectedIds,
+                action: 'set_speed',
+                speedLimitDown: bulkSpeedDl ? Math.round(Number(bulkSpeedDl) * 1000) : 0,
+                speedLimitUp: bulkSpeedUl ? Math.round(Number(bulkSpeedUl) * 1000) : 0,
+              }),
+            });
+            setBulkSpeedOpen(false);
+            setSelectedIds([]);
+            load();
+          }}
+          className="space-y-4"
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <Input label={lang === 'fa' ? 'دانلود (Mbps، ۰=نامحدود)' : 'Download (Mbps, 0=unlimited)'} type="number" min="0" step="0.5" value={bulkSpeedDl} onChange={(e) => setBulkSpeedDl(e.target.value)} />
+            <Input label={lang === 'fa' ? 'آپلود (Mbps، ۰=نامحدود)' : 'Upload (Mbps, 0=unlimited)'} type="number" min="0" step="0.5" value={bulkSpeedUl} onChange={(e) => setBulkSpeedUl(e.target.value)} />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setBulkSpeedOpen(false)}>{t.common.cancel}</Button>
+            <Button type="submit" variant="primary">{t.common.save}</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Bulk Devices Modal */}
+      <Modal open={bulkDevicesOpen} onClose={() => setBulkDevicesOpen(false)} title={lang === 'fa' ? 'تنظیم تعداد دستگاه گروهی' : 'Set device limit'}>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            await apiFetch('/clients/bulk-action', {
+              method: 'POST',
+              body: JSON.stringify({
+                ids: selectedIds,
+                action: 'set_devices',
+                maxDevices: bulkDevCap ? Number(bulkDevCap) : 0,
+              }),
+            });
+            setBulkDevicesOpen(false);
+            setSelectedIds([]);
+            load();
+          }}
+          className="space-y-4"
+        >
+          <Input label={lang === 'fa' ? 'حداکثر دستگاه هم‌زمان (۰=نامحدود)' : 'Devices at once (0 = unlimited)'} type="number" min="0" max="1000" value={bulkDevCap} onChange={(e) => setBulkDevCap(e.target.value)} />
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setBulkDevicesOpen(false)}>{t.common.cancel}</Button>
+            <Button type="submit" variant="primary">{t.common.save}</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Bulk Proxy App Subscription Modal */}
+      <Modal open={bulkSubOpen} onClose={() => setBulkSubOpen(false)} title={lang === 'fa' ? 'اشتراک اپ‌های پروکسی' : 'Proxy app subscription'}>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            await apiFetch('/clients/bulk-action', {
+              method: 'POST',
+              body: JSON.stringify({
+                ids: selectedIds,
+                action: 'set_sub',
+                subUpdateHours: Number(bulkSubHrs || 0),
+                subAnnounce: bulkSubAnn,
+              }),
+            });
+            setBulkSubOpen(false);
+            setSelectedIds([]);
+            load();
+          }}
+          className="space-y-4"
+        >
+          <Input label={lang === 'fa' ? 'بازه بروزرسانی (ساعت، ۰=پیش‌فرض پنل)' : 'Refresh interval (hours, 0 = panel default)'} type="number" min="0" max="720" value={bulkSubHrs} onChange={(e) => setBulkSubHrs(e.target.value)} />
+          <Input label={lang === 'fa' ? 'متن اعلان در اپ' : 'Announcement in proxy apps'} maxLength={200} value={bulkSubAnn} onChange={(e) => setBulkSubAnn(e.target.value)} />
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setBulkSubOpen(false)}>{t.common.cancel}</Button>
+            <Button type="submit" variant="primary">{t.common.save}</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Bulk Template Apply / Renew Modal */}
+      <Modal open={bulkTplOpen} onClose={() => setBulkTplOpen(false)} title={lang === 'fa' ? 'اعمال یا تمدید با قالب' : 'Apply or renew from template'}>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            await apiFetch('/clients/bulk-action', {
+              method: 'POST',
+              body: JSON.stringify({
+                ids: selectedIds,
+                action: bulkTplOp,
+                templateId: Number(bulkTplId),
+              }),
+            });
+            setBulkTplOpen(false);
+            setSelectedIds([]);
+            load();
+          }}
+          className="space-y-4"
+        >
+          <Select label={lang === 'fa' ? 'عملیات' : 'Operation'} value={bulkTplOp} onChange={(e) => setBulkTplOp(e.target.value as 'apply_template' | 'renew')}>
+            <option value="apply_template">{lang === 'fa' ? 'اعمال تنظیمات قالب' : 'Apply template plan'}</option>
+            <option value="renew">{lang === 'fa' ? 'تمدید (افزودن روز و حجم قالب)' : 'Renew (add template days & traffic)'}</option>
+          </Select>
+          <Select label={lang === 'fa' ? 'قالب' : 'Template'} value={bulkTplId} onChange={(e) => setBulkTplId(e.target.value)}>
+            {templates.map((tpl) => <option key={tpl.id} value={tpl.id}>{tpl.name}</option>)}
+          </Select>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setBulkTplOpen(false)}>{t.common.cancel}</Button>
+            <Button type="submit" variant="primary">{t.common.save}</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Bulk Move Owner Modal */}
+      <Modal open={bulkMoveOpen} onClose={() => setBulkMoveOpen(false)} title={lang === 'fa' ? 'انتقال کاربران به حساب دیگر' : 'Move clients to another account'}>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            await apiFetch('/clients/bulk-action', {
+              method: 'POST',
+              body: JSON.stringify({
+                ids: selectedIds,
+                action: 'move_owner',
+                ownerId: Number(bulkMoveOwnerId),
+              }),
+            });
+            setBulkMoveOpen(false);
+            setSelectedIds([]);
+            load();
+          }}
+          className="space-y-4"
+        >
+          <Select label={lang === 'fa' ? 'حساب مقصد' : 'Target account'} value={bulkMoveOwnerId} onChange={(e) => setBulkMoveOwnerId(e.target.value)}>
+            {owners.map((o) => <option key={o.id} value={o.id}>{o.username}</option>)}
+          </Select>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setBulkMoveOpen(false)}>{t.common.cancel}</Button>
+            <Button type="submit" variant="primary">{lang === 'fa' ? 'انتقال' : 'Move'}</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Batch Created Links (.txt Download) Modal */}
+      <Modal
+        open={bulkCreatedItems.length > 0}
+        onClose={() => setBulkCreatedItems([])}
+        title={lang === 'fa' ? `${bulkCreatedItems.length} کاربر ساخته شد` : `Created ${bulkCreatedItems.length} clients`}
+      >
+        <div className="space-y-3">
+          <div className="max-h-56 overflow-y-auto rounded-xl border p-3 font-mono text-xs space-y-1" style={{ borderColor: 'var(--line)', background: 'var(--raise-2)' }}>
+            {bulkCreatedItems.map((it) => (
+              <div key={it.id} className="truncate">
+                {it.name}: {buildSubUrl(it.subToken)}
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="primary"
+              onClick={() => {
+                const text = bulkCreatedItems.map((it) => `${it.name}\t${buildSubUrl(it.subToken)}`).join('\n');
+                const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `clients-sub-links-${Date.now()}.txt`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+            >
+              <Download size={15} />
+              {lang === 'fa' ? 'دانلود فایل TXT لینک‌ها' : 'Download .txt links'}
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

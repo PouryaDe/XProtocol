@@ -20,10 +20,25 @@ import { toPanelUrl } from '../lib/router';
 import { ACCENT_PALETTES, useUi, type AccentName } from '../i18n/context';
 import { Button, EmptySonar, Input, PageHead, Select, StatusPill, Tabs, type TabItem } from '../components/UiPrimitives';
 import { QrCode } from '../components/QrCode';
+import { SettingsWebhooksTab } from '../components/SettingsWebhooksTab';
+import { SettingsBackupDestinations } from '../components/SettingsBackupDestinations';
+import { SettingsSubAppsSection, SettingsSubOriginsSection } from '../components/SettingsSubDomainsAndApps';
+import { SettingsAccountTelegramNotifications, SettingsSignInProtection } from '../components/SettingsSecurityAndNotifications';
 import type { CurrentAccount } from '../components/Layout';
 
-type SettingsTab = 'general' | 'subscription' | 'panelAccess' | 'myAccount' | 'api' | 'backup' | 'audit';
-type SubBuilderTab = 'look' | 'shop' | 'proto';
+type SettingsTab = 'general' | 'subscription' | 'panelAccess' | 'myAccount' | 'webhooks' | 'api' | 'backup' | 'audit';
+type SubBuilderTab = 'look' | 'shop' | 'proto' | 'apps' | 'domains';
+type BackupSubTab = 'telegram' | 's3' | 'sftp';
+
+const TIMEZONES = (() => {
+  try {
+    const sup = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf;
+    if (typeof sup === 'function') return sup('timeZone');
+  } catch {
+    // fallback
+  }
+  return ['Asia/Tehran', 'UTC', 'Europe/Berlin', 'Europe/London', 'Europe/Istanbul', 'America/New_York', 'Asia/Dubai', 'Asia/Tokyo'];
+})();
 
 const ACCENTS: AccentName[] = ['lime', 'cyan', 'mint', 'amber', 'coral', 'rose', 'violet', 'sky'];
 const SUB_SWATCHES = ['#34d399', '#22d3ee', '#c4f82a', '#fbbf24', '#fb7185', '#a78bfa', '#38bdf8'];
@@ -41,7 +56,9 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
   const { t, lang, accent, setAccent, setBrandName, setSupportTelegram } = useUi();
   const isFa = lang === 'fa';
   const [tab, setTab] = useState<SettingsTab>(account.isOwner ? 'general' : 'myAccount');
-  const [subTab, setSubTab] = useState<SubBuilderTab>('look');
+  const [subTab, setSubTab] = useState<SubBuilderTab>(account.isOwner ? 'look' : 'apps');
+  const [backupSubTab, setBackupSubTab] = useState<BackupSubTab>('telegram');
+  const [tzQuery, setTzQuery] = useState('');
   const [openProto, setOpenProto] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
   const [saving, setSaving] = useState(false);
@@ -51,15 +68,23 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
   const [general, setGeneral] = useState({
     brandName: 'XProtocol',
     publicAddress: '127.0.0.1',
+    panelUrl: '',
     subscriptionLinkAddress: '',
     supportTelegram: '',
     defaultSubLanguage: 'en',
+    timezone: 'Asia/Tehran',
     panelColor: 'mint' as AccentName,
     warnExpiresWithinDays: 5,
     warnTrafficPercent: 85,
     inactivityTimeoutHours: 72,
+    eventRetainDays: 30,
+    nodeSampleRawDays: 7,
+    nodeSampleKeepDays: 90,
+    metricsRoot: false,
+    loginAllowCidrs: [] as string[],
+    loginOnlyAllowCidrs: false,
   });
-  const [sysInfo, setSysInfo] = useState({ version: '1.0.4', platform: '', machineId: '' });
+  const [sysInfo, setSysInfo] = useState({ version: '2.0.0-beta.3', platform: '', machineId: '' });
 
   // Telegram Backup
   const [tgBackup, setTgBackup] = useState({
@@ -130,7 +155,15 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
     if (account.isOwner) {
       apiFetch<{ general: typeof general; system: typeof sysInfo }>('/settings/general')
         .then((r) => {
-          setGeneral({ ...r.general, supportTelegram: r.general.supportTelegram || '' });
+          setGeneral((prev) => ({
+            ...prev,
+            ...r.general,
+            panelUrl: r.general.panelUrl || '',
+            timezone: r.general.timezone || 'Asia/Tehran',
+            supportTelegram: r.general.supportTelegram || '',
+            loginAllowCidrs: Array.isArray(r.general.loginAllowCidrs) ? r.general.loginAllowCidrs : [],
+            loginOnlyAllowCidrs: Boolean(r.general.loginOnlyAllowCidrs),
+          }));
           setSysInfo(r.system);
         })
         .catch(() => undefined);
@@ -169,8 +202,11 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
           { id: 'subscription' as const, label: t.settings.tabs.subscription },
           { id: 'panelAccess' as const, label: t.settings.tabs.panelAccess },
         ]
-      : []),
+      : account.permissions.ownSubOrigins
+        ? [{ id: 'subscription' as const, label: t.settings.tabs.subscription }]
+        : []),
     { id: 'myAccount' as const, label: t.settings.tabs.myAccount },
+    ...(account.isOwner || account.permissions.webhooks ? [{ id: 'webhooks' as const, label: t.settings.tabs.webhooks }] : []),
     { id: 'api' as const, label: t.settings.tabs.api },
     ...(account.isOwner ? [{ id: 'backup' as const, label: t.settings.tabs.backup }] : []),
     ...(account.isOwner || account.permissions.clients.view === 'all'
@@ -290,6 +326,13 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
                 onChange={(e) => setGeneral({ ...general, publicAddress: e.target.value })}
               />
               <Input
+                label={isFa ? 'آدرس پنل (اختیاری)' : 'Panel URL (optional)'}
+                dir="ltr"
+                value={general.panelUrl}
+                onChange={(e) => setGeneral({ ...general, panelUrl: e.target.value })}
+                placeholder={computedPanelUrl}
+              />
+              <Input
                 label={isFa ? 'آدرس پایه لینک اشتراک (اختیاری)' : 'Subscription base URL (optional)'}
                 dir="ltr"
                 value={general.subscriptionLinkAddress}
@@ -311,19 +354,42 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
 
           <section className="ed-section">
             <div>
-              <h2>{isFa ? 'زبان پیش‌فرض کاربران' : 'Default client language'}</h2>
+              <h2>{isFa ? 'زبان و منطقه زمانی پنل' : 'Default client language & timezone'}</h2>
               <p className="ed-lede">
-                {isFa ? 'زبان اولیه صفحه اشتراک برای کاربرانی که برای اولین بار لینک را باز می‌کنند.' : 'Initial language shown on public subscription pages.'}
+                {isFa
+                  ? 'زبان اولیه صفحه اشتراک و منطقه زمانی برای محاسبه ریست ترافیک (مانند Asia/Tehran برای تقویم شمسی) و بکاپ‌های روزانه.'
+                  : 'Initial client page language and IANA timezone used for reset schedules (including Persian calendar) and daily backups.'}
               </p>
             </div>
             <div className="ed-fields">
+              <div className="form-row">
+                <Select
+                  label={isFa ? 'زبان صفحه اشتراک' : 'Client page language'}
+                  value={general.defaultSubLanguage}
+                  onChange={(e) => setGeneral({ ...general, defaultSubLanguage: e.target.value })}
+                >
+                  <option value="en">English</option>
+                  <option value="fa">فارسی (Persian)</option>
+                </Select>
+                <Input
+                  label={isFa ? 'جستجوی منطقه زمانی' : 'Filter timezone'}
+                  dir="ltr"
+                  value={tzQuery}
+                  onChange={(e) => setTzQuery(e.target.value)}
+                  placeholder="Asia/Tehran, Europe/..."
+                />
+              </div>
               <Select
-                label={isFa ? 'زبان صفحه اشتراک' : 'Client page language'}
-                value={general.defaultSubLanguage}
-                onChange={(e) => setGeneral({ ...general, defaultSubLanguage: e.target.value })}
+                label={isFa ? 'منطقه زمانی (IANA)' : 'Timezone (IANA)'}
+                dir="ltr"
+                value={general.timezone}
+                onChange={(e) => setGeneral({ ...general, timezone: e.target.value })}
               >
-                <option value="en">English</option>
-                <option value="fa">فارسی (Persian)</option>
+                {TIMEZONES.filter((z) => !tzQuery.trim() || z.toLowerCase().includes(tzQuery.trim().toLowerCase())).map((z) => (
+                  <option key={z} value={z}>
+                    {z}
+                  </option>
+                ))}
               </Select>
             </div>
           </section>
@@ -420,6 +486,74 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
 
           <section className="ed-section">
             <div>
+              <h2>{isFa ? 'نگهداری تاریخچه و متریک‌های Prometheus' : 'History retention & Prometheus /metrics'}</h2>
+              <p className="ed-lede">
+                {isFa
+                  ? 'مدت نگهداری اعلان‌ها، نمونه‌های سلامت نودها و فعال‌سازی خروجی متریک‌های Prometheus.'
+                  : 'Retention windows for events/node health telemetry and optional unauthenticated root /metrics exposure.'}
+              </p>
+            </div>
+            <div className="ed-fields">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <Input
+                  label={isFa ? 'نگهداری رویدادها (روز)' : 'Events retention (days)'}
+                  type="number"
+                  min={1}
+                  max={365}
+                  dir="ltr"
+                  value={String(general.eventRetainDays)}
+                  onChange={(e) => setGeneral({ ...general, eventRetainDays: Number(e.target.value) })}
+                />
+                <Input
+                  label={isFa ? 'نمونه‌های خام نود (روز)' : 'Raw 5m health samples (days)'}
+                  type="number"
+                  min={1}
+                  max={90}
+                  dir="ltr"
+                  value={String(general.nodeSampleRawDays)}
+                  onChange={(e) => setGeneral({ ...general, nodeSampleRawDays: Number(e.target.value) })}
+                />
+                <Input
+                  label={isFa ? 'نگهداری خلاصه سلامت نود (روز)' : 'Hourly health rollup (days)'}
+                  type="number"
+                  min={7}
+                  max={730}
+                  dir="ltr"
+                  value={String(general.nodeSampleKeepDays)}
+                  onChange={(e) => setGeneral({ ...general, nodeSampleKeepDays: Number(e.target.value) })}
+                />
+              </div>
+
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={general.metricsRoot}
+                  onChange={(e) => setGeneral({ ...general, metricsRoot: e.target.checked })}
+                />
+                <span className="track" />
+                <span className="sw-text">
+                  <span>
+                    {isFa
+                      ? 'ارائه متریک‌های Prometheus در مسیر /metrics (نیاز به تأیید 2FA در صورت فعال بودن)'
+                      : 'Expose Prometheus metrics at root /metrics (authenticated /api/metrics is always active)'}
+                  </span>
+                </span>
+              </label>
+
+              <div className="callout text-xs">
+                <div className="mb-1.5 font-semibold">Prometheus scrape_configs</div>
+                <pre className="overflow-x-auto font-mono text-[11px] text-(--ink)" dir="ltr">{`scrape_configs:
+  - job_name: 'xprotocol'
+    metrics_path: '${general.metricsRoot ? '/metrics' : cleanSecretPath ? `/${cleanSecretPath}/api/metrics` : '/api/metrics'}'
+    scheme: '${panelAccess.tlsCertFile ? 'https' : 'http'}'${!general.metricsRoot ? `\n    authorization:\n      credentials: '<YOUR_API_TOKEN>'` : ''}
+    static_configs:
+      - targets: ['${general.publicAddress || window.location.hostname}:${panelAccess.port || 2053}']`}</pre>
+              </div>
+            </div>
+          </section>
+
+          <section className="ed-section">
+            <div>
               <h2>{isFa ? 'نسخه و سیستم' : 'Version & system'}</h2>
             </div>
             <div className="ed-fields">
@@ -456,22 +590,32 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
         </form>
       )}
 
-      {tab === 'subscription' && subSettings && (
-        <div className="sp-layout">
+      {tab === 'subscription' && (subSettings || !account.isOwner) && (
+        <div className={account.isOwner ? 'sp-layout' : ''}>
           <form className="editor" onSubmit={saveSubSettings}>
             <div className="ed-tabs">
               <Tabs<SubBuilderTab>
                 value={subTab}
                 onChange={setSubTab}
                 items={[
-                  { id: 'look', label: isFa ? 'ظاهر صفحه' : 'Appearance' },
-                  { id: 'shop', label: isFa ? 'برند و پشتیبانی' : 'Brand & support' },
-                  { id: 'proto', label: isFa ? 'پروتکل‌ها' : 'Protocols', count: subSettings.protocols.filter((p) => p.shown).length },
+                  ...(account.isOwner && subSettings
+                    ? [
+                        { id: 'look' as const, label: isFa ? 'ظاهر صفحه' : 'Appearance' },
+                        { id: 'shop' as const, label: isFa ? 'برند و پشتیبانی' : 'Brand & support' },
+                        {
+                          id: 'proto' as const,
+                          label: isFa ? 'پروتکل‌ها' : 'Protocols',
+                          count: subSettings.protocols.filter((p) => p.shown).length,
+                        },
+                      ]
+                    : []),
+                  { id: 'apps' as const, label: isFa ? 'اپ‌های پروکسی (Happ)' : 'Proxy apps' },
+                  { id: 'domains' as const, label: isFa ? 'دامنه‌های اشتراک' : 'Addresses' },
                 ]}
               />
             </div>
 
-            {subTab === 'look' && (
+            {subTab === 'look' && subSettings && (
               <>
                 <section className="ed-section">
                   <div>
@@ -558,7 +702,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
               </>
             )}
 
-            {subTab === 'shop' && (
+            {subTab === 'shop' && subSettings && (
               <section className="ed-section">
                 <div>
                   <h2>{isFa ? 'اطلاعات فروشگاه و پشتیبانی' : 'Storefront & support'}</h2>
@@ -593,7 +737,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
               </section>
             )}
 
-            {subTab === 'proto' && (
+            {subTab === 'proto' && subSettings && (
               <section className="ed-section">
                 <div>
                   <h2>{isFa ? 'پروتکل‌ها و راهنمای اتصال' : 'Protocols & client apps'}</h2>
@@ -671,16 +815,22 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
               </section>
             )}
 
-            <div className="savebar">
-              <span className="text-xs text-(--text-muted)">
-                {notice || (isFa ? 'پس از ذخیره، پیش‌نمایش سمت چپ/راست را بررسی کنید.' : 'Save changes to refresh live subscription pages.')}
-              </span>
-              <Button type="submit" variant="primary" disabled={saving}>
-                {t.common.save}
-              </Button>
-            </div>
+            {subTab === 'apps' && <SettingsSubAppsSection isOwner={account.isOwner} onNotice={flash} />}
+            {subTab === 'domains' && <SettingsSubOriginsSection isOwner={account.isOwner} onNotice={flash} />}
+
+            {account.isOwner && subTab !== 'apps' && subTab !== 'domains' && (
+              <div className="savebar">
+                <span className="text-xs text-(--text-muted)">
+                  {notice || (isFa ? 'پس از ذخیره، پیش‌نمایش سمت چپ/راست را بررسی کنید.' : 'Save changes to refresh live subscription pages.')}
+                </span>
+                <Button type="submit" variant="primary" disabled={saving}>
+                  {t.common.save}
+                </Button>
+              </div>
+            )}
           </form>
 
+          {account.isOwner && (
           <aside className="sp-preview">
             <div className="phone">
               {previewUrl ? (
@@ -717,6 +867,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
               </a>
             )}
           </aside>
+          )}
         </div>
       )}
 
@@ -1011,8 +1162,28 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
               </div>
             </div>
           </section>
+
+          <SettingsAccountTelegramNotifications onNotice={flash} />
+
+          {account.isOwner && (
+            <SettingsSignInProtection
+              loginAllowCidrs={general.loginAllowCidrs}
+              loginOnlyAllowCidrs={general.loginOnlyAllowCidrs}
+              onChange={(next) => setGeneral((prev) => ({ ...prev, ...next }))}
+              onSaveSecurity={async (next) => {
+                await apiFetch('/settings/general', {
+                  method: 'PUT',
+                  body: JSON.stringify(next),
+                });
+                setGeneral((prev) => ({ ...prev, ...next }));
+              }}
+              onNotice={flash}
+            />
+          )}
         </div>
       )}
+
+      {tab === 'webhooks' && <SettingsWebhooksTab onNotice={flash} />}
 
       {tab === 'api' && (
         <div className="stack">
@@ -1131,6 +1302,18 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
       )}
 
       {tab === 'backup' && (
+        <div className="stack">
+          <Tabs<BackupSubTab>
+            value={backupSubTab}
+            onChange={setBackupSubTab}
+            items={[
+              { id: 'telegram', label: isFa ? 'تلگرام و فایل .db' : 'Telegram & Local (.db)' },
+              { id: 's3', label: 'S3 / R2 / MinIO' },
+              { id: 'sftp', label: 'SFTP' },
+            ]}
+          />
+
+          {backupSubTab === 'telegram' && (
         <div className="editor">
           <section className="ed-section">
             <div>
@@ -1328,6 +1511,11 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
               </div>
             </div>
           </section>
+        </div>
+          )}
+
+          {backupSubTab === 's3' && <SettingsBackupDestinations kind="s3" onNotice={flash} />}
+          {backupSubTab === 'sftp' && <SettingsBackupDestinations kind="sftp" onNotice={flash} />}
         </div>
       )}
 

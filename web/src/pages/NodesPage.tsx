@@ -22,6 +22,34 @@ import { Button, EmptySonar, Input, PageHead, Select, StatusPill } from '../comp
 import { Modal } from '../components/Modal';
 import { Drawer } from '../components/Drawer';
 
+interface NodeUptimeDay {
+  day: string;
+  up: number;
+  down: number;
+  unknown: number;
+  pct: number | null;
+}
+
+interface NodeUptimeSummary {
+  days: NodeUptimeDay[];
+  pct: number | null;
+  pct24: number | null;
+  pct30: number | null;
+}
+
+interface HealthPoint {
+  t: number;
+  up: number;
+  cpu: number | null;
+  memUsed: number | null;
+  memTotal: number | null;
+  diskUsed: number | null;
+  diskTotal: number | null;
+  upload: number;
+  download: number;
+  clients: number;
+}
+
 interface NodeItem {
   id: number;
   isLocal: boolean;
@@ -41,6 +69,9 @@ interface NodeItem {
   openvpnVersion: string;
   wireguardReady: boolean;
   openconnectVersion: string;
+  xrayReady?: boolean;
+  uptime?: NodeUptimeSummary;
+  allowFrom?: string[];
   onlineCount: number;
   inbounds: { id: number; name: string; protocol: string; port: number; running: boolean }[];
 }
@@ -73,7 +104,12 @@ export function NodesPage() {
 
   // Node detail drawer state
   const [detailNode, setDetailNode] = useState<NodeItem | null>(null);
-  const [detailTab, setDetailTab] = useState<'overview' | 'protocols' | 'inbounds' | 'addresses'>('overview');
+  const [detailTab, setDetailTab] = useState<'overview' | 'health' | 'protocols' | 'inbounds' | 'addresses' | 'security'>('overview');
+  const [healthRange, setHealthRange] = useState<'24h' | '7d' | '30d' | '90d'>('24h');
+  const [healthSeries, setHealthSeries] = useState<{ points: HealthPoint[]; uptime: NodeUptimeSummary } | null>(null);
+  const [allowFromText, setAllowFromText] = useState('');
+  const [panelIpHint, setPanelIpHint] = useState('');
+  const [securityMsg, setSecurityMsg] = useState('');
   const [protocols, setProtocols] = useState<ProtocolRow[]>([]);
   const [protoLoading, setProtoLoading] = useState(false);
   const [installingProto, setInstallingProto] = useState<string | null>(null);
@@ -104,7 +140,23 @@ export function NodesPage() {
 
   useEffect(() => {
     load();
+    if (window.location.search.includes('connect=1')) {
+      openCreate();
+    }
   }, []);
+
+  const loadHealth = async (id: number, range: string) => {
+    const res = await apiFetch<{ points: HealthPoint[]; uptime: NodeUptimeSummary }>(`/nodes/${id}/health?range=${range}`).catch(() => null);
+    if (res) setHealthSeries(res);
+  };
+
+  const loadAllowFrom = async (id: number) => {
+    const res = await apiFetch<{ allowFrom: string[]; panelIp?: string }>(`/nodes/${id}/allow-from`).catch(() => null);
+    if (res) {
+      setAllowFromText((res.allowFrom || []).join('\n'));
+      setPanelIpHint(res.panelIp || '');
+    }
+  };
 
   const loadProtocols = async (id: number) => {
     setProtoLoading(true);
@@ -117,11 +169,14 @@ export function NodesPage() {
     }
   };
 
-  const openDetails = (n: NodeItem, initialTab: 'overview' | 'protocols' | 'inbounds' | 'addresses' = 'overview') => {
+  const openDetails = (n: NodeItem, initialTab: 'overview' | 'health' | 'protocols' | 'inbounds' | 'addresses' | 'security' = 'overview') => {
     setDetailNode(n);
     setDetailTab(initialTab);
     setInstallLog('');
+    setSecurityMsg('');
     loadProtocols(n.id);
+    loadHealth(n.id, healthRange);
+    loadAllowFrom(n.id);
   };
 
   const installProtocol = async (protocol: string) => {
@@ -227,7 +282,7 @@ export function NodesPage() {
       .sort((a, b) => Number(b.isLocal) - Number(a.isLocal));
   }, [nodes, filterTab, nodeSearchQuery]);
 
-  const nodeInstallCmd = `bash <(curl -fsSL ${window.location.origin}/install-node.sh) --port ${port || '62060'} --name "${name || 'eu-node'}"`;
+  const nodeInstallCmd = `bash <(curl -fsSL ${window.location.origin}/install-node.sh) --port ${port || '62060'} --name "${name || 'eu-node'}" --panel-ip ${window.location.hostname}`;
 
   const hasRemoteNodes = nodes.some((n) => !n.isLocal);
 
@@ -386,6 +441,38 @@ export function NodesPage() {
                       ))}
                     </div>
                   )}
+
+                  {n.uptime && n.uptime.days.length > 0 && (
+                    <div className="mt-2.5 max-w-md">
+                      <div className="flex items-center justify-between text-[11px] mb-1" style={{ color: 'var(--ink-3)' }}>
+                        <span>{lang === 'fa' ? '۹۰ روز گذشته' : '90 days ago'}</span>
+                        <span className="num">
+                          24h {n.uptime.pct24 ?? 100}% · 30d {n.uptime.pct30 ?? 100}%
+                        </span>
+                        <span>{lang === 'fa' ? 'امروز' : 'Today'}</span>
+                      </div>
+                      <div className="flex items-center gap-[2px] h-2.5" aria-label="90-day uptime bar">
+                        {n.uptime.days.slice(-90).map((d) => {
+                          const bg =
+                            d.unknown >= 0.99
+                              ? 'var(--unlit)'
+                              : d.down > 0.2
+                                ? 'var(--bad)'
+                                : d.down > 0
+                                  ? 'var(--warn)'
+                                  : 'var(--good)';
+                          return (
+                            <span
+                              key={d.day}
+                              title={`${d.day}: ${d.pct !== null ? `${d.pct}%` : 'no data'}`}
+                              className="flex-1 h-full rounded-[1px]"
+                              style={{ background: bg }}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="nr-stats">
@@ -450,9 +537,11 @@ export function NodesPage() {
               <div className="flex flex-wrap gap-1.5">
                 {([
                   { id: 'overview', label: lang === 'fa' ? 'نمای کلی' : 'Overview' },
+                  { id: 'health', label: lang === 'fa' ? 'سلامت نود' : 'Health' },
                   { id: 'protocols', label: lang === 'fa' ? 'پروتکل‌ها و نصب' : 'Protocols' },
                   { id: 'inbounds', label: t.nav.inbounds },
                   { id: 'addresses', label: lang === 'fa' ? 'آدرس‌ها' : 'Addresses' },
+                  { id: 'security', label: lang === 'fa' ? 'امنیت' : 'Security' },
                 ] as const).map((tab) => (
                   <button
                     key={tab.id}
@@ -522,6 +611,159 @@ export function NodesPage() {
                     <div className="pt-1 text-(--text-secondary)">Note: {detailNode.note}</div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {detailTab === 'health' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex gap-1.5">
+                    {(['24h', '7d', '30d', '90d'] as const).map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => {
+                          setHealthRange(r);
+                          void loadHealth(detailNode.id, r);
+                        }}
+                        className="px-2.5 py-1 rounded-lg text-xs border"
+                        style={{
+                          borderColor: healthRange === r ? 'var(--accent)' : 'var(--line)',
+                          background: healthRange === r ? 'var(--accent-wash)' : 'var(--raise-2)',
+                          color: healthRange === r ? 'var(--accent-text)' : 'var(--ink-2)',
+                        }}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="text-xs font-semibold num" style={{ color: 'var(--good)' }}>
+                    {healthSeries?.uptime?.pct24 ?? 100}% {lang === 'fa' ? 'آپتایم ۲۴ ساعت' : 'uptime (24h)'}
+                  </div>
+                </div>
+
+                {healthSeries && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {[
+                      {
+                        label: 'CPU %',
+                        color: 'var(--accent)',
+                        vals: healthSeries.points.map((p) => (p.cpu ?? 0) * 100),
+                        latest: `${Math.round(((healthSeries.points.at(-1)?.cpu ?? 0) * 100) * 10) / 10}%`,
+                      },
+                      {
+                        label: lang === 'fa' ? 'حافظه رم' : 'Memory',
+                        color: 'var(--accent-2)',
+                        vals: healthSeries.points.map((p) => (p.memTotal ? ((p.memUsed ?? 0) / p.memTotal) * 100 : 0)),
+                        latest: `${Math.round(((healthSeries.points.at(-1)?.memTotal ? ((healthSeries.points.at(-1)?.memUsed ?? 0) / healthSeries.points.at(-1)!.memTotal!) * 100 : detailNode.memPct)) * 10) / 10}%`,
+                      },
+                      {
+                        label: lang === 'fa' ? 'دیسک' : 'Disk',
+                        color: 'var(--warn)',
+                        vals: healthSeries.points.map((p) => (p.diskTotal ? ((p.diskUsed ?? 0) / p.diskTotal) * 100 : 0)),
+                        latest: `${Math.round(((healthSeries.points.at(-1)?.diskTotal ? ((healthSeries.points.at(-1)?.diskUsed ?? 0) / healthSeries.points.at(-1)!.diskTotal!) * 100 : 0)) * 10) / 10}%`,
+                      },
+                      {
+                        label: lang === 'fa' ? 'کلاینت‌های آنلاین' : 'Online tunnels',
+                        color: 'var(--good)',
+                        vals: healthSeries.points.map((p) => p.clients),
+                        latest: String(healthSeries.points.at(-1)?.clients ?? detailNode.onlineCount),
+                      },
+                    ].map((chart) => {
+                      const vals = chart.vals.length >= 2 ? chart.vals : [chart.vals[0] || 0, chart.vals[0] || 0];
+                      const maxV = Math.max(100, ...vals, 1);
+                      const pts = vals
+                        .map((v, idx) => `${(idx / (vals.length - 1)) * 220},${52 - (v / maxV) * 44}`)
+                        .join(' ');
+                      return (
+                        <div key={chart.label} className="rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-3 space-y-2">
+                          <div className="flex justify-between text-xs">
+                            <span style={{ color: 'var(--ink-2)' }}>{chart.label}</span>
+                            <strong className="num" style={{ color: 'var(--ink)' }}>{chart.latest}</strong>
+                          </div>
+                          <svg viewBox="0 0 220 56" className="w-full h-14 overflow-visible">
+                            <polyline fill="none" stroke={chart.color} strokeWidth="2" points={pts} />
+                          </svg>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {detailTab === 'security' && (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-4 space-y-3">
+                  <div className="text-xs font-semibold" style={{ color: 'var(--ink)' }}>
+                    {lang === 'fa' ? 'فهرست IP مجاز پنل (Allowlist)' : 'Panel IP allowlist'}
+                  </div>
+                  <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
+                    {lang === 'fa'
+                      ? 'آی‌پی‌ها یا رنج‌های CIDR مجاز برای ارتباط با این نود (هر خط یک مورد؛ خالی = آزاد).'
+                      : 'IPs or CIDR ranges this node accepts panel calls from (one per line; empty = any address).'}
+                  </p>
+                  <textarea
+                    rows={4}
+                    dir="ltr"
+                    value={allowFromText}
+                    onChange={(e) => setAllowFromText(e.target.value)}
+                    placeholder={panelIpHint || '203.0.113.10/32'}
+                    className="w-full rounded-xl border border-(--border-strong) bg-(--bg-app) p-2.5 font-mono text-xs text-(--text-primary)"
+                  />
+                  <div className="flex items-center justify-between gap-2">
+                    {panelIpHint && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setAllowFromText((prev) => (prev.trim() ? `${prev.trim()}\n${panelIpHint}` : panelIpHint))}
+                      >
+                        {lang === 'fa' ? `افزودن IP پنل (${panelIpHint})` : `Add panel IP (${panelIpHint})`}
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={async () => {
+                        setSecurityMsg('');
+                        const list = allowFromText.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+                        await apiFetch(`/nodes/${detailNode.id}/allow-from`, {
+                          method: 'PUT',
+                          body: JSON.stringify({ allowFrom: list }),
+                        });
+                        setSecurityMsg(lang === 'fa' ? 'فهرست IP مجاز ذخیره شد.' : 'Allowlist saved.');
+                      }}
+                    >
+                      {t.common.save}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-(--border-subtle) bg-(--bg-elevated) p-4 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold" style={{ color: 'var(--ink)' }}>
+                      {lang === 'fa' ? 'چرخش کلید API نود' : 'Rotate node API key'}
+                    </div>
+                    <div className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
+                      {lang === 'fa'
+                        ? 'یک کلید جدید برای احراز هویت پنل و نود صادر می‌کند.'
+                        : 'Issues a new API key between the panel and this node.'}
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={async () => {
+                      if (!confirm(lang === 'fa' ? 'کلید نود تعویض شود؟' : 'Rotate this node key?')) return;
+                      await apiFetch(`/nodes/${detailNode.id}/rotate-key`, { method: 'POST' });
+                      setSecurityMsg(lang === 'fa' ? 'کلید نود با موفقیت تعویض شد.' : 'Node key rotated.');
+                    }}
+                  >
+                    {lang === 'fa' ? 'چرخش کلید' : 'Rotate key'}
+                  </Button>
+                </div>
+
+                {securityMsg && <div className="text-xs" style={{ color: 'var(--good)' }}>{securityMsg}</div>}
               </div>
             )}
 

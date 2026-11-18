@@ -4,6 +4,7 @@ import { getDb } from '../db/database.js';
 import { hashPassword } from '../security/auth.js';
 import { recordAudit } from '../services/audit.js';
 import { getAccountStatus, type RoleLimits, type RolePermissions } from '../security/rbac.js';
+import { addSubOrigin, checkSubOriginDns, deleteSubOrigin, listSubOrigins, updateSubOrigin } from '../services/subOrigins.js';
 import { loadAccountById, requireOwner, type AuthedRequest } from './context.js';
 
 const GB = 1024 * 1024 * 1024;
@@ -62,12 +63,14 @@ export function createAccountRouter(): Router {
       expiresAt?: string | null;
       allowedGroupIds?: number[];
       allowedInboundIds?: number[];
+      allowedTemplateIds?: number[];
       overrideClientLimit?: number | null;
       overrideRequireGroup?: boolean | null;
       overrideMaxTrafficGb?: number | null;
       overrideMaxLifetimeDays?: number | null;
       overrideMaxDevices?: number | null;
       overrideAllowUnlimited?: boolean | null;
+      overrideTemplatesOnly?: boolean | null;
       note?: string;
     };
 
@@ -83,10 +86,10 @@ export function createAccountRouter(): Router {
           `INSERT INTO accounts (
              username, password_hash, role_id, active,
              traffic_pool_bytes, expires_at, allowed_group_ids_json, allowed_inbound_ids_json,
-             override_client_limit, override_require_group, override_max_traffic_gb,
-             override_max_lifetime_days, override_max_devices, override_allow_unlimited,
+             override_allowed_templates_json, override_client_limit, override_require_group, override_max_traffic_gb,
+             override_max_lifetime_days, override_max_devices, override_allow_unlimited, override_templates_only,
              note, created_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           body.username.trim(),
@@ -97,6 +100,7 @@ export function createAccountRouter(): Router {
           body.expiresAt || null,
           JSON.stringify(body.allowedGroupIds || []),
           JSON.stringify(body.allowedInboundIds || []),
+          JSON.stringify(body.allowedTemplateIds || []),
           body.overrideClientLimit ?? null,
           body.overrideRequireGroup === undefined || body.overrideRequireGroup === null
             ? null
@@ -109,6 +113,11 @@ export function createAccountRouter(): Router {
           body.overrideAllowUnlimited === undefined || body.overrideAllowUnlimited === null
             ? null
             : body.overrideAllowUnlimited
+              ? 1
+              : 0,
+          body.overrideTemplatesOnly === undefined || body.overrideTemplatesOnly === null
+            ? null
+            : body.overrideTemplatesOnly
               ? 1
               : 0,
           body.note || '',
@@ -148,6 +157,14 @@ export function createAccountRouter(): Router {
       expiresAt?: string | null;
       allowedGroupIds?: number[];
       allowedInboundIds?: number[];
+      allowedTemplateIds?: number[];
+      overrideClientLimit?: number | null;
+      overrideRequireGroup?: boolean | null;
+      overrideMaxTrafficGb?: number | null;
+      overrideMaxLifetimeDays?: number | null;
+      overrideMaxDevices?: number | null;
+      overrideAllowUnlimited?: boolean | null;
+      overrideTemplatesOnly?: boolean | null;
       note?: string;
     };
 
@@ -196,6 +213,14 @@ export function createAccountRouter(): Router {
          expires_at = ?,
          allowed_group_ids_json = ?,
          allowed_inbound_ids_json = ?,
+         override_allowed_templates_json = ?,
+         override_client_limit = ?,
+         override_require_group = ?,
+         override_max_traffic_gb = ?,
+         override_max_lifetime_days = ?,
+         override_max_devices = ?,
+         override_allow_unlimited = ?,
+         override_templates_only = ?,
          note = ?
        WHERE id = ?`,
     ).run(
@@ -206,6 +231,56 @@ export function createAccountRouter(): Router {
       expiresAt,
       body.allowedGroupIds ? JSON.stringify(body.allowedGroupIds) : String(existing.allowed_group_ids_json),
       body.allowedInboundIds ? JSON.stringify(body.allowedInboundIds) : String(existing.allowed_inbound_ids_json),
+      body.allowedTemplateIds !== undefined
+        ? JSON.stringify(body.allowedTemplateIds)
+        : String(existing.override_allowed_templates_json || '[]'),
+      body.overrideClientLimit !== undefined
+        ? body.overrideClientLimit
+        : existing.override_client_limit === null
+          ? null
+          : Number(existing.override_client_limit),
+      body.overrideRequireGroup !== undefined
+        ? body.overrideRequireGroup === null
+          ? null
+          : body.overrideRequireGroup
+            ? 1
+            : 0
+        : existing.override_require_group === null
+          ? null
+          : Number(existing.override_require_group),
+      body.overrideMaxTrafficGb !== undefined
+        ? body.overrideMaxTrafficGb
+        : existing.override_max_traffic_gb === null
+          ? null
+          : Number(existing.override_max_traffic_gb),
+      body.overrideMaxLifetimeDays !== undefined
+        ? body.overrideMaxLifetimeDays
+        : existing.override_max_lifetime_days === null
+          ? null
+          : Number(existing.override_max_lifetime_days),
+      body.overrideMaxDevices !== undefined
+        ? body.overrideMaxDevices
+        : existing.override_max_devices === null
+          ? null
+          : Number(existing.override_max_devices),
+      body.overrideAllowUnlimited !== undefined
+        ? body.overrideAllowUnlimited === null
+          ? null
+          : body.overrideAllowUnlimited
+            ? 1
+            : 0
+        : existing.override_allow_unlimited === null
+          ? null
+          : Number(existing.override_allow_unlimited),
+      body.overrideTemplatesOnly !== undefined
+        ? body.overrideTemplatesOnly === null
+          ? null
+          : body.overrideTemplatesOnly
+            ? 1
+            : 0
+        : existing.override_templates_only === null || existing.override_templates_only === undefined
+          ? null
+          : Number(existing.override_templates_only),
       body.note !== undefined ? body.note : String(existing.note || ''),
       id,
     );
@@ -359,6 +434,79 @@ export function createAccountRouter(): Router {
     }
     db.prepare('DELETE FROM roles WHERE id = ?').run(id);
     res.json({ ok: true });
+  });
+
+  // Per-reseller subscription domains & proxy app branding
+  router.get('/:id/sub-origins', (req, res) => {
+    const id = Number(req.params.id);
+    res.json({ origins: listSubOrigins(id), max: 5, tls: true });
+  });
+
+  router.post('/:id/sub-origins', async (req, res) => {
+    const id = Number(req.params.id);
+    const body = req.body as { url?: string; note?: string; primary?: boolean; behindCdn?: boolean };
+    const result = await addSubOrigin(id, {
+      url: body.url || '',
+      note: body.note,
+      primary: body.primary,
+      behindCdn: body.behindCdn,
+    });
+    if (!result.ok) {
+      res.status(400).json({ error: result.error });
+      return;
+    }
+    res.json({ state: 'done', origin: result.origin, warning: result.warning || '', origins: listSubOrigins(id) });
+  });
+
+  router.put('/:id/sub-origins', (req, res) => {
+    const id = Number(req.params.id);
+    const body = req.body as { url?: string; note?: string; primary?: boolean; behindCdn?: boolean };
+    const origins = updateSubOrigin(id, {
+      url: body.url || '',
+      note: body.note,
+      primary: body.primary,
+      behindCdn: body.behindCdn,
+    });
+    res.json({ origins, max: 5, tls: true });
+  });
+
+  router.delete('/:id/sub-origins', (req, res) => {
+    const id = Number(req.params.id);
+    const url = String(req.query.url || '');
+    const origins = deleteSubOrigin(id, url);
+    res.json({ origins, max: 5, tls: true });
+  });
+
+  router.post('/:id/sub-origins/check', async (req, res) => {
+    const { url } = req.body as { url?: string };
+    res.json(await checkSubOriginDns(url || ''));
+  });
+
+  router.get('/:id/sub-apps', (req, res) => {
+    const id = Number(req.params.id);
+    const row = getDb().prepare('SELECT sub_apps_json FROM accounts WHERE id = ?').get(id) as { sub_apps_json: string } | undefined;
+    if (!row) {
+      res.status(404).json({ error: 'Account not found' });
+      return;
+    }
+    const parsed = JSON.parse(String(row.sub_apps_json || '{}')) as Record<string, string>;
+    res.json({
+      supportUrl: parsed.supportUrl || '',
+      title: parsed.title || '',
+      renewLink: parsed.renewLink || '',
+    });
+  });
+
+  router.put('/:id/sub-apps', (req, res) => {
+    const id = Number(req.params.id);
+    const body = req.body as { supportUrl?: string; title?: string; renewLink?: string };
+    const payload = {
+      supportUrl: String(body.supportUrl || '').trim(),
+      title: String(body.title || '').slice(0, 60),
+      renewLink: String(body.renewLink || '').trim(),
+    };
+    getDb().prepare('UPDATE accounts SET sub_apps_json = ? WHERE id = ?').run(JSON.stringify(payload), id);
+    res.json(payload);
   });
 
   return router;

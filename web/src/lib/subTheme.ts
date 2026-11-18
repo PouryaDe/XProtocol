@@ -239,6 +239,7 @@ export const PLAT_LABELS: Record<SubPlatform, string> = {
 export const PLAT_ORDER: SubPlatform[] = ['android', 'ios', 'desktop'];
 
 export const SUB_PROTO_LABELS: Record<string, string> = {
+  xray: 'V2Ray',
   openvpn: 'OpenVPN',
   wireguard: 'WireGuard',
   amnezia: 'AmneziaWG',

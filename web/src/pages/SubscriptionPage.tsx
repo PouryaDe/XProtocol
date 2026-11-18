@@ -58,6 +58,17 @@ interface SubProfile {
   connectInfo: Record<string, string | number>;
 }
 
+interface SubXrayServer {
+  key: string;
+  name: string;
+  instanceId: number;
+  protocol: string;
+  transport: string;
+  security: string;
+  port: number;
+  links: string[];
+}
+
 interface SubProtocolTab {
   id: string;
   tabName: string;
@@ -68,6 +79,7 @@ interface SubProtocolTab {
     desktop: SubAppItem[];
   };
   profiles: SubProfile[];
+  xrayServers?: SubXrayServer[];
 }
 
 export interface SubPayload {
@@ -94,6 +106,9 @@ export interface SubPayload {
     channelLink: string;
     defaultLanguage: 'en' | 'fa';
   };
+  subUrl?: string;
+  newSubUrl?: string;
+  xrayServers?: SubXrayServer[];
   protocolTabs: SubProtocolTab[];
   usageChart: TrafficSample[];
 }
@@ -404,6 +419,83 @@ function ProtocolSteps({ m, tab }: { m: SubViewModel; tab: SubProtocolTab }) {
   const copy = SUB_COPY[m.locale];
   const proto = normalizeProtoKey(tab.id);
   const [openQrId, setOpenQrId] = useState<number | null>(null);
+  const [openXrayQr, setOpenXrayQr] = useState<string | null>(null);
+
+  if (proto === 'xray') {
+    const subLink = m.data.subUrl || `${window.location.origin}/${m.subPath}/${m.token}`;
+    const servers = tab.xrayServers || m.data.xrayServers || [];
+    const subQrOpen = openXrayQr === '__sub__';
+    return (
+      <ol className="sub-steps">
+        <InstallStep m={m} apps={tab.apps} />
+        <li>
+          <h3>{m.locale === 'fa' ? 'افزودن لینک اشتراک' : 'Import all configurations'}</h3>
+          <p className="muted">
+            {m.locale === 'fa'
+              ? 'لینک اشتراک زیر را کپی کنید یا کد QR را در Happ / v2rayNG / Hiddify اسکن کنید تا تمام سرورها با هم اضافه شوند.'
+              : 'Copy your subscription link or scan the QR code in Happ, v2rayNG, Hiddify or similar apps to import all servers at once.'}
+          </p>
+          <div className="sub-profile sub-oc-entry" style={{ marginBottom: 14 }}>
+            <CopyField label={m.locale === 'fa' ? 'لینک اشتراک' : 'Subscription link'} value={subLink} copyKey="xray-sub" m={m} />
+            <div className="row-gap">
+              <a className="btn sm primary" href={`happ://add/${subLink}`}>
+                <ExternalLink size={14} aria-hidden="true" />
+                {m.locale === 'fa' ? 'افزودن در Happ' : 'Open in Happ'}
+              </a>
+              <button
+                type="button"
+                className="btn sm"
+                aria-expanded={subQrOpen}
+                onClick={() => setOpenXrayQr(subQrOpen ? null : '__sub__')}
+              >
+                <QrCode size={14} aria-hidden="true" />
+                {subQrOpen ? (m.locale === 'fa' ? 'بستن QR' : 'Hide QR') : 'QR'}
+              </button>
+            </div>
+            {subQrOpen && <ProfileQrImage value={subLink} alt="Xray subscription" size={200} />}
+          </div>
+
+          <ul className="sub-profiles">
+            {servers.map((srv) => {
+              const link = srv.links[0] || '';
+              const isQrOpen = openXrayQr === srv.key;
+              const isCopied = m.copiedKey === srv.key;
+              return (
+                <li key={srv.key} className="sub-profile sub-oc-entry">
+                  <div>
+                    <strong dir="auto">{srv.name}</strong>
+                    <span className="muted small" dir="ltr">
+                      {srv.protocol.toUpperCase()} · {srv.transport} · {srv.security} · :{srv.port}
+                    </span>
+                  </div>
+                  <div className="row-gap">
+                    <button
+                      type="button"
+                      className="btn sm"
+                      aria-expanded={isQrOpen}
+                      onClick={() => setOpenXrayQr(isQrOpen ? null : srv.key)}
+                    >
+                      <QrCode size={14} aria-hidden="true" />
+                      QR
+                    </button>
+                    <button
+                      type="button"
+                      className="btn sm"
+                      onClick={() => m.copyText(link, srv.key)}
+                    >
+                      {isCopied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
+                      {isCopied ? copy.copied : copy.copy}
+                    </button>
+                  </div>
+                  {isQrOpen && link && <ProfileQrImage value={link} alt={srv.name} size={200} />}
+                </li>
+              );
+            })}
+          </ul>
+        </li>
+      </ol>
+    );
+  }
 
   if (proto === 'wireguard' || proto === 'amnezia') {
     return (

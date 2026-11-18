@@ -1,13 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  Bell,
   CalendarDays,
   CircleArrowUp,
+  FileStack,
   Gauge,
   Layers,
   LogOut,
   Menu,
   Moon,
   Network,
+  Search,
   Send,
   Server,
   Settings,
@@ -24,10 +27,13 @@ import { apiFetch } from '../lib/api';
 import { formatBytes, formatDaysLeft } from '../lib/format';
 import { toPanelUrl } from '../lib/router';
 import { BrandMark, useSlidingIndicator } from './UiPrimitives';
+import { CommandPalette } from './CommandPalette';
+import { NotificationsDrawer } from './NotificationsDrawer';
 
 export type NavKey =
   | 'overview'
   | 'clients'
+  | 'templates'
   | 'groups'
   | 'inbounds'
   | 'nodes'
@@ -41,6 +47,7 @@ export type NavKey =
 export const NAV_PATHS: Record<NavKey, string> = {
   overview: '/',
   clients: '/clients',
+  templates: '/templates',
   inbounds: '/inbounds',
   nodes: '/nodes',
   connections: '/connections',
@@ -64,6 +71,19 @@ export interface CurrentAccount {
     groups: { view: string; manage: string };
     inbounds: { view: string; manage: string };
     nodes: { view: string; manage: string };
+    webhooks?: boolean;
+    ownSubOrigins?: boolean;
+    metrics?: boolean;
+  };
+  effectiveLimits?: {
+    clientLimit: number | null;
+    requireGroup: boolean;
+    maxTrafficPerClientGb: number | null;
+    maxLifetimeDays: number | null;
+    maxDevicesPerClient: number | null;
+    allowUnlimitedTraffic: boolean;
+    templatesOnly?: boolean;
+    allowedTemplateIds?: number[];
   };
   trafficPoolBytes: number | null;
   trafficUsedBytes: number;
@@ -82,8 +102,39 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
   const { t, lang, setLang, theme, resolvedTheme, setTheme, brandName, supportTelegram } = useUi();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const desktopNavRef = useRef<HTMLElement | null>(null);
   useSlidingIndicator(desktopNavRef, '.xp-nav-active', active);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    const pollUnread = () => {
+      apiFetch<{ unread: number }>('/events/unread')
+        .then((res) => {
+          if (alive) setUnreadCount(res.unread || 0);
+        })
+        .catch(() => undefined);
+    };
+    pollUnread();
+    const tmr = setInterval(pollUnread, 30_000);
+    return () => {
+      alive = false;
+      clearInterval(tmr);
+    };
+  }, [account.id]);
 
   useEffect(() => {
     if (!account.isOwner) return;
@@ -188,6 +239,13 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
       visible: account.isOwner || account.permissions.clients.view !== 'none',
     },
     {
+      key: 'templates',
+      path: '/templates',
+      label: t.nav.templates,
+      icon: <FileStack aria-hidden="true" />,
+      visible: account.isOwner || account.permissions.clients.create !== 'none',
+    },
+    {
       key: 'inbounds',
       path: '/inbounds',
       label: t.nav.inbounds,
@@ -237,6 +295,22 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
         </div>
       </div>
 
+      <button
+        type="button"
+        onClick={() => setPaletteOpen(true)}
+        aria-haspopup="dialog"
+        className="w-full mb-2 px-3 py-2 rounded-xl border flex items-center justify-between text-xs transition-colors"
+        style={{ borderColor: 'var(--line)', background: 'var(--raise-2)', color: 'var(--ink-2)' }}
+      >
+        <span className="flex items-center gap-2">
+          <Search size={14} style={{ color: 'var(--ink-3)' }} />
+          <span>{lang === 'fa' ? 'جستجو' : 'Search'}</span>
+        </span>
+        <kbd className="px-1.5 py-0.5 rounded text-[10px] border" style={{ borderColor: 'var(--line)', color: 'var(--ink-3)' }}>
+          Ctrl K
+        </kbd>
+      </button>
+
       <nav ref={navRef}>
         {items
           .filter((i) => i.visible)
@@ -266,6 +340,28 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
       </nav>
 
       <div className="side-foot">
+        <button
+          type="button"
+          className="navlink w-full justify-between mb-1"
+          onClick={() => {
+            setNotifOpen(true);
+            setMobileOpen(false);
+          }}
+        >
+          <span className="flex items-center gap-2.5">
+            <Bell size={16} aria-hidden="true" />
+            <span>{lang === 'fa' ? 'اعلان‌ها' : 'Notifications'}</span>
+          </span>
+          {unreadCount > 0 && (
+            <span
+              className="px-1.5 py-0.5 rounded-full text-[10px] font-bold num"
+              style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+            >
+              {unreadCount}
+            </span>
+          )}
+        </button>
+
         {supportHref && (
           <a
             className="side-support"
@@ -394,6 +490,18 @@ export function Layout({ active, onNavigate, account, onLogout, children }: Layo
           {children}
         </main>
       </div>
+
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        isOwner={account.isOwner}
+        onOpenNotifications={() => setNotifOpen(true)}
+      />
+      <NotificationsDrawer
+        open={notifOpen}
+        onClose={() => setNotifOpen(false)}
+        onUnreadChange={setUnreadCount}
+      />
     </div>
   );
 }

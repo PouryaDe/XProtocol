@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Check, Copy, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useUi } from '../i18n/context';
 import { apiFetch } from '../lib/api';
-import { navigate } from '../lib/router';
+import { navigate, useLocationState } from '../lib/router';
 import {
   buildDefaultSettings,
   defaultPortForKind,
@@ -16,6 +16,8 @@ import {
 } from '../lib/inboundTypes';
 import { Button, EqLoader, PageHead, Tabs } from '../components/UiPrimitives';
 import { Modal } from '../components/Modal';
+import { XrayWizard } from '../components/XrayWizard';
+import { XrayAdvancedSection, type XrayCombosResponse } from '../components/XrayInboundEditor';
 import {
   DeploymentNodesPanel,
   FoldSection,
@@ -109,7 +111,9 @@ function normalizeRemotes(raw: InboundSettings['remotes']): InboundRemote[] {
 
 export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) {
   const { lang } = useUi();
+  const { search } = useLocationState();
   const isNew = inboundId === 'new';
+  const isXrayWizard = isNew && new URLSearchParams(search).get('kind') === 'xray';
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -119,6 +123,7 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
   const [groups, setGroups] = useState<GroupOption[]>([]);
   const [certs, setCerts] = useState<CertOption[]>([]);
   const [inbound, setInbound] = useState<InboundItem | null>(null);
+  const [xrayCombos, setXrayCombos] = useState<XrayCombosResponse | null>(null);
 
   // Wizard state (when isNew)
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -221,6 +226,9 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
           setError(L(lang, 'Inbound not found.', 'اینباند یافت نشد.'));
         } else {
           hydrateFromInbound(found);
+          if (found.protocol === 'xray') {
+            apiFetch<XrayCombosResponse>('/xray/combos').then(setXrayCombos).catch(() => undefined);
+          }
           await loadConfigAndLogs(found.id);
         }
       }
@@ -940,6 +948,24 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
   );
 
   const renderProtocolSpecificSections = () => {
+    if (inbound?.protocol === 'xray') {
+      return (
+        <div className="panel editor">
+          <div className="p-5">
+            <XrayAdvancedSection
+              settings={settings as Record<string, unknown>}
+              onChange={(next) => setSettings(next as InboundSettings)}
+              combos={xrayCombos}
+              nodeId={inbound.nodeId ?? 0}
+              inboundId={inbound.id}
+              onRefreshInbound={() => {
+                void load();
+              }}
+            />
+          </div>
+        </div>
+      );
+    }
     if (kind === 'openvpn') {
       return (
         <>
@@ -975,6 +1001,10 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
       </>
     );
   };
+
+  if (isXrayWizard) {
+    return <XrayWizard onBackOtherProtocols={() => navigate('/inbounds/new')} />;
+  }
 
   if (loading && !inbound && !isNew) {
     return <EqLoader label={L(lang, 'Loading inbound…', 'در حال بارگذاری اینباند…')} />;
@@ -1077,6 +1107,20 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
                 </div>
 
                 <div className="kind-cards self-start">
+                  <label className="kind-card">
+                    <input
+                      type="radio"
+                      name="inb-protocol-kind"
+                      checked={false}
+                      onChange={() => navigate('/inbounds/new?kind=xray')}
+                    />
+                    <strong>Xray</strong>
+                    <span className="text-xs text-(--text-secondary) leading-relaxed">
+                      {lang === 'fa'
+                        ? 'VLESS، VMess، Trojan یا Shadowsocks. یک سناریوی آماده انتخاب کنید.'
+                        : 'VLESS, VMess, Trojan or Shadowsocks. Pick a ready scenario and press Create.'}
+                    </span>
+                  </label>
                   {PROTOCOL_CARDS.map((card) => {
                     const selected = kind === card.kind;
                     return (

@@ -1,52 +1,48 @@
-# Graph Report - Ovira  (2026-11-16)
+# Graph Report - Ovira  (2026-11-17)
 
 ## Corpus Check
-- 81 files · ~98,877 words
+- 81 files · ~102,434 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 6 file(s) not represented in the graph (top: (none) 2, .css 2, .service 1)
 
 ## Summary
-- 679 nodes · 2321 edges · 21 communities (19 shown, 2 thin omitted)
+- 695 nodes · 2375 edges · 17 communities (16 shown, 1 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 12 edges (avg confidence: 0.83)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `714f8db9`
+- Built from commit: `3892d722`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - RoutingPage.tsx
 - InboundDetailPage.tsx
-- updater.ts
+- linuxEngine.ts
 - web/package.json
-- routingRoutes.ts
 - Server Dependencies & Manifest
 - Web TypeScript Configuration
-- updateRoutes.ts
+- updater.ts
 - Workspace Monorepo Scripts
 - Server TypeScript Configuration
-- pki.ts
 - Project Documentation & Architecture
 - install.sh
 - App.tsx
-- getDb
-- configs.ts
+- index.ts
 - SubscriptionPage.tsx
-- runtime.ts
-- linuxEngine.ts
+- routingRoutes.ts
 - xprotocol-cli.sh
 - DonutChart.tsx
 
 ## God Nodes (most connected - your core abstractions)
-1. `getDb()` - 58 edges
+1. `getDb()` - 60 edges
 2. `useUi()` - 47 edges
 3. `Button()` - 42 edges
 4. `apiFetch()` - 39 edges
-5. `InboundDetailPage()` - 29 edges
-6. `PageHead()` - 29 edges
-7. `RoutingPage()` - 28 edges
-8. `react` - 28 edges
+5. `PageHead()` - 29 edges
+6. `RoutingPage()` - 28 edges
+7. `react` - 28 edges
+8. `InboundDetailPage()` - 27 edges
 9. `PanelRoot()` - 26 edges
 10. `formatBytes()` - 26 edges
 
@@ -65,27 +61,23 @@
 ## Import Cycles
 - None detected.
 
-## Communities (21 total, 2 thin omitted)
+## Communities (17 total, 1 thin omitted)
 
 ### Community 0 - "RoutingPage.tsx"
 Cohesion: 0.14
-Nodes (28): defaultPortForProto(), NORD_COUNTRIES, OutboundModal(), PROTO_LABELS, PROTOCOLS, REGION_NAMES, RuleModal(), SecretField() (+20 more)
+Nodes (36): Modal(), defaultPortForProto(), NORD_COUNTRIES, NordVpnModal(), OutboundModal(), PROTO_LABELS, PROTOCOLS, PsiphonModal() (+28 more)
 
 ### Community 1 - "InboundDetailPage.tsx"
 Cohesion: 0.15
-Nodes (34): CertOption, DeploymentNodesPanel(), ESP_PROPOSALS, FoldSection(), IKE_PROPOSALS, IpsecSection(), L(), NodePickerGrid() (+26 more)
+Nodes (32): CertOption, DeploymentNodesPanel(), ESP_PROPOSALS, FoldSection(), IKE_PROPOSALS, IpsecSection(), L(), NodePickerGrid() (+24 more)
 
-### Community 2 - "updater.ts"
-Cohesion: 0.11
-Nodes (12): closeDb(), DEFAULT_META, DEFAULT_UPDATE_SETTINGS, __dirname, PersistedUpdateMeta, PROJECT_ROOT, ReleaseEntry, UpdateState (+4 more)
+### Community 2 - "linuxEngine.ts"
+Cohesion: 0.05
+Nodes (79): closeDb(), applyDedicatedSessionLimits(), applyInterfaceSpeedLimits(), applyLinuxInbound(), applyXrayRouting(), calcTcRateAndBurst(), collectLinuxLiveTunnels(), detectInstalledProtocols() (+71 more)
 
 ### Community 3 - "web/package.json"
 Cohesion: 0.06
 Nodes (32): qrcode, tailwindcss, @tailwindcss/vite, @types/qrcode, @types/react, @types/react-dom, vite, @vitejs/plugin-react (+24 more)
-
-### Community 4 - "routingRoutes.ts"
-Cohesion: 0.18
-Nodes (18): applyXrayRouting(), updateXrayGeoAssets(), testTcpLatency(), renderXrayRoutingConfig(), collectUsedByMap(), createRoutingRouter(), ensureInboundRoutesColumn(), EXTRA_GEOIP (+10 more)
 
 ### Community 5 - "Server Dependencies & Manifest"
 Cohesion: 0.09
@@ -95,9 +87,9 @@ Nodes (21): tsx, @types/express, @types/node, dependencies, express, devDependen
 Cohesion: 0.11
 Nodes (17): compilerOptions, allowImportingTsExtensions, isolatedModules, jsx, lib, module, moduleDetection, moduleResolution (+9 more)
 
-### Community 7 - "updateRoutes.ts"
-Cohesion: 0.27
-Nodes (17): createUpdateRouter(), checkForUpdates(), compareSemver(), execFileAsync, getCurrentCommit(), getInstalledVersion(), getMeta(), getUpdateSettings() (+9 more)
+### Community 7 - "updater.ts"
+Cohesion: 0.16
+Nodes (27): createUpdateRouter(), checkForUpdates(), compareSemver(), DEFAULT_META, DEFAULT_UPDATE_SETTINGS, __dirname, execFileAsync, fetchGithubJson() (+19 more)
 
 ### Community 8 - "Workspace Monorepo Scripts"
 Cohesion: 0.14
@@ -106,10 +98,6 @@ Nodes (13): description, devDependencies, concurrently, name, private, scripts, 
 ### Community 9 - "Server TypeScript Configuration"
 Cohesion: 0.15
 Nodes (12): compilerOptions, esModuleInterop, forceConsistentCasingInFileNames, module, moduleResolution, outDir, resolveJsonModule, rootDir (+4 more)
-
-### Community 10 - "pki.ts"
-Cohesion: 0.22
-Nodes (16): CONFIG_PATH, DATA_DIR, formatMachineId(), getDataDir(), loadRuntimeConfig(), normalizeSecretPath(), normalizeSubPath(), saveRuntimeConfig() (+8 more)
 
 ### Community 11 - "Project Documentation & Architecture"
 Cohesion: 0.33
@@ -120,48 +108,44 @@ Cohesion: 0.14
 Nodes (16): DEBIAN_FRONTEND, do_update_from_src(), launch_cli_menu(), NEEDRESTART_MODE, NEEDRESTART_SUSPEND, npm_config_audit, npm_config_fund, npm_config_loglevel (+8 more)
 
 ### Community 13 - "App.tsx"
-Cohesion: 0.06
-Nodes (119): lucide-react, react, react-dom, App(), PanelRoot(), resolveRoute(), Drawer(), DrawerProps (+111 more)
-
-### Community 14 - "getDb"
 Cohesion: 0.07
-Nodes (95): express, getDbPath(), RuntimeConfig, DEFAULT_GENERAL_SETTINGS, DEFAULT_SUB_SETTINGS, GeneralSettings, getDb(), getSetting() (+87 more)
+Nodes (107): lucide-react, react, react-dom, App(), PanelRoot(), resolveRoute(), Drawer(), DrawerProps (+99 more)
 
-### Community 15 - "configs.ts"
-Cohesion: 0.24
-Nodes (16): escapeQuoted(), extractAmneziaParams(), InboundRouteOverride, InboundRow, isAmneziaInbound(), parseListSetting(), RenderedConfigFile, renderInboundExtraFiles() (+8 more)
+### Community 14 - "index.ts"
+Cohesion: 0.07
+Nodes (94): express, CONFIG_PATH, DATA_DIR, formatMachineId(), getDataDir(), getDbPath(), loadRuntimeConfig(), normalizeSecretPath() (+86 more)
 
 ### Community 16 - "SubscriptionPage.tsx"
 Cohesion: 0.07
-Nodes (68): Codebase Navigation (Graphify First), XProtocol Engineering & Platform Rules, Tech Stack, XProtocol Open-Core VPN Panel — Agent Workspace Instructions, TrafficSample, BrandMark(), Odometer(), ACCENT_CSS_VARS (+60 more)
+Nodes (72): Codebase Navigation (Graphify First), XProtocol Engineering & Platform Rules, Tech Stack, XProtocol Open-Core VPN Panel — Agent Workspace Instructions, niceScale(), TrafficChart(), TrafficSample, BrandMark() (+64 more)
 
-### Community 21 - "linuxEngine.ts"
-Cohesion: 0.17
-Nodes (25): applyInterfaceSpeedLimits(), applyLinuxInbound(), applyTcIpClasses(), collectLinuxLiveTunnels(), detectInstalledProtocols(), disconnectLinuxPeer(), ensurePppSessionHooks(), ensureSubnetNat() (+17 more)
+### Community 17 - "routingRoutes.ts"
+Cohesion: 0.16
+Nodes (19): updateXrayGeoAssets(), testTcpLatency(), InboundRouteOverride, renderXrayRoutingConfig(), RoutingRule, collectUsedByMap(), createRoutingRouter(), ensureInboundRoutesColumn() (+11 more)
 
 ### Community 23 - "xprotocol-cli.sh"
 Cohesion: 0.55
 Nodes (11): cmd_backup(), cmd_logs(), cmd_ocserv(), cmd_password(), cmd_ssl(), cmd_status(), cmd_uninstall(), cmd_update() (+3 more)
 
 ## Knowledge Gaps
-- **188 isolated node(s):** `__dirname`, `__dirname`, `PROJECT_ROOT`, `DEFAULT_UPDATE_SETTINGS`, `ReleaseEntry` (+183 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 198 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **2 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **193 isolated node(s):** `ProtocolStatus`, `PROTOCOL_BINARIES`, `RenderedConfigFile`, `lastTunnelBytes`, `lastActivityAt` (+188 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 203 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **1 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `BrandMark()` connect `SubscriptionPage.tsx` to `App.tsx`?**
-  _High betweenness centrality (0.387) - this node is a cross-community bridge._
-- **What connects `__dirname`, `__dirname`, `PROJECT_ROOT` to the rest of the system?**
-  _188 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _High betweenness centrality (0.390) - this node is a cross-community bridge._
+- **What connects `ProtocolStatus`, `PROTOCOL_BINARIES`, `RenderedConfigFile` to the rest of the system?**
+  _193 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `RoutingPage.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.13548387096774195 - nodes in this community are weakly interconnected._
-- **Why does `XProtocol Engineering & Platform Rules` connect `SubscriptionPage.tsx` to `getDb`?**
-  _High betweenness centrality (0.382) - this node is a cross-community bridge._
-- **Should `updater.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.10666666666666667 - nodes in this community are weakly interconnected._
-- **Why does `initDatabase()` connect `getDb` to `SubscriptionPage.tsx`, `updater.ts`?**
-  _High betweenness centrality (0.380) - this node is a cross-community bridge._
+  _Cohesion score 0.13900134952766532 - nodes in this community are weakly interconnected._
+- **Why does `XProtocol Engineering & Platform Rules` connect `SubscriptionPage.tsx` to `index.ts`?**
+  _High betweenness centrality (0.386) - this node is a cross-community bridge._
+- **Should `linuxEngine.ts` be split into smaller, more focused modules?**
+  _Cohesion score 0.053650326109825376 - nodes in this community are weakly interconnected._
+- **Why does `initDatabase()` connect `index.ts` to `SubscriptionPage.tsx`, `linuxEngine.ts`?**
+  _High betweenness centrality (0.385) - this node is a cross-community bridge._
 - **Should `web/package.json` be split into smaller, more focused modules?**
   _Cohesion score 0.062388591800356503 - nodes in this community are weakly interconnected._
