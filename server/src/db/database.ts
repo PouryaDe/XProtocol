@@ -52,7 +52,7 @@ export interface GeneralSettings {
 }
 
 export interface SubPageProtocolConfig {
-  id: 'openvpn' | 'wireguard' | 'amneziawg' | 'openconnect' | 'ikev2' | 'l2tp' | 'xray';
+  id: 'openvpn' | 'wireguard' | 'amneziawg' | 'openconnect' | 'ikev2' | 'l2tp' | 'xray' | 'smartdns' | 'telegram';
   shown: boolean;
   tabName: string;
   guideNote: string;
@@ -187,6 +187,22 @@ export const DEFAULT_SUB_SETTINGS: SubscriptionPageSettings = {
     },
     {
       id: 'l2tp',
+      shown: true,
+      tabName: '',
+      guideNote: '',
+      useRecommendedApps: true,
+      customApps: { android: [], ios: [], desktop: [] },
+    },
+    {
+      id: 'smartdns',
+      shown: true,
+      tabName: '',
+      guideNote: '',
+      useRecommendedApps: true,
+      customApps: { android: [], ios: [], desktop: [] },
+    },
+    {
+      id: 'telegram',
       shown: true,
       tabName: '',
       guideNote: '',

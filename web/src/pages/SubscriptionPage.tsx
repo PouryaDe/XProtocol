@@ -55,6 +55,7 @@ interface SubProfile {
   description: string;
   filename: string;
   configText: string;
+  uri?: string;
   connectInfo: Record<string, string | number>;
 }
 
@@ -628,6 +629,80 @@ function ProtocolSteps({ m, tab }: { m: SubViewModel; tab: SubProtocolTab }) {
             <p className="muted small">{copy.ocCisco}</p>
           </li>
         )}
+      </ol>
+    );
+  }
+
+  if (proto === 'smartdns') {
+    return (
+      <ol className="sub-steps">
+        <li>
+          <h3>{m.locale === 'fa' ? 'تنظیم سرور DNS' : 'Set your DNS server'}</h3>
+          <ul className="sub-profiles">
+            {tab.profiles.map((p) => (
+              <li key={p.inboundId} className="sub-profile sub-oc-entry">
+                <div>
+                  <strong>
+                    {p.nodeName ? `${p.nodeName} · ` : ''}
+                    {p.inboundName}
+                  </strong>
+                  {p.description && (
+                    <span className="muted small" dir="auto">
+                      {p.description}
+                    </span>
+                  )}
+                </div>
+                {p.connectInfo?.dns && (
+                  <CopyField label="DNS IP" value={String(p.connectInfo.dns)} copyKey={`sdns-ip-${p.inboundId}`} m={m} />
+                )}
+                {p.connectInfo?.categories && (
+                  <p className="muted small">{String(p.connectInfo.categories)}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </li>
+      </ol>
+    );
+  }
+
+  if (proto === 'telegram') {
+    return (
+      <ol className="sub-steps">
+        <li>
+          <h3>{m.locale === 'fa' ? 'اتصال به پروکسی تلگرام' : 'Connect in Telegram'}</h3>
+          <ul className="sub-profiles">
+            {tab.profiles.map((p) => {
+              const tgUri = p.uri || String(p.connectInfo?.link || '');
+              return (
+                <li key={p.inboundId} className="sub-profile sub-oc-entry">
+                  <div>
+                    <strong>
+                      {p.nodeName ? `${p.nodeName} · ` : ''}
+                      {p.inboundName}
+                    </strong>
+                    {p.description && (
+                      <span className="muted small" dir="auto">
+                        {p.description}
+                      </span>
+                    )}
+                  </div>
+                  {tgUri && (
+                    <CopyField label="MTProto" value={tgUri} copyKey={`tg-uri-${p.inboundId}`} m={m} />
+                  )}
+                  <div className="row-gap">
+                    {tgUri && (
+                      <a className="btn primary sm" href={tgUri}>
+                        <ExternalLink size={14} aria-hidden="true" />
+                        {m.locale === 'fa' ? 'باز کردن در تلگرام' : 'Open in Telegram'}
+                      </a>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </li>
       </ol>
     );
   }

@@ -63,6 +63,16 @@ const DEFAULT_APPS: Record<string, { android: { name: string; url: string }[]; i
     ios: [{ name: 'Built-in iOS VPN', url: 'https://support.apple.com' }],
     desktop: [{ name: 'Built-in OS VPN', url: 'https://support.microsoft.com' }],
   },
+  smartdns: {
+    android: [{ name: 'Android Private DNS / Intra', url: 'https://getintra.org/' }],
+    ios: [{ name: 'iOS Wi-Fi DNS Settings', url: 'https://support.apple.com' }],
+    desktop: [{ name: 'System Network DNS Settings', url: 'https://support.microsoft.com' }],
+  },
+  telegram: {
+    android: [{ name: 'Telegram', url: 'https://play.google.com/store/apps/details?id=org.telegram.messenger' }],
+    ios: [{ name: 'Telegram Messenger', url: 'https://apps.apple.com/app/telegram-messenger/id686449807' }],
+    desktop: [{ name: 'Telegram Desktop', url: 'https://desktop.telegram.org/' }],
+  },
 };
 
 export function createSubRouter(): Router {
@@ -130,6 +140,7 @@ export function createSubRouter(): Router {
         clientName: String(client.name),
         vpnPassword: String(client.vpn_password),
         wgPrivateKey: String(client.wg_private_key),
+        xrayUuid: String(client.xray_uuid || ''),
         fixedIp: String(client.fixed_ip || ''),
         clientIndex: clientId,
         inbound: ib,
@@ -144,11 +155,26 @@ export function createSubRouter(): Router {
         description: ib.description,
         filename: gen.filename,
         configText: gen.content,
+        uri: gen.uri,
         connectInfo: gen.connectInfo,
       };
     });
 
-    const protocolTabs = subSettings.protocols
+    const knownProtoTabs = [
+      ...subSettings.protocols,
+      ...(['smartdns', 'telegram'] as const)
+        .filter((id) => !subSettings.protocols.some((p) => p.id === id))
+        .map((id) => ({
+          id,
+          shown: true,
+          tabName: '',
+          guideNote: '',
+          useRecommendedApps: true,
+          customApps: { android: [], ios: [], desktop: [] },
+        })),
+    ];
+
+    const protocolTabs = knownProtoTabs
       .filter((p) => p.shown)
       .map((p) => {
         if (p.id === 'xray') {
@@ -253,6 +279,7 @@ export function createSubRouter(): Router {
       clientName: String(client.name),
       vpnPassword: String(client.vpn_password),
       wgPrivateKey: String(client.wg_private_key),
+      xrayUuid: String(client.xray_uuid || ''),
       fixedIp: String(client.fixed_ip || ''),
       clientIndex: clientId,
       inbound,

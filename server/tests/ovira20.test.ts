@@ -493,6 +493,71 @@ test('Ovira 2.0 end-to-end API: templates, bulk actions, proxy app sub, events, 
 
     const ssrfRes = await validateWebhookUrl('http://127.0.0.1:8080/hook', false);
     assert.equal(ssrfRes.ok, false);
+
+    // 9. Smart DNS + Telegram proxy + Xray custom remotes flow
+    const dnsRes = await fetch(`${baseUrl}/api/inbounds`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        kind: 'smartdns',
+        nodeId: 1,
+        displayName: 'dns53',
+        groupIds: [1],
+        settings: { dnsCategories: ['games', 'ai'], maxAddressesPerClient: 2 },
+      }),
+    });
+    assert.equal(dnsRes.status, 201);
+    const dnsJson = (await dnsRes.json()) as { id: number };
+    const dnsCfg = await fetch(`${baseUrl}/api/inbounds/${dnsJson.id}/config`, { headers: { Cookie: cookie } }).then((r) => r.json());
+    assert.ok(String(dnsCfg.path).includes('/smartdns/'));
+    assert.ok(String(dnsCfg.content).includes('"port": 53'));
+
+    const tgRes = await fetch(`${baseUrl}/api/inbounds`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        kind: 'telegram',
+        nodeId: 1,
+        port: 8443,
+        displayName: 'tg8443',
+        groupIds: [1],
+        settings: { tgFakeTls: true, fakeTlsDomain: 'www.cloudflare.com' },
+      }),
+    });
+    assert.equal(tgRes.status, 201);
+    const tgJson = (await tgRes.json()) as { id: number };
+    const tgCfg = await fetch(`${baseUrl}/api/inbounds/${tgJson.id}/config`, { headers: { Cookie: cookie } }).then((r) => r.json());
+    assert.ok(String(tgCfg.path).includes('/telegram/'));
+    assert.ok(String(tgCfg.content).includes('"engine": "telemt"'));
+
+    const xrayRemotesRes = await fetch(`${baseUrl}/api/inbounds`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        kind: 'xray',
+        preset: 'direct',
+        nodeId: 1,
+        port: 29443,
+        groupIds: [1],
+        settings: {
+          remotes: [
+            { flag: '🇩🇪', label: 'DE Relay', host: 'de.example.com', port: '8443', sni: 'www.microsoft.com' },
+          ],
+        },
+      }),
+    });
+    assert.equal(xrayRemotesRes.status, 201);
+
+    const clientsList = await fetch(`${baseUrl}/api/clients`, { headers: { Cookie: cookie } }).then((r) => r.json());
+    const anyToken = String(clientsList.clients?.[0]?.subToken || '');
+    if (anyToken) {
+      const subData = await fetch(`${baseUrl}/sub/${anyToken}/data`).then((r) => r.json());
+      const tabIds = (subData.protocolTabs as Array<{ id: string }>).map((t) => t.id);
+      assert.ok(tabIds.includes('smartdns'));
+      assert.ok(tabIds.includes('telegram'));
+      const tgTab = (subData.protocolTabs as Array<{ id: string; profiles: Array<{ uri?: string }> }>).find((t) => t.id === 'telegram');
+      assert.ok(String(tgTab?.profiles?.[0]?.uri || '').startsWith('tg://proxy?'));
+    }
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }

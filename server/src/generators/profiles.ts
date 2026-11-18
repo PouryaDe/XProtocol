@@ -1,13 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getDataDir } from '../config.js';
-import { extractAmneziaParams, isAmneziaInbound, type InboundRow } from './configs.js';
+import { deriveTelegramClientSecret, extractAmneziaParams, isAmneziaInbound, type InboundRow } from './configs.js';
 import { resolveClientTunnelIp } from '../services/peerResolver.js';
 
 export interface ClientProfileParams {
   clientName: string;
   vpnPassword: string;
   wgPrivateKey: string;
+  xrayUuid?: string;
   fixedIp: string;
   clientIndex: number;
   inbound: InboundRow;
@@ -197,6 +198,43 @@ export function generateClientProfile(p: ClientProfileParams): {
         server: `${host}:${p.inbound.port}${secret}`,
         username: p.clientName,
         password: p.vpnPassword,
+      },
+    };
+  }
+
+  if (p.inbound.protocol === 'smartdns') {
+    const dnsHost = String(settings.smartDnsIpv4 || host);
+    const categories = Array.isArray(settings.dnsCategories) ? (settings.dnsCategories as string[]).join(', ') : 'games, dev, ai, general';
+    return {
+      filename: `${p.clientName}-${p.inbound.name}-smartdns.txt`,
+      mimeType: 'text/plain; charset=utf-8',
+      content: `Protocol: Smart DNS\nPrimary DNS: ${dnsHost}\nPort: ${p.inbound.port || 53}\nCategories: ${categories}\n`,
+      connectInfo: {
+        dns: dnsHost,
+        port: p.inbound.port || 53,
+        categories,
+      },
+    };
+  }
+
+  if (p.inbound.protocol === 'telegram') {
+    const { clientSecret } = deriveTelegramClientSecret(
+      p.xrayUuid || p.vpnPassword || p.clientName,
+      p.inbound.name,
+      settings,
+    );
+    const port = p.inbound.port || 443;
+    const uri = `tg://proxy?server=${encodeURIComponent(host)}&port=${port}&secret=${encodeURIComponent(clientSecret)}`;
+    return {
+      filename: `${p.clientName}-${p.inbound.name}-telegram.txt`,
+      mimeType: 'text/plain; charset=utf-8',
+      content: `${uri}\n`,
+      uri,
+      connectInfo: {
+        server: host,
+        port,
+        secret: clientSecret,
+        link: uri,
       },
     };
   }

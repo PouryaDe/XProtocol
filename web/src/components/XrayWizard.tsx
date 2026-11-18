@@ -1,344 +1,483 @@
-import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Check, ChevronDown, Sparkles } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ChevronRight } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { navigate } from '../lib/router';
 import { useUi } from '../i18n/context';
-import { Button, EqLoader, Input, PageHead, Select, StatusPill } from './UiPrimitives';
-import { XrayAdvancedSection, XraySniPickerModal, type XrayCombosResponse } from './XrayInboundEditor';
-
-interface XrayPresetItem {
-  id: string;
-  titleEn: string;
-  titleFa: string;
-  summaryEn: string;
-  summaryFa: string;
-  needs: string[];
-  recommended?: boolean;
-}
+import { Button, PageHead } from './UiPrimitives';
+import { Modal } from './Modal';
+import { XrayAdvancedSection, type XrayCombosResponse } from './XrayInboundEditor';
 
 interface NodeOption {
   id: number;
   name: string;
   address: string;
-  isLocal?: boolean;
+  isLocal: boolean;
+  status: string;
+  enabled: boolean;
 }
+
+type PresetId = 'direct' | 'cdn' | 'relay' | 'vmess-classic' | 'trojan' | 'shadowsocks' | 'manual';
+
+const TEMPLATES: Array<{
+  id: PresetId;
+  titleEn: string;
+  titleFa: string;
+  descEn: string;
+  descFa: string;
+}> = [
+  {
+    id: 'direct',
+    titleEn: 'Direct connection',
+    titleFa: 'اتصال مستقیم',
+    descEn: 'The best choice for most servers. Nothing to enter: the port and the camouflage site are picked for you.',
+    descFa: 'بهترین انتخاب برای اکثر سرورها. بدون نیاز به تنظیم دستی: پورت و سایت استتار خودکار انتخاب می‌شوند.',
+  },
+  {
+    id: 'cdn',
+    titleEn: 'Behind a CDN (Cloudflare)',
+    titleFa: 'پشت CDN (کلادفلر)',
+    descEn: 'Hide this server behind your own domain on Cloudflare. You need a domain.',
+    descFa: 'سرور را پشت دامنه خودتان در کلادفلر مخفی کنید. نیاز به دامنه دارید.',
+  },
+  {
+    id: 'relay',
+    titleEn: 'Behind a relay or tunnel server',
+    titleFa: 'پشت سرور واسط یا تانل',
+    descEn: 'Clients reach you through a tunnel or relay, for example from Iran, with PROXY protocol so their real address is known.',
+    descFa: 'کلاینت‌ها از طریق سرور واسط یا تانل متصل می‌شوند و با PROXY protocol آی‌پی واقعی مشخص است.',
+  },
+  {
+    id: 'vmess-classic',
+    titleEn: 'Classic VMess',
+    titleFa: 'VMess کلاسیک',
+    descEn: 'The older protocol every app understands. Nothing to enter.',
+    descFa: 'پروتکل قدیمی که تمام برنامه‌ها پشتیبانی می‌کنند.',
+  },
+  {
+    id: 'trojan',
+    titleEn: 'Trojan',
+    titleFa: 'Trojan',
+    descEn: 'Looks like an ordinary secure website. Nothing to enter.',
+    descFa: 'شبیه یک وب‌سایت امن معمولی به نظر می‌رسد.',
+  },
+  {
+    id: 'shadowsocks',
+    titleEn: 'Shadowsocks',
+    titleFa: 'Shadowsocks',
+    descEn: 'Simple and light, with a separate key for every client. Nothing to enter.',
+    descFa: 'ساده و سبک، با کلید مجزا برای هر کاربر.',
+  },
+  {
+    id: 'manual',
+    titleEn: 'Manual (advanced)',
+    titleFa: 'دستی (پیشرفته)',
+    descEn: 'Start from a plain setup and choose every detail yourself.',
+    descFa: 'شروع از یک تنظیمات خام و انتخاب تمام جزئیات به‌صورت دستی.',
+  },
+];
 
 export function XrayWizard({ onBackOtherProtocols }: { onBackOtherProtocols: () => void }) {
   const { lang } = useUi();
-  const fa = lang === 'fa';
+  const L = (en: string, fa: string) => (lang === 'fa' ? fa : en);
 
-  const [presets, setPresets] = useState<XrayPresetItem[]>([]);
-  const [combos, setCombos] = useState<XrayCombosResponse | null>(null);
   const [nodes, setNodes] = useState<NodeOption[]>([]);
-  const [selectedPreset, setSelectedPreset] = useState('direct');
-  const [nodeId, setNodeId] = useState(0);
-  const [name, setName] = useState('');
-  const [port, setPort] = useState('443');
+  const [combos, setCombos] = useState<XrayCombosResponse | null>(null);
+
+  const [selectedNodeId, setSelectedNodeId] = useState<string>('');
+  const [preset, setPreset] = useState<PresetId>('direct');
+  const [pendingPreset, setPendingPreset] = useState<PresetId | null>(null);
+  const [displayName, setDisplayName] = useState('');
+  const [cdnDomain, setCdnDomain] = useState('');
+  const [cfGuideOpen, setCfGuideOpen] = useState(false);
+
+  const [port, setPort] = useState<number>(443);
   const [settings, setSettings] = useState<Record<string, unknown>>({});
-  const [sniInfo, setSniInfo] = useState<{ grade?: string; millis?: number; tested?: boolean }>({});
-  const [needs, setNeeds] = useState<string[]>([]);
-  const [cdnHost, setCdnHost] = useState('');
-  const [certFile, setCertFile] = useState('');
-  const [keyFile, setKeyFile] = useState('');
-  const [relayIps, setRelayIps] = useState('');
-  const [sniModalOpen, setSniModalOpen] = useState(false);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [sniGrade, setSniGrade] = useState<string>('');
+  const [sniMillis, setSniMillis] = useState<number | null>(null);
+  const [dirty, setDirty] = useState(false);
+
+  const [loadingDefaults, setLoadingDefaults] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     Promise.all([
-      apiFetch<{ items: XrayPresetItem[] }>('/xray/presets'),
+      apiFetch<{ nodes: NodeOption[] }>('/nodes'),
       apiFetch<XrayCombosResponse>('/xray/combos'),
-      apiFetch<{ nodes: NodeOption[] }>('/nodes').catch(() => ({ nodes: [] })),
     ])
-      .then(([pRes, cRes, nRes]) => {
-        setPresets(pRes.items || []);
-        setCombos(cRes);
+      .then(([nRes, cRes]) => {
         setNodes(nRes.nodes || []);
+        setCombos(cRes);
       })
-      .finally(() => setLoading(false));
+      .catch((err) => setError((err as Error).message));
   }, []);
 
-  useEffect(() => {
-    apiFetch<{
-      port: number;
-      settings: Record<string, unknown>;
-      needs: string[];
-      sniGrade?: string;
-      sniMillis?: number;
-      sniTested?: boolean;
-    }>(`/inbounds/defaults?kind=xray&preset=${selectedPreset}&node=${nodeId}`)
-      .then((res) => {
-        setPort(String(res.port || 443));
-        setSettings(res.settings || {});
-        setNeeds(res.needs || []);
-        setSniInfo({ grade: res.sniGrade, millis: res.sniMillis, tested: res.sniTested });
-        if (selectedPreset === 'manual') setAdvancedOpen(true);
-      })
-      .catch(() => undefined);
-  }, [selectedPreset, nodeId]);
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
+  const loadDefaultsFor = async (targetPreset: PresetId, nodeIdStr: string) => {
+    const nid = Number(nodeIdStr || 0);
+    if (!nid) return;
+    setLoadingDefaults(true);
     setError('');
     try {
-      const merged: Record<string, unknown> = { ...settings };
-      if (needs.includes('cdnHost') && cdnHost.trim()) {
-        merged.cdnHost = cdnHost.trim();
-        merged.tlsHost = cdnHost.trim();
-        merged.host = cdnHost.trim();
+      const res = await apiFetch<{
+        port: number;
+        settings: Record<string, unknown>;
+        sniGrade?: string;
+        sniMillis?: number | null;
+      }>(`/inbounds/defaults?kind=xray&preset=${targetPreset}&node=${nid}`);
+      setPort(res.port || 443);
+      let loaded = { ...(res.settings || {}) };
+      if (targetPreset === 'cdn' && cdnDomain.trim()) {
+        const cleanDom = cdnDomain.trim();
+        const prevTls = loaded.tls && typeof loaded.tls === 'object' ? (loaded.tls as Record<string, unknown>) : {};
+        loaded = {
+          ...loaded,
+          host: cleanDom,
+          cdnDomain: cleanDom,
+          behindCdn: true,
+          tls: { ...prevTls, certHost: cleanDom, serverName: cleanDom, sni: cleanDom },
+        };
       }
-      if (needs.includes('certFile') && certFile.trim()) {
-        merged.tls = { ...(merged.tls as Record<string, unknown>), certFile: certFile.trim(), keyFile: keyFile.trim() };
-      }
-      if (needs.includes('relayIPs') && relayIps.trim()) {
-        merged.allowFrom = relayIps.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
-      }
+      setSettings(loaded);
+      setSniGrade(res.sniGrade || '');
+      setSniMillis(res.sniMillis ?? null);
+      setDirty(false);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoadingDefaults(false);
+    }
+  };
 
-      const res = await apiFetch<{ id: number }>('/inbounds', {
+  useEffect(() => {
+    if (selectedNodeId) {
+      void loadDefaultsFor(preset, selectedNodeId);
+    }
+  }, [selectedNodeId]);
+
+  // Sync CDN domain into settings live when on cdn template
+  useEffect(() => {
+    if (preset !== 'cdn' || !selectedNodeId) return;
+    const cleanDom = cdnDomain.trim();
+    if (!cleanDom) return;
+    setSettings((prev) => {
+      const prevTls = prev.tls && typeof prev.tls === 'object' ? (prev.tls as Record<string, unknown>) : {};
+      return {
+        ...prev,
+        host: cleanDom,
+        cdnDomain: cleanDom,
+        behindCdn: true,
+        tls: { ...prevTls, certHost: cleanDom, serverName: cleanDom, sni: cleanDom },
+      };
+    });
+  }, [cdnDomain, preset, selectedNodeId]);
+
+  const handleSelectPreset = (nextPreset: PresetId) => {
+    if (nextPreset === preset) return;
+    if (dirty && selectedNodeId) {
+      setPendingPreset(nextPreset);
+      return;
+    }
+    setPreset(nextPreset);
+    if (selectedNodeId) {
+      void loadDefaultsFor(nextPreset, selectedNodeId);
+    }
+  };
+
+  const confirmSwitchPreset = () => {
+    if (!pendingPreset) return;
+    const target = pendingPreset;
+    setPendingPreset(null);
+    setPreset(target);
+    if (selectedNodeId) {
+      void loadDefaultsFor(target, selectedNodeId);
+    }
+  };
+
+  const activeTemplate = TEMPLATES.find((t) => t.id === preset) || TEMPLATES[0];
+  const needsCdnDomain = preset === 'cdn' && !cdnDomain.trim();
+  const canSubmit = Boolean(selectedNodeId) && !needsCdnDomain && !loadingDefaults && !submitting;
+
+  const handleCreate = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      const res = await apiFetch<{ id: number; ids?: number[] }>('/inbounds', {
         method: 'POST',
         body: JSON.stringify({
-          protocol: 'xray',
-          preset: selectedPreset,
-          nodeId,
-          displayName: name.trim() || undefined,
-          port: Number(port),
-          enabled: true,
-          settings: merged,
+          kind: 'xray',
+          preset,
+          nodeId: Number(selectedNodeId),
+          port,
+          displayName: displayName.trim() || undefined,
+          settings:
+            preset === 'cdn' && cdnDomain.trim()
+              ? {
+                  ...settings,
+                  cdnDomain: cdnDomain.trim(),
+                  behindCdn: true,
+                  host: String(settings.host || cdnDomain.trim()),
+                }
+              : settings,
         }),
       });
       navigate(`/inbounds/${res.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create Xray inbound');
-    } finally {
-      setSaving(false);
+      setError((err as Error).message);
+      setSubmitting(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <EqLoader />
-      </div>
-    );
-  }
-
-  const reality = (settings.reality && typeof settings.reality === 'object' ? settings.reality : {}) as Record<string, unknown>;
-  const currentSni = Array.isArray(reality.serverNames) ? String(reality.serverNames[0] || '') : '';
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHead
-        title={fa ? 'ایجاد اینباند Xray جدید' : 'New Xray inbound'}
-        sub={
-          fa
-            ? 'سناریوی اتصال را انتخاب کنید؛ پنل تنظیمات امن و دامنه استتار مناسب را آماده می‌کند.'
-            : 'Pick a ready scenario and press Create, or fine-tune every transport and security option.'
-        }
+        title={L('New Xray inbound', 'اینباند Xray جدید')}
+        sub={L(
+          'Choose the server, start from a template if you like, and set everything the way you want. Keys, port and camouflage site are filled in for you.',
+          'سرور را انتخاب کنید، از یک قالب شروع کنید و همه چیز را مطابق نیاز تنظیم کنید. کلیدها، پورت و سایت استتار به‌صورت خودکار پر می‌شوند.',
+        )}
         actions={
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={onBackOtherProtocols}>
-              {fa ? 'سایر پروتکل‌ها' : 'Other protocols'}
-            </Button>
-            <Button variant="ghost" onClick={() => navigate('/inbounds')}>
-              <ArrowLeft size={15} />
-              {fa ? 'بازگشت' : 'Back'}
-            </Button>
-          </div>
+          <Button variant="secondary" size="sm" onClick={onBackOtherProtocols}>
+            {L('Other protocols', 'سایر پروتکل‌ها')}
+          </Button>
         }
       />
 
-      <form onSubmit={handleCreate} className="space-y-6">
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>
-            {fa ? 'به چه چیزی نیاز دارید؟' : 'What do you need?'}
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {presets.map((p) => {
-              const active = selectedPreset === p.id;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setSelectedPreset(p.id)}
-                  className="text-start rounded-2xl border p-4 transition-all"
-                  style={{
-                    borderColor: active ? 'var(--accent)' : 'var(--line)',
-                    background: active ? 'var(--accent-wash)' : 'var(--raise)',
-                  }}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <strong className="text-sm" style={{ color: 'var(--ink)' }}>
-                      {fa ? p.titleFa : p.titleEn}
-                    </strong>
-                    {p.recommended && <StatusPill tone="good">{fa ? 'پیشنهادی' : 'Recommended'}</StatusPill>}
-                    {!p.recommended && active && <Check size={16} style={{ color: 'var(--accent)' }} />}
-                  </div>
-                  <p className="text-xs mt-1.5 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-                    {fa ? p.summaryFa : p.summaryEn}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
+      {error && (
+        <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2.5 text-xs text-red-400">
+          {error}
         </div>
+      )}
 
-        <div
-          className="rounded-2xl border p-5 space-y-4"
-          style={{ borderColor: 'var(--line)', background: 'var(--raise)' }}
-        >
-          <h3 className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>
-            {fa ? 'بررسی و ساخت' : 'Check and create'}
-          </h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Input
-              label={fa ? 'نام نمایشی (اختیاری)' : 'Name'}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={`xray-${selectedPreset}`}
-            />
-            <Input
-              label={fa ? 'پورت' : 'Port'}
-              type="number"
-              min="1"
-              max="65535"
-              value={port}
-              onChange={(e) => setPort(e.target.value)}
-            />
-            <Select
-              label={fa ? 'نود اجرا' : 'Node'}
-              value={String(nodeId)}
-              onChange={(e) => setNodeId(Number(e.target.value))}
-            >
-              <option value="0">{fa ? 'همین سرور (اصلی)' : 'This server'}</option>
-              {nodes.filter((n) => !n.isLocal).map((n) => (
-                <option key={n.id} value={n.id}>{n.name} ({n.address})</option>
-              ))}
-            </Select>
+      <div className="panel editor">
+        {/* Section 1: Server and template */}
+        <section className="ed-section">
+          <div>
+            <h2>{L('Server and template', 'سرور و قالب')}</h2>
+            <p className="ed-lede">
+              {L(
+                'Pick which server runs this Xray inbound and which scenario to pre-fill from.',
+                'سرور میزبان و قالب اولیه این اینباند را انتخاب کنید.',
+              )}
+            </p>
           </div>
+          <div className="ed-fields">
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-(--text-primary)">{L('Server', 'سرور')}</span>
+              <select
+                value={selectedNodeId}
+                onChange={(e) => setSelectedNodeId(e.target.value)}
+                className="select text-sm"
+              >
+                <option value="">{L('Choose a server…', 'یک سرور انتخاب کنید…')}</option>
+                {nodes.map((n) => (
+                  <option key={n.id} value={String(n.id)}>
+                    {n.isLocal ? L('This server', 'همین سرور') : `${n.name} (${n.address})`}
+                  </option>
+                ))}
+              </select>
+              <span className="block text-xs text-(--text-muted)">
+                {selectedNodeId
+                  ? L('The server that runs this inbound.', 'سروری که این اینباند روی آن اجرا می‌شود.')
+                  : L('Required: choose the server this inbound runs on.', 'الزامی: سروری که این اینباند روی آن اجرا می‌شود را انتخاب کنید.')}
+              </span>
+            </label>
 
-          {settings.security === 'reality' && (
-            <div
-              className="rounded-xl border p-3.5 flex flex-wrap items-center justify-between gap-3"
-              style={{ borderColor: 'var(--line)', background: 'var(--raise-2)' }}
-            >
-              <div>
-                <div className="text-xs" style={{ color: 'var(--ink-3)' }}>
-                  {fa ? 'دامنه استتار (Camouflage site)' : 'Camouflage site'}
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="font-mono text-sm font-semibold" style={{ color: 'var(--ink)' }}>
-                    {currentSni || 'www.amd.com'}
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-(--text-primary)">{L('Start from', 'شروع از')}</span>
+              <select
+                value={preset}
+                onChange={(e) => handleSelectPreset(e.target.value as PresetId)}
+                className="select text-sm"
+              >
+                {TEMPLATES.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {L(t.titleEn, t.titleFa)}
+                  </option>
+                ))}
+              </select>
+              <span className="block text-xs text-(--text-muted)">
+                {L(activeTemplate.descEn, activeTemplate.descFa)}
+              </span>
+            </label>
+
+            {preset === 'cdn' && (
+              <div className="space-y-3 rounded-lg border border-(--border-subtle) bg-(--bg-surface) p-3.5">
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-medium text-(--text-primary)">
+                    {L('Your domain on the CDN', 'دامنه شما روی CDN')}
                   </span>
-                  {sniInfo.grade && (
-                    <StatusPill tone={sniInfo.grade === 'green' ? 'good' : sniInfo.grade === 'yellow' ? 'warn' : 'bad'}>
-                      {sniInfo.grade}{sniInfo.millis ? ` · ${sniInfo.millis} ms` : ''}
-                    </StatusPill>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    value={cdnDomain}
+                    onChange={(e) => {
+                      setCdnDomain(e.target.value);
+                      setDirty(true);
+                    }}
+                    placeholder="vpn.example.com"
+                    className="input font-mono text-xs"
+                  />
+                  <span className="block text-xs text-(--text-muted)">
+                    {L(
+                      'The domain you set up in Cloudflare, for example vpn.example.com.',
+                      'دامنه‌ای که در کلادفلر تنظیم کرده‌اید، مثلاً vpn.example.com.',
+                    )}
+                  </span>
+                </label>
+
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setCfGuideOpen((v) => !v)}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-(--text-primary) hover:text-(--accent)"
+                  >
+                    <ChevronRight className={`h-3.5 w-3.5 transition-transform ${cfGuideOpen ? 'rotate-90' : ''}`} />
+                    <span>{L('How to set this up in Cloudflare', 'راهنمای تنظیم در کلادفلر')}</span>
+                  </button>
+                  {cfGuideOpen && (
+                    <ol className="mt-2.5 list-decimal space-y-1.5 pl-5 text-xs leading-relaxed text-(--text-muted)">
+                      <li>
+                        {L(
+                          'Point your domain nameservers to Cloudflare and wait for DNS activation.',
+                          'نیم‌سرورهای دامنه را روی کلادفلر تنظیم کنید.',
+                        )}
+                      </li>
+                      <li>
+                        {L(
+                          'Create an A record (or subdomain such as vpn) pointing to this server IP with the orange proxy cloud enabled.',
+                          'یک رکورد A به آی‌پی این سرور با ابر نارنجی (Proxied) بسازید.',
+                        )}
+                      </li>
+                      <li>
+                        {L(
+                          'Under SSL/TLS -> Overview, choose Full or Full (strict). Never use Flexible.',
+                          'در بخش SSL/TLS گزینه Full یا Full (strict) را انتخاب کنید.',
+                        )}
+                      </li>
+                      <li>
+                        {L(
+                          'Under Network, make sure WebSockets is turned On.',
+                          'در بخش Network مطمئن شوید WebSockets روشن است.',
+                        )}
+                      </li>
+                      <li>
+                        {L(
+                          'Use a Cloudflare-proxied HTTPS port such as 443, 8443, 2053, 2083, 2087, or 2096.',
+                          'از پورت‌های HTTPS کلادفلر مانند 443، 8443، 2053، 2083، 2087 یا 2096 استفاده کنید.',
+                        )}
+                      </li>
+                      <li>
+                        {L(
+                          'Keep Proxy mode enabled only for traffic and test client connection after saving.',
+                          'پس از ذخیره، اتصال کلاینت را آزمایش کنید.',
+                        )}
+                      </li>
+                    </ol>
                   )}
                 </div>
               </div>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setSniModalOpen(true)}>
-                <Sparkles size={14} />
-                {fa ? 'تغییر' : 'Change'}
-              </Button>
-            </div>
-          )}
+            )}
 
-          {selectedPreset === 'cdn' && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <Input
-                  label={fa ? 'دامنه روی CDN (Cloudflare)' : 'Your domain on the CDN'}
-                  value={cdnHost}
-                  onChange={(e) => setCdnHost(e.target.value)}
-                  placeholder="cdn.example.com"
-                  required
-                />
-                <Input
-                  label={fa ? 'مسیر فایل گواهی (certFile)' : 'Certificate file (certFile)'}
-                  value={certFile}
-                  onChange={(e) => setCertFile(e.target.value)}
-                  placeholder="/etc/letsencrypt/live/.../fullchain.pem"
-                />
-                <Input
-                  label={fa ? 'مسیر فایل کلید (keyFile)' : 'Private key file (keyFile)'}
-                  value={keyFile}
-                  onChange={(e) => setKeyFile(e.target.value)}
-                  placeholder="/etc/letsencrypt/live/.../privkey.pem"
-                />
-              </div>
-              <details className="rounded-xl border p-3 text-xs" style={{ borderColor: 'var(--line)', background: 'var(--raise-2)', color: 'var(--ink-2)' }}>
-                <summary className="font-semibold cursor-pointer" style={{ color: 'var(--ink)' }}>
-                  {fa ? 'راهنمای تنظیم در Cloudflare' : 'How to set this up in Cloudflare'}
-                </summary>
-                <ul className="list-disc ps-5 mt-2 space-y-1">
-                  <li>{fa ? 'از یکی از پورت‌های پشتیبانی‌شده Cloudflare استفاده کنید: 443، 8443، 2053، 2083، 2087، 2096.' : 'Use one of Cloudflare HTTPS ports: 443, 8443, 2053, 2083, 2087, 2096.'}</li>
-                  <li>{fa ? 'حالت SSL/TLS را روی Full یا Full (Strict) بگذارید و WebSockets را روشن کنید.' : 'Set SSL/TLS mode to Full (or Full Strict) and enable WebSockets.'}</li>
-                  <li>{fa ? 'رکورد DNS دامنه را روی حالت Proxied (ابر نارنجی) قرار دهید.' : 'Keep the DNS record Proxied (orange cloud).'}</li>
-                </ul>
-              </details>
-            </div>
-          )}
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-(--text-primary)">{L('Name', 'نام')}</span>
+              <input
+                type="text"
+                value={displayName}
+                onChange={(e) => {
+                  setDisplayName(e.target.value);
+                  setDirty(true);
+                }}
+                placeholder={L('Optional', 'اختیاری')}
+                className="input text-sm"
+              />
+              <span className="block text-xs text-(--text-muted)">
+                {L('Shown in the panel. Leave empty to use the suggested name.', 'نمایش در پنل. برای نام پیشنهادی خالی بگذارید.')}
+              </span>
+            </label>
+          </div>
+        </section>
 
-          {selectedPreset === 'relay' && (
-            <Input
-              label={fa ? 'آی‌پی سرورهای رله / تانل (با کاما جدا کنید)' : 'Relay server IPs (comma-separated)'}
-              value={relayIps}
-              onChange={(e) => setRelayIps(e.target.value)}
-              placeholder="203.0.113.10, 198.51.100.4"
-              required
-            />
-          )}
-
+        {/* Section 2: Settings */}
+        <section className="ed-section">
           <div>
-            <button
-              type="button"
-              onClick={() => setAdvancedOpen((v) => !v)}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold"
-              style={{ color: 'var(--accent-text)' }}
-            >
-              <ChevronDown size={14} className={`transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
-              <span>{fa ? 'تنظیمات پیشرفته' : 'Advanced'}</span>
-            </button>
-            {advancedOpen && (
-              <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--line)' }}>
-                <XrayAdvancedSection
-                  settings={settings}
-                  onChange={setSettings}
-                  combos={combos}
-                  nodeId={nodeId}
-                />
+            <h2>{L('Settings', 'تنظیمات')}</h2>
+            <p className="ed-lede">
+              {L(
+                'Every Xray transport, security, Reality SNI, connect address, socket and sniffing control.',
+                'تمام تنظیمات پروتکل، انتقال، امنیت Reality/TLS، آدرس اتصال و سوکت.',
+              )}
+            </p>
+          </div>
+          <div className="ed-fields">
+            {!selectedNodeId ? (
+              <div className="rounded-lg border border-(--border-subtle) bg-(--bg-surface) px-4 py-4 text-xs text-(--text-muted)">
+                {L(
+                  'Choose a server first. The port and camouflage site are picked for that server.',
+                  'ابتدا یک سرور انتخاب کنید. پورت و سایت استتار متناسب با آن سرور انتخاب می‌شوند.',
+                )}
               </div>
+            ) : needsCdnDomain ? (
+              <div className="rounded-lg border border-(--border-subtle) bg-(--bg-surface) px-4 py-4 text-xs text-(--text-muted)">
+                {L('Enter your CDN domain first.', 'ابتدا دامنه CDN خود را وارد کنید.')}
+              </div>
+            ) : loadingDefaults ? (
+              <div className="rounded-lg border border-(--border-subtle) bg-(--bg-surface) px-4 py-4 text-xs text-(--text-muted)">
+                {L('Loading recommended defaults for this server...', 'در حال بارگذاری تنظیمات پیشنهادی سرور...')}
+              </div>
+            ) : (
+              <XrayAdvancedSection
+                settings={settings}
+                onChange={(next) => {
+                  setSettings(next);
+                  setDirty(true);
+                }}
+                combos={combos}
+                nodeId={Number(selectedNodeId)}
+                port={port}
+                onPortChange={(p) => {
+                  setPort(p);
+                  setDirty(true);
+                }}
+                sniGrade={sniGrade}
+                sniMillis={sniMillis}
+              />
             )}
           </div>
+        </section>
 
-          {error && <div className="text-xs" style={{ color: 'var(--bad)' }}>{error}</div>}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="submit" variant="primary" disabled={saving}>
-              {saving ? (fa ? 'در حال ساخت...' : 'Creating...') : fa ? 'ایجاد اینباند Xray' : 'Create'}
-            </Button>
-          </div>
+        {/* Footer */}
+        <div className="savebar">
+          <span className="text-xs text-(--text-muted)">
+            {!selectedNodeId
+              ? L('Select a server to enable creation.', 'برای ساخت اینباند یک سرور انتخاب کنید.')
+              : needsCdnDomain
+                ? L('Enter a CDN domain to continue.', 'برای ادامه دامنه CDN را وارد کنید.')
+                : L('Ready to create on the chosen server.', 'آماده ساخت روی سرور انتخاب‌شده.')}
+          </span>
+          <Button onClick={handleCreate} disabled={!canSubmit}>
+            {submitting ? L('Creating…', 'در حال ساخت…') : L('Create', 'ایجاد')}
+          </Button>
         </div>
-      </form>
+      </div>
 
-      <XraySniPickerModal
-        open={sniModalOpen}
-        onClose={() => setSniModalOpen(false)}
-        nodeId={nodeId}
-        currentSni={currentSni}
-        onSelect={(domain, grade, millis) => {
-          setSettings((prev) => ({
-            ...prev,
-            reality: { ...(prev.reality as Record<string, unknown>), serverNames: [domain], target: `${domain}:443` },
-          }));
-          if (grade) setSniInfo({ grade, millis, tested: true });
-        }}
-      />
+      <Modal
+        open={pendingPreset !== null}
+        onClose={() => setPendingPreset(null)}
+        title={L('Start the form again?', 'فرم از نو پر شود؟')}
+        subtitle={L(
+          'The form is filled again from the new choice, and your changes to it are lost.',
+          'با این کار فرم با مقادیر قالب جدید پر می‌شود و تغییرات فعلی از بین می‌روند.',
+        )}
+        size="sm"
+      >
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="secondary" onClick={() => setPendingPreset(null)}>
+            {L('Cancel', 'انصراف')}
+          </Button>
+          <Button onClick={confirmSwitchPreset}>{L('Start again', 'شروع مجدد')}</Button>
+        </div>
+      </Modal>
     </div>
   );
 }

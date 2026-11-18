@@ -568,6 +568,39 @@ export async function applyLinuxInbound(
     return { ok: r.ok, logs };
   }
 
+  if (inbound.protocol === 'smartdns') {
+    if (action !== 'stop') {
+      await openFirewallPort(53, 'udp');
+      await openFirewallPort(53, 'tcp');
+      await openFirewallPort(80, 'tcp');
+      await openFirewallPort(443, 'tcp');
+      for (const extraP of String(settings.extraTlsPorts || '').split(/[,\s]+/).filter(Boolean)) {
+        const num = Number(extraP);
+        if (num > 0 && num <= 65535) await openFirewallPort(num, 'tcp');
+      }
+      const hasDnsmasq = await runCmd('which', ['dnsmasq'], 2000);
+      if (hasDnsmasq.ok) {
+        await runCmd('systemctl', ['restart', 'dnsmasq'], 5000);
+      }
+      logs.push(`Smart DNS configured at ${rendered.path}`);
+    }
+    return { ok: true, logs };
+  }
+
+  if (inbound.protocol === 'telegram') {
+    if (action !== 'stop') {
+      await openFirewallPort(inbound.port || 443, 'tcp');
+      const hasTelemt = await runCmd('which', ['telemt'], 2000);
+      if (hasTelemt.ok) {
+        const r = await runCmd('systemctl', [action, `xprotocol-telemt@${inbound.name}`], 5000);
+        logs.push(`systemctl ${action} xprotocol-telemt@${inbound.name}: ${r.ok ? 'ok' : r.stderr}`);
+        return { ok: r.ok, logs };
+      }
+      logs.push(`Telegram MTProto config written to ${rendered.path} (engine: telemt)`);
+    }
+    return { ok: true, logs };
+  }
+
   return { ok: true, logs };
 }
 

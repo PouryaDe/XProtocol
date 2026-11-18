@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, Copy, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, Copy, RefreshCw } from 'lucide-react';
 import { useUi } from '../i18n/context';
 import { apiFetch } from '../lib/api';
 import { navigate, useLocationState } from '../lib/router';
@@ -18,6 +18,7 @@ import { Button, EqLoader, PageHead, Tabs } from '../components/UiPrimitives';
 import { Modal } from '../components/Modal';
 import { XrayWizard } from '../components/XrayWizard';
 import { XrayAdvancedSection, type XrayCombosResponse } from '../components/XrayInboundEditor';
+import { ConnectAddressesField } from '../components/ConnectAddressesField';
 import {
   DeploymentNodesPanel,
   FoldSection,
@@ -25,6 +26,8 @@ import {
   L,
   NodePickerGrid,
   OpenConnectSection,
+  SmartDnsSection,
+  TelegramProxySection,
   TunnelNetworkPicker,
   WireGuardSection,
   type CertOption,
@@ -37,7 +40,7 @@ interface GroupOption {
   clientCount?: number;
 }
 
-type ProtocolCardKind = 'openvpn' | 'ocserv' | 'wireguard' | 'ikev2' | 'l2tp';
+type ProtocolCardKind = 'openvpn' | 'ocserv' | 'wireguard' | 'ikev2' | 'l2tp' | 'smartdns' | 'telegram';
 
 const PROTOCOL_CARDS: Array<{
   kind: ProtocolCardKind;
@@ -81,6 +84,20 @@ const PROTOCOL_CARDS: Array<{
     descEn: 'L2TP with IPsec and a pre-shared key for compatible clients',
     descFa: 'L2TP همراه با IPsec و کلید مشترک برای کلاینت‌های سازگار',
   },
+  {
+    kind: 'smartdns',
+    title: 'Smart DNS',
+    defaultPlaceholder: 'dns53',
+    descEn: 'DNS for sanctioned services, no app needed',
+    descFa: 'DNS هوشمند برای سرویس‌های تحریمی، بدون نیاز به اپلیکیشن',
+  },
+  {
+    kind: 'telegram',
+    title: 'Telegram proxy',
+    defaultPlaceholder: 'tg443',
+    descEn: 'Proxy for Telegram, no app needed',
+    descFa: 'پروکسی اختصاصی تلگرام، بدون نیاز به اپلیکیشن',
+  },
 ];
 
 function dnsToLines(dns: string | string[] | undefined): string {
@@ -103,9 +120,12 @@ function routesToLines(routes: string | string[] | undefined): string {
 function normalizeRemotes(raw: InboundSettings['remotes']): InboundRemote[] {
   if (!Array.isArray(raw)) return [];
   return raw.map((r) => ({
+    flag: r.flag ? String(r.flag) : '',
     label: String(r.label || ''),
     host: String(r.host || ''),
     port: String(r.port ?? ''),
+    ...(r.sni ? { sni: String(r.sni) } : {}),
+    ...(r.hostHeader ? { hostHeader: String(r.hostHeader) } : {}),
   }));
 }
 
@@ -250,7 +270,7 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
 
   const handleSelectKind = (nextKind: ProtocolCardKind) => {
     setKind(nextKind);
-    setTransport(nextKind === 'ocserv' ? 'tcp' : 'udp');
+    setTransport(nextKind === 'ocserv' || nextKind === 'telegram' ? 'tcp' : 'udp');
     setPort(String(defaultPortForKind(nextKind)));
     setSubnet('');
     setCidrValid(true);
@@ -270,9 +290,12 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
     const cleanRemotes = remotes
       .filter((r) => r.host.trim())
       .map((r) => ({
+        ...(r.flag ? { flag: r.flag } : {}),
         label: r.label.trim() || r.host.trim(),
         host: r.host.trim(),
         port: Number(r.port) || Number(port) || defaultPortForKind(kind),
+        ...(r.sni ? { sni: r.sni.trim() } : {}),
+        ...(r.hostHeader ? { hostHeader: r.hostHeader.trim() } : {}),
       }));
     return {
       ...settings,
@@ -718,15 +741,55 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
           </label>
         )}
 
-        {kind === 'ikev2' || kind === 'l2tp' ? (
+        {inbound?.protocol === 'xray' ? null : kind === 'smartdns' ? (
           <div className="callout">
             <div className="text-xs text-(--text-secondary)">
               {L(
                 lang,
-                'IPsec listens on standard UDP ports 500 (IKE) and 4500 (NAT-T).',
-                'پروتکل IPsec به‌صورت استاندارد روی پورت‌های UDP 500 و 4500 شنود می‌کند.',
+                'Smart DNS listens on port 53 plus web traffic on ports 80 and 443.',
+                'سرویس Smart DNS روی پورت ۵۳ و ترافیک وب روی پورت‌های ۸۰ و ۴۴۳ شنود می‌کند.',
               )}
             </div>
+          </div>
+        ) : kind === 'telegram' ? (
+          <label className="block max-w-xs">
+            <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
+              {L(lang, 'Port', 'پورت')}
+            </span>
+            <input
+              type="number"
+              dir="ltr"
+              min={1}
+              max={65535}
+              value={port}
+              onChange={(e) => setPort(e.target.value)}
+              className="w-full rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-3 py-2 font-mono text-sm text-(--text-primary)"
+            />
+          </label>
+        ) : kind === 'ikev2' || kind === 'l2tp' ? (
+          <div className="callout space-y-1">
+            <div className="text-xs text-(--text-secondary)">
+              {kind === 'l2tp'
+                ? L(
+                    lang,
+                    'IPsec listens on standard UDP ports 500, 4500, and 1701.',
+                    'پروتکل L2TP/IPsec روی پورت‌های UDP 500، 4500 و 1701 شنود می‌کند.',
+                  )
+                : L(
+                    lang,
+                    'IPsec listens on standard UDP ports 500 and 4500; L2TP also uses UDP 1701.',
+                    'پروتکل IPsec روی پورت‌های UDP 500 و 4500 شنود می‌کند.',
+                  )}
+            </div>
+            {kind === 'l2tp' && (
+              <div className="text-xs text-amber-300">
+                {L(
+                  lang,
+                  'Only one L2TP/IPsec inbound may run on a node.',
+                  'تنها یک اینباند L2TP/IPsec روی هر نود می‌تواند فعال باشد.',
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <div className="form-row">
@@ -752,7 +815,8 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
                   onChange={(e) => setTransport(e.target.value)}
                   className="w-full rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-3 py-2 text-sm text-(--text-primary)"
                 >
-                  <option value="tcp">TCP (+ DTLS UDP)</option>
+                  <option value="tcp">TCP</option>
+                  <option value="tcp6">TCP (IPv4 + IPv6)</option>
                 </select>
               ) : (
                 <select
@@ -762,6 +826,8 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
                 >
                   <option value="udp">UDP</option>
                   <option value="tcp">TCP</option>
+                  <option value="udp6">UDP (IPv4 + IPv6)</option>
+                  <option value="tcp6">TCP (IPv4 + IPv6)</option>
                 </select>
               )}
             </label>
@@ -783,17 +849,19 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
           </div>
         )}
 
-        <details className="inb-advanced-basics">
-          <summary>{L(lang, 'Tunnel network', 'شبکه تونل')}</summary>
-          <div className="pt-1">
-            <TunnelNetworkPicker
-              value={subnet}
-              kind={kind}
-              onChange={setSubnet}
-              onValidityChange={setCidrValid}
-            />
-          </div>
-        </details>
+        {inbound?.protocol !== 'xray' && kind !== 'smartdns' && kind !== 'telegram' && (
+          <details className="inb-advanced-basics">
+            <summary>{L(lang, 'Tunnel network', 'شبکه تونل')}</summary>
+            <div className="pt-1">
+              <TunnelNetworkPicker
+                value={subnet}
+                kind={kind}
+                onChange={setSubnet}
+                onValidityChange={setCidrValid}
+              />
+            </div>
+          </details>
+        )}
 
         <label className="block">
           <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
@@ -849,94 +917,28 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
           </div>
         )}
 
-        {/* Connect addresses (.ep-table) */}
-        <div className="flex flex-col gap-2">
-          <span className="text-xs font-medium text-(--text-secondary)">
-            {L(lang, 'Connect addresses', 'آدرس‌های اتصال')}
-          </span>
-          <p className="text-xs text-(--text-muted)">
-            {remotes.length > 0
-              ? L(
-                  lang,
-                  'Each address becomes its own config for clients, plus a remote line in the all-in-one OpenVPN profile. Use it for relay servers or tunnels in front of this inbound. When you add addresses, configs use only these, so add this server’s own address too if clients may also connect directly.',
-                  'هر آدرس یک کانفیگ جداگانه برای کلاینت‌ها می‌سازد. در صورت افزودن آدرس، کانفیگ‌ها فقط از این آدرس‌ها استفاده می‌کنند.',
-                )
-              : L(
-                  lang,
-                  "Clients connect to this server's own address directly. Add addresses to offer relays or tunnels in front of this inbound.",
-                  'کلاینت‌ها مستقیماً به آدرس همین سرور متصل می‌شوند. برای ارائه تانل یا سرور واسط، آدرس اضافه کنید.',
-                )}
-          </p>
-
-          {remotes.length > 0 && (
-            <div className="ep-table">
-              <div className="ep-head">
-                <span>{L(lang, 'Label', 'برچسب')}</span>
-                <span>{L(lang, 'Host', 'هاست / IP')}</span>
-                <span>{L(lang, 'Port', 'پورت')}</span>
-                <span />
-              </div>
-              {remotes.map((r, idx) => (
-                <div key={idx} className="ep-row">
-                  <input
-                    type="text"
-                    placeholder={L(lang, 'e.g. Tehran relay', 'مثلاً تانل ایران')}
-                    value={r.label}
-                    onChange={(e) =>
-                      setRemotes((prev) =>
-                        prev.map((item, i) => (i === idx ? { ...item, label: e.target.value } : item)),
-                      )
-                    }
-                    className="rounded-lg border border-(--border-strong) bg-(--bg-elevated) px-2.5 py-1.5 text-xs text-(--text-primary)"
-                  />
-                  <input
-                    type="text"
-                    dir="ltr"
-                    placeholder="relay.example.com"
-                    value={r.host}
-                    onChange={(e) =>
-                      setRemotes((prev) =>
-                        prev.map((item, i) => (i === idx ? { ...item, host: e.target.value } : item)),
-                      )
-                    }
-                    className="rounded-lg border border-(--border-strong) bg-(--bg-elevated) px-2.5 py-1.5 font-mono text-xs text-(--text-primary)"
-                  />
-                  <input
-                    type="text"
-                    dir="ltr"
-                    placeholder={L(lang, 'same', 'مشابه')}
-                    value={r.port}
-                    onChange={(e) =>
-                      setRemotes((prev) =>
-                        prev.map((item, i) => (i === idx ? { ...item, port: e.target.value } : item)),
-                      )
-                    }
-                    className="rounded-lg border border-(--border-strong) bg-(--bg-elevated) px-2.5 py-1.5 font-mono text-xs text-(--text-primary)"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setRemotes((prev) => prev.filter((_, i) => i !== idx))}
-                    className="rounded-lg p-1.5 text-(--text-muted) hover:text-red-400"
-                    title={L(lang, 'Remove', 'حذف')}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setRemotes((prev) => [...prev, { label: '', host: '', port: '' }])}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {L(lang, 'Add an address', 'افزودن آدرس')}
-            </Button>
+        {/* Connect addresses */}
+        {inbound?.protocol !== 'xray' && kind !== 'smartdns' && (
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-medium text-(--text-secondary)">
+              {L(lang, 'Connect addresses', 'آدرس‌های اتصال')}
+            </span>
+            <p className="text-xs text-(--text-muted)">
+              {remotes.length > 0
+                ? L(
+                    lang,
+                    'Each address becomes its own config for clients, plus a remote line in the all-in-one OpenVPN profile. Use it for relay servers or tunnels in front of this inbound.',
+                    'هر آدرس یک کانفیگ جداگانه برای کلاینت‌ها می‌سازد. در صورت افزودن آدرس، کانفیگ‌ها از این آدرس‌ها استفاده می‌کنند.',
+                  )
+                : L(
+                    lang,
+                    "Clients connect to this server's own address directly. Add addresses to offer relays or tunnels in front of this inbound.",
+                    'کلاینت‌ها مستقیماً به آدرس همین سرور متصل می‌شوند. برای ارائه تانل یا سرور واسط، آدرس اضافه کنید.',
+                  )}
+            </p>
+            <ConnectAddressesField lang={lang} remotes={remotes} onChange={setRemotes} />
           </div>
-        </div>
+        )}
 
         <label className="switch pt-1">
           <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
@@ -958,6 +960,10 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
               combos={xrayCombos}
               nodeId={inbound.nodeId ?? 0}
               inboundId={inbound.id}
+              port={Number(port) || inbound.port || 443}
+              onPortChange={(p) => setPort(String(p))}
+              remotes={remotes}
+              onRemotesChange={setRemotes}
               onRefreshInbound={() => {
                 void load();
               }}
@@ -965,6 +971,12 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
           </div>
         </div>
       );
+    }
+    if (kind === 'smartdns') {
+      return <SmartDnsSection settings={settings} onPatch={patchSettings} />;
+    }
+    if (kind === 'telegram') {
+      return <TelegramProxySection settings={settings} onPatch={patchSettings} />;
     }
     if (kind === 'openvpn') {
       return (
@@ -1117,8 +1129,8 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
                     <strong>Xray</strong>
                     <span className="text-xs text-(--text-secondary) leading-relaxed">
                       {lang === 'fa'
-                        ? 'VLESS، VMess، Trojan یا Shadowsocks. یک سناریوی آماده انتخاب کنید.'
-                        : 'VLESS, VMess, Trojan or Shadowsocks. Pick a ready scenario and press Create.'}
+                        ? 'VLESS، VMess، Trojan یا Shadowsocks با تمام تنظیمات Xray مانند 3x-ui. در صورت تمایل از یک قالب شروع کنید.'
+                        : 'VLESS, VMess, Trojan or Shadowsocks with every Xray setting, like 3x-ui. Start from a template if you like.'}
                     </span>
                   </label>
                   {PROTOCOL_CARDS.map((card) => {
@@ -1169,6 +1181,16 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
                   selectedIds={selectedNodeIds}
                   onToggle={toggleNode}
                   errors={preflightErrors}
+                  needsInstall={kind === 'ikev2' || kind === 'l2tp' || kind === 'telegram'}
+                  notice={
+                    kind === 'ikev2' || kind === 'l2tp'
+                      ? L(
+                          lang,
+                          'Automatic IPsec installation supports Debian and Ubuntu. Other distributions require compatible dependencies to be installed beforehand.',
+                          'نصب خودکار IPsec از دبیان و اوبونتو پشتیبانی می‌کند. سایر توزیع‌ها نیاز به نصب پیش‌نیازها دارند.',
+                        )
+                      : undefined
+                  }
                 />
               </div>
 

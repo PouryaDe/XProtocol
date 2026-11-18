@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { getDataDir } from '../config.js';
 import { intToIp, parseCidr } from '../services/peerResolver.js';
@@ -97,6 +98,27 @@ function parseListSetting(raw: unknown, fallback: string[]): string[] {
 }
 
 /** Render the protocol daemon configuration path and contents for a given inbound and eligible peers. */
+export function deriveTelegramClientSecret(
+  clientSeed: string,
+  inboundName: string,
+  settings: Record<string, unknown>,
+): { raw32: string; clientSecret: string } {
+  const raw32 = crypto
+    .createHmac('sha256', clientSeed)
+    .update(`mtproto:${inboundName}`)
+    .digest('hex')
+    .slice(0, 32);
+  if (settings.tgFakeTls !== false) {
+    const domain = sanitizeLine(String(settings.fakeTlsDomain || 'www.cloudflare.com'));
+    const domainHex = Buffer.from(domain, 'utf8').toString('hex');
+    return { raw32, clientSecret: `ee${raw32}${domainHex}` };
+  }
+  if (settings.tgSecure) {
+    return { raw32, clientSecret: `dd${raw32}` };
+  }
+  return { raw32, clientSecret: raw32 };
+}
+
 export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[]): { path: string; content: string } {
   let settings: Record<string, unknown> = {};
   try {
@@ -425,6 +447,56 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
       return {
         path: `/usr/local/lib/xprotocol/xray/inbound-${inbound.name}.json`,
         content: JSON.stringify(obj, null, 2) + '\n',
+      };
+    }
+
+    case 'smartdns': {
+      const cfg = {
+        name: inbound.name,
+        port: inbound.port || 53,
+        categories: Array.isArray(settings.dnsCategories) ? settings.dnsCategories : ['games', 'dev', 'ai', 'general'],
+        selectedDomains: settings.dnsSelectedDomains && typeof settings.dnsSelectedDomains === 'object' ? settings.dnsSelectedDomains : {},
+        extraDomains: parseListSetting(settings.extraDomains, []),
+        neverPassDomains: parseListSetting(settings.neverPassDomains, []),
+        maxAddressesPerClient: Number(settings.maxAddressesPerClient || 1),
+        upstreams: parseListSetting(settings.upstreams, ['1.1.1.1', '8.8.8.8']),
+        ipv4: String(settings.smartDnsIpv4 || ''),
+        ipv6: String(settings.smartDnsIpv6 || ''),
+        extraTlsPorts: parseListSetting(settings.extraTlsPorts, []),
+        allowedClients: peers.map((p) => p.name),
+      };
+      return {
+        path: `/usr/local/lib/xprotocol/smartdns/${inbound.name}.json`,
+        content: JSON.stringify(cfg, null, 2) + '\n',
+      };
+    }
+
+    case 'telegram': {
+      const cfg = {
+        name: inbound.name,
+        port: inbound.port || 443,
+        engine: 'telemt',
+        modes: {
+          fakeTls: settings.tgFakeTls !== false,
+          secure: Boolean(settings.tgSecure),
+          classic: Boolean(settings.tgClassic),
+        },
+        fakeTlsDomain: sanitizeLine(String(settings.fakeTlsDomain || 'www.cloudflare.com')),
+        passOtherTraffic: settings.passOtherTraffic !== false,
+        copyHandshake: settings.copyHandshake !== false,
+        sponsoredTag: sanitizeLine(String(settings.sponsoredTag || '')).slice(0, 32),
+        maxConnections: Number(settings.maxClients || 10000),
+        listenIpv6: settings.listenIpv6 !== false,
+        users: Object.fromEntries(
+          peers.map((p) => [
+            p.name,
+            deriveTelegramClientSecret(p.xrayUuid || p.vpnPassword || p.name, inbound.name, settings).raw32,
+          ]),
+        ),
+      };
+      return {
+        path: `/usr/local/lib/xprotocol/telegram/${inbound.name}.json`,
+        content: JSON.stringify(cfg, null, 2) + '\n',
       };
     }
   }

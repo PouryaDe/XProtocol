@@ -491,42 +491,84 @@ export function buildXrayPresetDefaults(preset: XrayPresetId, nodeId = 0) {
     security: 'reality',
     flow: 'xtls-rprx-vision',
     ssMethod: '2022-blake3-aes-128-gcm',
+    ssNetwork: 'tcp,udp',
     rawHeader: 'none',
     rawHttpHosts: [],
     rawHttpPath: '/',
     host: '',
     path: '/',
+    wsHeartbeat: '',
     xhttpMode: 'auto',
+    xPaddingBytes: '',
+    scMaxBufferedPosts: '',
+    scMaxEachPostBytes: '',
+    scStreamUpServerSecs: '',
+    noSSEHeader: false,
     serviceName: '',
+    grpcAuthority: '',
     kcpHeader: 'none',
     kcpSeed: '',
+    kcpMtu: '',
+    kcpTti: '',
+    kcpUplinkCapacity: '',
+    kcpDownlinkCapacity: '',
+    kcpCongestion: false,
     fingerprint: 'chrome',
     speedMode: 'device',
     proxyProtocol: false,
     allowFrom: [],
-    trustedXff: [],
+    behindCdn: false,
+    cdnExtraRanges: [],
     cdn: false,
     cdnHost: '',
+    trustedXff: [],
     tlsHost: '',
     connectAddress: '',
     sniOverride: '',
     hostOverride: '',
-    tls: { alpn: ['h2', 'http/1.1'], minVersion: '1.2', certFile: '', keyFile: '' },
+    remotes: [],
+    tcpCongestion: '',
+    domainStrategy: '',
+    tcpKeepAliveIdle: '',
+    tcpKeepAliveInterval: '',
+    tcpFastOpen: false,
+    tcpMptcp: false,
+    v6only: false,
+    tls: {
+      alpn: ['h2', 'http/1.1'],
+      minVersion: '1.2',
+      maxVersion: '',
+      cipherSuites: '',
+      rejectUnknownSni: false,
+      allowInsecure: false,
+      sni: '',
+      certFile: '',
+      keyFile: '',
+    },
     reality: {
       target: `${bestGreen}:443`,
       serverNames: [bestGreen],
       shortIds: [shortId],
       xver: 0,
       spiderX: '/',
+      maxTimeDiff: '',
+      minClientVer: '',
+      maxClientVer: '',
     },
     realityPublicKey: realityKeys.publicKey,
     _realityPrivateKey: realityKeys.privateKey,
-    sniffing: { enabled: true, destOverride: ['http', 'tls', 'quic'], routeOnly: false },
+    sniffing: {
+      enabled: true,
+      destOverride: ['http', 'tls', 'quic'],
+      routeOnly: false,
+      metadataOnly: false,
+      domainsExcluded: [],
+    },
     fallbacks: [],
   };
 
   let port = 443;
-  let proto: 'tcp' | 'udp' = 'tcp';
+  const proto: 'tcp' | 'udp' = 'tcp';
   let needs: string[] = [];
 
   if (preset === 'cdn') {
@@ -535,11 +577,15 @@ export function buildXrayPresetDefaults(preset: XrayPresetId, nodeId = 0) {
     baseSettings.flow = '';
     baseSettings.path = `/${generateShortId(4)}`;
     baseSettings.cdn = true;
+    baseSettings.behindCdn = true;
+    baseSettings.speedMode = 'client';
     baseSettings.trustedXff = ['CF-Connecting-IP', 'X-Forwarded-For'];
-    needs = ['cdnHost', 'certFile', 'keyFile'];
+    needs = ['cdnHost'];
   } else if (preset === 'relay') {
+    baseSettings.security = 'none';
+    baseSettings.flow = '';
     baseSettings.proxyProtocol = true;
-    baseSettings.reality = { ...(baseSettings.reality as Record<string, unknown>), xver: 1 };
+    baseSettings.speedMode = 'device';
     needs = ['relayIPs'];
   } else if (preset === 'vmess-classic') {
     baseSettings.protocol = 'vmess';
@@ -548,11 +594,10 @@ export function buildXrayPresetDefaults(preset: XrayPresetId, nodeId = 0) {
     baseSettings.flow = '';
     baseSettings.rawHeader = 'http';
     baseSettings.rawHttpPath = '/';
-    port = 8443;
   } else if (preset === 'trojan') {
     baseSettings.protocol = 'trojan';
     baseSettings.transport = 'raw';
-    baseSettings.security = 'tls';
+    baseSettings.security = 'reality';
     baseSettings.flow = '';
   } else if (preset === 'shadowsocks') {
     baseSettings.protocol = 'shadowsocks';
@@ -560,10 +605,14 @@ export function buildXrayPresetDefaults(preset: XrayPresetId, nodeId = 0) {
     baseSettings.security = 'none';
     baseSettings.flow = '';
     baseSettings.ssMethod = '2022-blake3-aes-128-gcm';
+    baseSettings.ssNetwork = 'tcp,udp';
     baseSettings._ssServerKey = generateSs2022Key('2022-blake3-aes-128-gcm');
     port = 8388;
   } else if (preset === 'manual') {
-    baseSettings.flow = 'xtls-rprx-vision';
+    baseSettings.protocol = 'vless';
+    baseSettings.transport = 'raw';
+    baseSettings.security = 'none';
+    baseSettings.flow = '';
   }
 
   return {
@@ -635,11 +684,12 @@ export function renderXrayInboundObject(inbound: InboundRow, peers: PeerEntry[])
     };
   } else if (protocol === 'shadowsocks') {
     const method = String(settings.ssMethod || '2022-blake3-aes-128-gcm');
+    const ssNet = String(settings.ssNetwork || 'tcp,udp');
     if (method.startsWith('2022-')) {
       protoSettings = {
         method,
         password: inbound.server_private_key || String(settings._ssServerKey || generateSs2022Key(method)),
-        network: 'tcp,udp',
+        network: ssNet,
         clients: peers.map((p) => ({
           password: p.ssPassword || generateSs2022Key(method),
           email: p.name,
@@ -648,7 +698,7 @@ export function renderXrayInboundObject(inbound: InboundRow, peers: PeerEntry[])
     } else {
       protoSettings = {
         method,
-        network: 'tcp,udp',
+        network: ssNet,
         clients: peers.map((p) => ({
           password: p.vpnPassword || p.xrayUuid || p.name,
           email: p.name,
@@ -676,6 +726,7 @@ export function renderXrayInboundObject(inbound: InboundRow, peers: PeerEntry[])
     streamSettings.wsSettings = {
       path: String(settings.path || '/'),
       ...(settings.host ? { host: String(settings.host) } : {}),
+      ...(Number(settings.wsHeartbeat) > 0 ? { heartbeatPeriod: Number(settings.wsHeartbeat) } : {}),
     };
   } else if (transport === 'httpupgrade') {
     streamSettings.httpupgradeSettings = {
@@ -687,16 +738,27 @@ export function renderXrayInboundObject(inbound: InboundRow, peers: PeerEntry[])
       path: String(settings.path || '/'),
       mode: String(settings.xhttpMode || 'auto'),
       ...(settings.host ? { host: String(settings.host) } : {}),
+      ...(settings.xPaddingBytes ? { xPaddingBytes: String(settings.xPaddingBytes) } : {}),
+      ...(settings.scMaxBufferedPosts ? { scMaxBufferedPosts: Number(settings.scMaxBufferedPosts) } : {}),
+      ...(settings.scMaxEachPostBytes ? { scMaxEachPostBytes: String(settings.scMaxEachPostBytes) } : {}),
+      ...(settings.scStreamUpServerSecs ? { scStreamUpServerSecs: String(settings.scStreamUpServerSecs) } : {}),
+      ...(settings.noSSEHeader ? { noSSEHeader: true } : {}),
     };
   } else if (transport === 'grpc') {
     streamSettings.grpcSettings = {
       serviceName: String(settings.serviceName || 'grpc'),
+      ...(settings.grpcAuthority ? { authority: String(settings.grpcAuthority) } : {}),
       multiMode: Boolean(settings.grpcMultiMode),
     };
   } else if (transport === 'kcp') {
     streamSettings.kcpSettings = {
       header: { type: String(settings.kcpHeader || 'none') },
       ...(settings.kcpSeed ? { seed: String(settings.kcpSeed) } : {}),
+      ...(Number(settings.kcpMtu) > 0 ? { mtu: Number(settings.kcpMtu) } : {}),
+      ...(Number(settings.kcpTti) > 0 ? { tti: Number(settings.kcpTti) } : {}),
+      ...(Number(settings.kcpUplinkCapacity) > 0 ? { uplinkCapacity: Number(settings.kcpUplinkCapacity) } : {}),
+      ...(Number(settings.kcpDownlinkCapacity) > 0 ? { downlinkCapacity: Number(settings.kcpDownlinkCapacity) } : {}),
+      ...(settings.kcpCongestion ? { congestion: true } : {}),
     };
   }
 
@@ -710,6 +772,9 @@ export function renderXrayInboundObject(inbound: InboundRow, peers: PeerEntry[])
       serverNames,
       privateKey: inbound.server_private_key || String(settings._realityPrivateKey || ''),
       shortIds: Array.isArray(r.shortIds) && r.shortIds.length > 0 ? r.shortIds : [''],
+      ...(Number(r.maxTimeDiff) > 0 ? { maxTimeDiff: Number(r.maxTimeDiff) } : {}),
+      ...(r.minClientVer ? { minClientVer: String(r.minClientVer) } : {}),
+      ...(r.maxClientVer ? { maxClientVer: String(r.maxClientVer) } : {}),
     };
   } else if (security === 'tls') {
     const t = (settings.tls && typeof settings.tls === 'object' ? settings.tls : {}) as Record<string, unknown>;
@@ -717,13 +782,26 @@ export function renderXrayInboundObject(inbound: InboundRow, peers: PeerEntry[])
     const keyFile = String(t.keyFile || `/etc/letsencrypt/live/${settings.tlsHost || 'localhost'}/privkey.pem`);
     streamSettings.tlsSettings = {
       alpn: Array.isArray(t.alpn) && t.alpn.length > 0 ? t.alpn : ['h2', 'http/1.1'],
+      ...(t.sni ? { serverName: String(t.sni) } : {}),
       ...(t.minVersion ? { minVersion: String(t.minVersion) } : {}),
+      ...(t.maxVersion ? { maxVersion: String(t.maxVersion) } : {}),
+      ...(t.cipherSuites ? { cipherSuites: String(t.cipherSuites) } : {}),
+      ...(t.rejectUnknownSni ? { rejectUnknownSni: true } : {}),
       certificates: [{ certificateFile: certFile, keyFile }],
     };
   }
 
-  if (settings.proxyProtocol) {
-    streamSettings.sockopt = { acceptProxyProtocol: true };
+  const sockopt: Record<string, unknown> = {};
+  if (settings.proxyProtocol) sockopt.acceptProxyProtocol = true;
+  if (settings.tcpCongestion) sockopt.tcpcongestion = String(settings.tcpCongestion);
+  if (Number(settings.tcpKeepAliveIdle) > 0) sockopt.tcpKeepAliveIdle = Number(settings.tcpKeepAliveIdle);
+  if (Number(settings.tcpKeepAliveInterval) > 0) sockopt.tcpKeepAliveInterval = Number(settings.tcpKeepAliveInterval);
+  if (settings.tcpFastOpen) sockopt.tcpFastOpen = true;
+  if (settings.tcpMptcp) sockopt.tcpMptcp = true;
+  if (settings.v6only) sockopt.V6Only = true;
+  if (settings.domainStrategy) sockopt.domainStrategy = String(settings.domainStrategy);
+  if (Object.keys(sockopt).length > 0) {
+    streamSettings.sockopt = sockopt;
   }
 
   const sniff = (settings.sniffing && typeof settings.sniffing === 'object' ? settings.sniffing : {}) as Record<string, unknown>;
@@ -738,6 +816,10 @@ export function renderXrayInboundObject(inbound: InboundRow, peers: PeerEntry[])
       enabled: sniff.enabled !== false,
       destOverride: Array.isArray(sniff.destOverride) ? sniff.destOverride : ['http', 'tls', 'quic'],
       routeOnly: Boolean(sniff.routeOnly),
+      ...(sniff.metadataOnly ? { metadataOnly: true } : {}),
+      ...(Array.isArray(sniff.domainsExcluded) && sniff.domainsExcluded.length > 0
+        ? { domainsExcluded: sniff.domainsExcluded }
+        : {}),
     },
   };
 }
@@ -1097,20 +1179,37 @@ export function buildClientXrayServerViews(
     const security = (String(s.security || 'reality') as XraySecurity);
 
     const connectAddrs = JSON.parse(ib.connect_addresses_json || '[]') as string[];
-    const hosts: string[] = [];
-    if (s.connectAddress && String(s.connectAddress).trim()) {
-      hosts.push(String(s.connectAddress).trim());
+    const customRemotes = Array.isArray(s.remotes)
+      ? (s.remotes as Array<{ flag?: string; label?: string; host?: string; port?: string | number; sni?: string; hostHeader?: string }>).filter(
+          (rm) => rm && String(rm.host || '').trim(),
+        )
+      : [];
+
+    const endpoints: Array<{ host: string; port: number; label?: string; flag?: string; sni?: string; hostHeader?: string }> = [];
+    if (customRemotes.length > 0) {
+      for (const rm of customRemotes) {
+        endpoints.push({
+          host: String(rm.host).trim(),
+          port: Number(rm.port) > 0 ? Number(rm.port) : ib.port,
+          label: rm.label ? String(rm.label).trim() : undefined,
+          flag: rm.flag ? String(rm.flag).trim() : undefined,
+          sni: rm.sni ? String(rm.sni).trim() : undefined,
+          hostHeader: rm.hostHeader ? String(rm.hostHeader).trim() : undefined,
+        });
+      }
+    } else if (s.connectAddress && String(s.connectAddress).trim()) {
+      endpoints.push({ host: String(s.connectAddress).trim(), port: ib.port });
     } else if (s.cdn && s.cdnHost) {
-      hosts.push(String(s.cdnHost).trim());
+      endpoints.push({ host: String(s.cdnHost).trim(), port: ib.port });
     } else if (ib.public_address_override) {
-      hosts.push(ib.public_address_override.trim());
+      endpoints.push({ host: ib.public_address_override.trim(), port: ib.port });
     } else if (connectAddrs.length > 0) {
-      hosts.push(...connectAddrs);
+      for (const h of connectAddrs) endpoints.push({ host: h, port: ib.port });
     } else {
-      hosts.push(ib.node_address !== '127.0.0.1' ? ib.node_address : fallbackHost || '127.0.0.1');
+      endpoints.push({ host: ib.node_address !== '127.0.0.1' ? ib.node_address : fallbackHost || '127.0.0.1', port: ib.port });
     }
 
-    const primaryHost = hosts[0] || fallbackHost || '127.0.0.1';
+    const primaryHost = endpoints[0]?.host || fallbackHost || '127.0.0.1';
     const label = String(s.displayName || ib.name);
     const remark = `${label} · ${ib.node_name}`;
     const credId =
@@ -1122,17 +1221,17 @@ export function buildClientXrayServerViews(
 
     const r = (s.reality && typeof s.reality === 'object' ? s.reality : {}) as Record<string, unknown>;
     const t = (s.tls && typeof s.tls === 'object' ? s.tls : {}) as Record<string, unknown>;
-    const sni = String(
+    const defaultSni = String(
       s.sniOverride ||
         (security === 'reality'
           ? (Array.isArray(r.serverNames) ? r.serverNames[0] : '') || 'www.amd.com'
-          : s.cdnHost || s.tlsHost || primaryHost),
+          : t.sni || s.cdnHost || s.tlsHost || primaryHost),
     );
     const pbk = String(s.realityPublicKey || ib.server_public_key || '');
     const sid = Array.isArray(r.shortIds) && r.shortIds.length > 0 ? String(r.shortIds[0]) : '';
     const fp = String(s.fingerprint || 'chrome');
     const netType = transport === 'raw' ? 'tcp' : transport;
-    const hostHdr = String(s.hostOverride || s.host || (s.cdn ? s.cdnHost || '' : ''));
+    const defaultHostHdr = String(s.hostOverride || s.host || (s.cdn ? s.cdnHost || '' : ''));
 
     const params: Record<string, string> = {
       security,
@@ -1141,15 +1240,16 @@ export function buildClientXrayServerViews(
     if (protocol === 'vless') params.encryption = 'none';
     if (s.flow) params.flow = String(s.flow);
     if (security === 'reality') {
-      params.sni = sni;
+      params.sni = defaultSni;
       params.fp = fp;
       if (pbk) params.pbk = pbk;
       if (sid) params.sid = sid;
       if (r.spiderX) params.spx = String(r.spiderX);
     } else if (security === 'tls') {
-      params.sni = sni;
+      params.sni = defaultSni;
       params.fp = fp;
       if (Array.isArray(t.alpn) && t.alpn.length > 0) params.alpn = t.alpn.join(',');
+      if (t.allowInsecure) params.allowInsecure = '1';
     }
 
     if (transport === 'raw' && s.rawHeader === 'http') {
@@ -1158,7 +1258,7 @@ export function buildClientXrayServerViews(
       if (s.rawHttpPath) params.path = String(s.rawHttpPath);
     } else if (transport === 'ws' || transport === 'httpupgrade' || transport === 'xhttp') {
       params.path = String(s.path || '/');
-      if (hostHdr) params.host = hostHdr;
+      if (defaultHostHdr) params.host = defaultHostHdr;
       if (transport === 'xhttp' && s.xhttpMode) params.mode = String(s.xhttpMode);
     } else if (transport === 'grpc') {
       params.serviceName = String(s.serviceName || 'grpc');
@@ -1168,29 +1268,38 @@ export function buildClientXrayServerViews(
       if (s.kcpSeed) params.seed = String(s.kcpSeed);
     }
 
-    const links: string[] = hosts.map((h, idx) => {
-      const tag = hosts.length > 1 ? `${remark} #${idx + 1}` : remark;
+    const links: string[] = endpoints.map((ep, idx) => {
+      const h = ep.host;
+      const p = ep.port;
+      const epParams: Record<string, string> = {
+        ...params,
+        ...(ep.sni && (security === 'reality' || security === 'tls') ? { sni: ep.sni } : {}),
+        ...(ep.hostHeader && (transport === 'ws' || transport === 'httpupgrade' || transport === 'xhttp')
+          ? { host: ep.hostHeader }
+          : {}),
+      };
+      const baseTag = ep.label ? `${ep.flag ? `${ep.flag} ` : ''}${ep.label}` : endpoints.length > 1 ? `${remark} #${idx + 1}` : remark;
       if (protocol === 'vless' || protocol === 'trojan') {
-        const qs = new URLSearchParams(params).toString();
+        const qs = new URLSearchParams(epParams).toString();
         const scheme = protocol === 'vless' ? 'vless' : 'trojan';
         const hostFmt = h.includes(':') && !h.startsWith('[') ? `[${h}]` : h;
-        return `${scheme}://${encodeURIComponent(credId)}@${hostFmt}:${ib.port}?${qs}#${encodeURIComponent(tag)}`;
+        return `${scheme}://${encodeURIComponent(credId)}@${hostFmt}:${p}?${qs}#${encodeURIComponent(baseTag)}`;
       }
       if (protocol === 'vmess') {
         const vmessJson = {
           v: '2',
-          ps: tag,
+          ps: baseTag,
           add: h,
-          port: String(ib.port),
+          port: String(p),
           id: credId,
           aid: '0',
           scy: 'auto',
           net: netType,
-          type: params.headerType || 'none',
-          host: hostHdr,
-          path: params.path || '',
+          type: epParams.headerType || 'none',
+          host: ep.hostHeader || defaultHostHdr,
+          path: epParams.path || '',
           tls: security === 'tls' ? 'tls' : '',
-          sni: security === 'tls' ? sni : '',
+          sni: security === 'tls' ? epParams.sni || defaultSni : '',
           fp,
         };
         return `vmess://${Buffer.from(JSON.stringify(vmessJson), 'utf8').toString('base64')}`;
@@ -1202,7 +1311,7 @@ export function buildClientXrayServerViews(
         : `${method}:${credId}`;
       const b64 = Buffer.from(userInfo, 'utf8').toString('base64');
       const hostFmt = h.includes(':') && !h.startsWith('[') ? `[${h}]` : h;
-      return `ss://${b64}@${hostFmt}:${ib.port}#${encodeURIComponent(tag)}`;
+      return `ss://${b64}@${hostFmt}:${p}#${encodeURIComponent(baseTag)}`;
     });
 
     servers.push({

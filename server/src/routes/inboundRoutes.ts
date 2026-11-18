@@ -43,6 +43,10 @@ function defaultSlugPrefix(protocol: string, transport: string): string {
       return 'ikev2';
     case 'l2tp':
       return 'l2tp';
+    case 'smartdns':
+      return 'dns';
+    case 'telegram':
+      return 'tg';
     default:
       return (transport || 'udp').toLowerCase().startsWith('tcp') ? 'tcp' : 'udp';
   }
@@ -157,7 +161,19 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       res.json(buildXrayPresetDefaults(preset, node));
       return;
     }
-    res.json({ port: 51820, proto: 'udp', network: '10.66.0.0/24', settings: {} });
+    const defaultsByKind: Record<string, { port: number; proto: string; network: string }> = {
+      openvpn: { port: 1194, proto: 'udp', network: '10.42.0.0/24' },
+      ocserv: { port: 443, proto: 'tcp', network: '10.44.0.0/24' },
+      openconnect: { port: 443, proto: 'tcp', network: '10.44.0.0/24' },
+      wireguard: { port: 51820, proto: 'udp', network: '10.66.0.0/24' },
+      amneziawg: { port: 51820, proto: 'udp', network: '10.66.0.0/24' },
+      ikev2: { port: 500, proto: 'udp', network: '10.46.0.0/24' },
+      l2tp: { port: 500, proto: 'udp', network: '10.48.0.0/24' },
+      smartdns: { port: 53, proto: 'udp', network: '' },
+      telegram: { port: 443, proto: 'tcp', network: '' },
+    };
+    const d = defaultsByKind[kind] || defaultsByKind.wireguard;
+    res.json({ port: d.port, proto: d.proto, network: d.network, settings: {} });
   });
 
   router.get('/brief', (req: AuthedRequest, res) => {
@@ -252,8 +268,21 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       ...(body.settings || (isXray ? {} : { dns: '1.1.1.1, 8.8.8.8' })),
       ...(body.displayName ? { displayName: body.displayName.trim() } : {}),
     };
-    let transport = body.transport || body.proto || (isXray ? 'tcp' : 'udp');
-    let port = Number(body.port || 0);
+    const nonXrayDefaultTransport =
+      protocol === 'ocserv' || protocol === 'openconnect' || protocol === 'telegram' ? 'tcp' : 'udp';
+    const nonXrayDefaultPort: Record<string, number> = {
+      openvpn: 1194,
+      ocserv: 443,
+      openconnect: 443,
+      wireguard: 51820,
+      amneziawg: 51820,
+      ikev2: 500,
+      l2tp: 500,
+      smartdns: 53,
+      telegram: 443,
+    };
+    let transport = body.transport || body.proto || (isXray ? 'tcp' : nonXrayDefaultTransport);
+    let port = Number(body.port || (isXray ? 0 : nonXrayDefaultPort[protocol] || 0));
     let keys = { privateKey: '', publicKey: '' };
 
     const db = getDb();

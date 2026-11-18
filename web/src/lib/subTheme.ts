@@ -247,6 +247,8 @@ export const SUB_PROTO_LABELS: Record<string, string> = {
   openconnect: 'Cisco',
   ikev2: 'IKEv2',
   l2tp: 'L2TP/IPsec',
+  smartdns: 'Smart DNS',
+  telegram: 'Telegram',
 };
 
 export const SUB_COPY = {

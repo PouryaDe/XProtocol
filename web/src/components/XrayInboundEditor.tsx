@@ -1,21 +1,28 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { RefreshCw, Search, Shield, Sparkles } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import {
+  AlertTriangle,
+  ChevronRight,
+  Plus,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+} from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { useUi } from '../i18n/context';
-import { Button, Input, Select, StatusPill } from './UiPrimitives';
+import type { InboundRemote } from '../lib/inboundTypes';
+import { Button, Segmented, StatusPill } from './UiPrimitives';
 import { Modal } from './Modal';
+import { ConnectAddressesField } from './ConnectAddressesField';
 
 export interface XrayComboItem {
-  protocol: 'vless' | 'vmess' | 'trojan' | 'shadowsocks';
-  transport: 'raw' | 'ws' | 'httpupgrade' | 'xhttp' | 'grpc' | 'kcp';
-  security: 'none' | 'tls' | 'reality';
-  flows: string[];
-  headers: string[];
-  modes: string[];
-  proxyProtocol: boolean;
-  xff: boolean;
-  fallbacks: boolean;
-  deprecated: string[];
+  protocol: string;
+  transport: string;
+  security: string;
+  flowOptions: string[];
+  deprecatedProto: boolean;
+  deprecatedTransport: boolean;
 }
 
 export interface XrayCombosResponse {
@@ -25,28 +32,60 @@ export interface XrayCombosResponse {
   ssMethods: string[];
 }
 
-export interface SniResultItem {
+export interface SniCandidate {
   domain: string;
-  tag: string;
-  last?: {
-    domain: string;
-    tag: string;
-    grade: 'green' | 'yellow' | 'red';
-    reasons: string[];
-    tcpMs: number;
-    tlsMs: number;
-    checkedAt: number;
-  };
+  ip?: string;
+  grade: 'Good' | 'Okay' | 'Poor' | string;
+  millis?: number;
+  h2?: boolean;
+  tls13?: boolean;
+  source?: string;
+  error?: string;
 }
 
-export interface XrayEditorProps {
-  settings: Record<string, unknown>;
-  onChange: (next: Record<string, unknown>) => void;
-  combos: XrayCombosResponse | null;
-  nodeId: number;
-  showSniPicker?: boolean;
-  inboundId?: number;
-  onRefreshInbound?: () => void;
+const DEFAULT_FINGERPRINTS = ['chrome', 'firefox', 'safari', 'ios', 'android', 'edge', 'random', 'randomized'];
+
+const TRANSPORT_LABELS: Record<string, { en: string; fa: string }> = {
+  raw: { en: 'TCP (raw)', fa: 'TCP (خام)' },
+  ws: { en: 'WebSocket', fa: 'WebSocket' },
+  httpupgrade: { en: 'HTTPUpgrade', fa: 'HTTPUpgrade' },
+  xhttp: { en: 'XHTTP', fa: 'XHTTP' },
+  grpc: { en: 'gRPC', fa: 'gRPC' },
+  kcp: { en: 'mKCP', fa: 'mKCP' },
+};
+
+const PROTOCOL_LABELS: Record<string, string> = {
+  vless: 'VLESS',
+  vmess: 'VMess',
+  trojan: 'Trojan',
+  shadowsocks: 'Shadowsocks',
+};
+
+const SECURITY_LABELS: Record<string, { en: string; fa: string }> = {
+  none: { en: 'None', fa: 'بدون رمزنگاری' },
+  tls: { en: 'TLS', fa: 'TLS' },
+  reality: { en: 'Reality', fa: 'Reality' },
+};
+
+function toLinesText(val: unknown): string {
+  if (Array.isArray(val)) return val.map((x) => String(x)).join('\n');
+  if (typeof val === 'string') return val;
+  return '';
+}
+
+function fromLinesText(text: string): string[] {
+  return text
+    .split(/[\n,]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function gradeTone(grade: string): 'green' | 'amber' | 'red' | 'gray' {
+  const g = grade.toLowerCase();
+  if (g === 'good') return 'green';
+  if (g === 'okay') return 'amber';
+  if (g === 'poor') return 'red';
+  return 'gray';
 }
 
 export function XraySniPickerModal({
@@ -60,168 +99,159 @@ export function XraySniPickerModal({
   onClose: () => void;
   nodeId: number;
   currentSni: string;
-  onSelect: (domain: string, grade?: string, tlsMs?: number) => void;
+  onSelect: (domain: string) => void;
 }) {
   const { lang } = useUi();
-  const fa = lang === 'fa';
-  const [curated, setCurated] = useState<SniResultItem[]>([]);
-  const [found, setFound] = useState<SniResultItem[]>([]);
-  const [customDomain, setCustomDomain] = useState('');
+  const L = (en: string, fa: string) => (lang === 'fa' ? fa : en);
+
+  const [candidates, setCandidates] = useState<SniCandidate[]>([]);
+  const [customInput, setCustomInput] = useState(currentSni);
   const [testing, setTesting] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [filterTag, setFilterTag] = useState('all');
-
-  const loadSni = async () => {
-    const res = await apiFetch<{ curated: SniResultItem[]; found: SniResultItem[] }>(`/xray/sni?node=${nodeId}`);
-    setCurated(res.curated || []);
-    setFound(res.found || []);
-  };
+  const [jobProgress, setJobProgress] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    if (open) loadSni().catch(() => undefined);
-  }, [open, nodeId]);
+    if (!open) return;
+    setCustomInput(currentSni);
+    setError('');
+    apiFetch<{ items: SniCandidate[] }>(`/xray/sni?node=${nodeId || 0}`)
+      .then((res) => setCandidates(res.items || []))
+      .catch(() => {});
+  }, [open, nodeId, currentSni]);
 
-  const pollJob = async (jobId: string) => {
-    for (let i = 0; i < 40; i++) {
-      await new Promise((r) => setTimeout(r, 400));
-      const job = await apiFetch<{ state: string }>(`/xray/sni/jobs/${jobId}`);
-      if (job.state === 'done' || job.state === 'error') break;
-    }
-    await loadSni();
-  };
-
-  const testDomains = async (domains: string[]) => {
-    if (domains.length === 0) return;
+  const handleTestCustom = async () => {
+    const clean = customInput.trim();
+    if (!clean) return;
     setTesting(true);
+    setError('');
     try {
-      const job = await apiFetch<{ id: string }>('/xray/sni/test', {
+      const res = await apiFetch<{ results: SniCandidate[] }>('/xray/sni/test', {
         method: 'POST',
-        body: JSON.stringify({ node: nodeId, domains }),
+        body: JSON.stringify({ node: nodeId || 0, domains: [clean] }),
       });
-      await pollJob(job.id);
+      const r = res.results?.[0];
+      if (r) {
+        setCandidates((prev) => [r, ...prev.filter((x) => x.domain !== r.domain)]);
+      }
+    } catch (err) {
+      setError((err as Error).message);
     } finally {
       setTesting(false);
     }
   };
 
-  const scanNeighbours = async () => {
+  const handleScanNeighbours = async () => {
     setScanning(true);
+    setError('');
+    setJobProgress(L('Scanning neighbouring IPs...', 'در حال اسکن آی‌پی‌های همسایه...'));
     try {
-      const job = await apiFetch<{ id: string }>('/xray/sni/scan', {
+      const res = await apiFetch<{ jobId: string; status: string }>('/xray/sni/scan', {
         method: 'POST',
-        body: JSON.stringify({ node: nodeId, force: true }),
+        body: JSON.stringify({ node: nodeId || 0, force: true }),
       });
-      await pollJob(job.id);
+      for (let i = 0; i < 30; i++) {
+        await new Promise((r) => setTimeout(r, 1200));
+        const st = await apiFetch<{
+          status: string;
+          progress?: string;
+          results?: SniCandidate[];
+        }>(`/xray/sni/jobs/${res.jobId}`);
+        if (st.progress) setJobProgress(st.progress);
+        if (st.results && st.results.length > 0) setCandidates(st.results);
+        if (st.status === 'done' || st.status === 'error') break;
+      }
+      const latest = await apiFetch<{ items: SniCandidate[] }>(`/xray/sni?node=${nodeId || 0}`);
+      setCandidates(latest.items || []);
+    } catch (err) {
+      setError((err as Error).message);
     } finally {
       setScanning(false);
+      setJobProgress('');
     }
   };
 
-  const tags = useMemo(() => {
-    const s = new Set(['all', ...curated.map((c) => c.tag)]);
-    return [...s];
-  }, [curated]);
-
-  const combined = useMemo(() => {
-    const list = [...curated, ...found];
-    return filterTag === 'all' ? list : list.filter((i) => i.tag === filterTag);
-  }, [curated, found, filterTag]);
-
-  const gradeTone = (g?: string) => (g === 'green' ? 'good' : g === 'yellow' ? 'warn' : g === 'red' ? 'bad' : 'neutral');
-
   return (
-    <Modal open={open} onClose={onClose} title={fa ? 'انتخاب دامنه استتار (SNI)' : 'Choose camouflage site (SNI)'} size="lg">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={L('Choose camouflage site (Reality SNI)', 'انتخاب سایت استتار (Reality SNI)')}
+      subtitle={L(
+        'Test TLS 1.3 + H2 reachability from the server or scan neighbouring IPs.',
+        'تست دسترسی TLS 1.3 و HTTP/2 از روی سرور یا اسکن سایت‌های همسایه.',
+      )}
+      size="lg"
+    >
       <div className="space-y-4">
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="flex-1 min-w-[200px]">
-            <Input
-              label={fa ? 'آزمایش دامنه دلخواه' : 'Test custom domain'}
-              value={customDomain}
-              onChange={(e) => setCustomDomain(e.target.value)}
-              placeholder="www.example.com"
-            />
+        {error && (
+          <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+            {error}
           </div>
-          <Button
-            variant="ghost"
-            disabled={testing || !customDomain.trim()}
-            onClick={() => testDomains([customDomain.trim()]).then(() => setCustomDomain(''))}
-          >
-            {testing ? (fa ? 'در حال تست...' : 'Testing...') : fa ? 'تست' : 'Test'}
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          <input
+            type="text"
+            dir="ltr"
+            value={customInput}
+            onChange={(e) => setCustomInput(e.target.value)}
+            placeholder="www.amd.com"
+            className="input h-9! min-w-[200px] flex-1 font-mono text-xs"
+          />
+          <Button size="sm" variant="secondary" onClick={handleTestCustom} disabled={testing}>
+            <Search className="h-3.5 w-3.5" />
+            {testing ? L('Testing…', 'در حال تست…') : L('Test', 'تست')}
           </Button>
-          <Button
-            variant="ghost"
-            disabled={testing}
-            onClick={() => testDomains(curated.slice(0, 12).map((c) => c.domain))}
-          >
-            <RefreshCw size={14} className={testing ? 'animate-spin' : ''} />
-            {fa ? 'تست لیست پیشنهادی' : 'Test top sites'}
-          </Button>
-          <Button variant="ghost" disabled={scanning} onClick={scanNeighbours}>
-            <Search size={14} />
-            {scanning ? (fa ? 'در حال اسکن...' : 'Scanning...') : fa ? 'یافتن از همسایه‌های سرور' : 'Find from neighbours'}
+          <Button size="sm" variant="secondary" onClick={handleScanNeighbours} disabled={scanning}>
+            <Sparkles className="h-3.5 w-3.5" />
+            {scanning ? L('Scanning…', 'در حال اسکن…') : L('Find from neighbours', 'یافتن از همسایه‌ها')}
           </Button>
         </div>
 
-        <div className="flex flex-wrap gap-1.5">
-          {tags.map((tg) => (
-            <button
-              key={tg}
-              type="button"
-              onClick={() => setFilterTag(tg)}
-              className="px-2.5 py-1 rounded-lg text-xs border"
-              style={{
-                borderColor: filterTag === tg ? 'var(--accent)' : 'var(--line)',
-                background: filterTag === tg ? 'var(--accent-wash)' : 'var(--raise-2)',
-                color: filterTag === tg ? 'var(--accent-text)' : 'var(--ink-2)',
-              }}
-            >
-              {tg}
-            </button>
-          ))}
-        </div>
+        {jobProgress && (
+          <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs text-blue-300">
+            {jobProgress}
+          </div>
+        )}
 
-        <div className="max-h-[45vh] overflow-y-auto divide-y rounded-xl border" style={{ borderColor: 'var(--line)' }}>
-          {combined.map((item) => {
-            const selected = item.domain === currentSni;
+        <div className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
+          {candidates.map((c) => {
+            const active = c.domain === currentSni;
             return (
-              <div
-                key={`${item.tag}-${item.domain}`}
-                className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm"
-                style={{ background: selected ? 'var(--accent-wash)' : 'transparent' }}
+              <button
+                key={c.domain}
+                type="button"
+                onClick={() => {
+                  onSelect(c.domain);
+                  onClose();
+                }}
+                className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left transition ${
+                  active
+                    ? 'border-(--accent) bg-(--accent-soft)'
+                    : 'border-(--border-subtle) bg-(--bg-surface) hover:border-(--border-strong)'
+                }`}
               >
                 <div className="min-w-0">
-                  <div className="font-mono text-xs sm:text-sm truncate" style={{ color: 'var(--ink)' }}>
-                    {item.domain}
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-medium text-(--text-primary)">{c.domain}</span>
+                    {c.ip && <span className="font-mono text-[11px] text-(--text-muted)">({c.ip})</span>}
                   </div>
-                  <div className="text-[11px] flex items-center gap-2" style={{ color: 'var(--ink-3)' }}>
-                    <span>{item.tag}</span>
-                    {item.last && (
-                      <>
-                        <span>·</span>
-                        <span className="num">{item.last.tlsMs} ms</span>
-                        {item.last.reasons.length > 0 && <span>({item.last.reasons.join(', ')})</span>}
-                      </>
-                    )}
-                  </div>
+                  {c.error && <p className="mt-0.5 text-[11px] text-red-400">{c.error}</p>}
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {item.last && (
-                    <StatusPill tone={gradeTone(item.last.grade)}>{item.last.grade}</StatusPill>
+                <div className="flex shrink-0 items-center gap-2">
+                  {typeof c.millis === 'number' && c.millis > 0 && (
+                    <span className="font-mono text-[11px] text-(--text-muted)">{c.millis} ms</span>
                   )}
-                  <Button
-                    size="sm"
-                    variant={selected ? 'primary' : 'ghost'}
-                    onClick={() => {
-                      onSelect(item.domain, item.last?.grade, item.last?.tlsMs);
-                      onClose();
-                    }}
-                  >
-                    {selected ? (fa ? 'انتخاب‌شده' : 'Selected') : fa ? 'انتخاب' : 'Use'}
-                  </Button>
+                  <StatusPill tone={gradeTone(c.grade)} label={c.grade} />
                 </div>
-              </div>
+              </button>
             );
           })}
+          {candidates.length === 0 && (
+            <p className="py-6 text-center text-xs text-(--text-muted)">
+              {L('No scanned SNIs yet. Enter a domain above or scan neighbours.', 'موردی یافت نشد.')}
+            </p>
+          )}
         </div>
       </div>
     </Modal>
@@ -234,485 +264,1670 @@ export function XrayAdvancedSection({
   combos,
   nodeId,
   inboundId,
+  port,
+  onPortChange,
+  remotes,
+  onRemotesChange,
+  sniGrade,
+  sniMillis,
   onRefreshInbound,
-}: XrayEditorProps) {
+}: {
+  settings: Record<string, unknown>;
+  onChange: (next: Record<string, unknown>) => void;
+  combos: XrayCombosResponse | null;
+  nodeId: number;
+  inboundId?: number;
+  port?: number;
+  onPortChange?: (port: number) => void;
+  remotes?: InboundRemote[];
+  onRemotesChange?: (remotes: InboundRemote[]) => void;
+  sniGrade?: string;
+  sniMillis?: number | null;
+  onRefreshInbound?: () => void;
+}) {
   const { lang } = useUi();
-  const fa = lang === 'fa';
+  const L = (en: string, fa: string) => (lang === 'fa' ? fa : en);
+
   const [sniModalOpen, setSniModalOpen] = useState(false);
-  const [busyAction, setBusyAction] = useState('');
-  const [proxyCheckResult, setProxyCheckResult] = useState<{
-    headerReceived: boolean;
-    lastIp: string;
-    looksLikeRelay: boolean;
-  } | null>(null);
+  const [neighboursOpen, setNeighboursOpen] = useState(false);
+  const [neighbourList, setNeighbourList] = useState<SniCandidate[]>([]);
+  const [scanningNeighbours, setScanningNeighbours] = useState(false);
+  const [scanMessage, setScanMessage] = useState('');
+  const [testingSni, setTestingSni] = useState(false);
+  const [testedSniResult, setTestedSniResult] = useState<SniCandidate | null>(null);
+  const [confirmKeysModal, setConfirmKeysModal] = useState(false);
+  const [confirmReplaceSniModal, setConfirmReplaceSniModal] = useState(false);
+  const [replaceSniTarget, setReplaceSniTarget] = useState('');
+  const [issuingCert, setIssuingCert] = useState(false);
+  const [proxyCheckResult, setProxyCheckResult] = useState('');
+  const [actionError, setActionError] = useState('');
 
-  const protocol = String(settings.protocol || 'vless') as XrayComboItem['protocol'];
-  const transport = String(settings.transport || 'raw') as XrayComboItem['transport'];
-  const security = String(settings.security || 'reality') as XrayComboItem['security'];
-
-  const allowedTransports = useMemo(() => {
-    if (!combos) return ['raw', 'ws', 'httpupgrade', 'xhttp', 'grpc', 'kcp'];
-    return [...new Set(combos.items.filter((c) => c.protocol === protocol).map((c) => c.transport))];
-  }, [combos, protocol]);
-
-  const allowedSecurities = useMemo(() => {
-    if (!combos) return ['reality', 'tls', 'none'];
-    return [...new Set(combos.items.filter((c) => c.protocol === protocol && c.transport === transport).map((c) => c.security))];
-  }, [combos, protocol, transport]);
-
-  const activeCombo = useMemo(() => {
-    return combos?.items.find((c) => c.protocol === protocol && c.transport === transport && c.security === security) || null;
-  }, [combos, protocol, transport, security]);
-
-  const update = (patch: Record<string, unknown>) => {
-    onChange({ ...settings, ...patch });
+  const patch = (partial: Record<string, unknown>) => {
+    onChange({ ...settings, ...partial });
   };
 
-  const handleProtocolChange = (nextProto: XrayComboItem['protocol']) => {
-    const firstCombo = combos?.items.find((c) => c.protocol === nextProto);
-    update({
+  const patchNested = (key: 'reality' | 'tls' | 'sniffing', partial: Record<string, unknown>) => {
+    const prev =
+      settings[key] && typeof settings[key] === 'object' ? (settings[key] as Record<string, unknown>) : {};
+    onChange({ ...settings, [key]: { ...prev, ...partial } });
+  };
+
+  const proto = String(settings.protocol || 'vless');
+  const transport = String(settings.transport || 'raw');
+  const security = String(settings.security || 'reality');
+  const ssMethod = String(settings.ssMethod || '2022-blake3-aes-128-gcm');
+  const ssNetwork = String(settings.ssNetwork || 'tcp,udp');
+  const headerType = String(settings.headerType || 'none');
+
+  const reality = (settings.reality && typeof settings.reality === 'object'
+    ? settings.reality
+    : {}) as Record<string, unknown>;
+  const tls = (settings.tls && typeof settings.tls === 'object' ? settings.tls : {}) as Record<string, unknown>;
+  const sniffing = (settings.sniffing && typeof settings.sniffing === 'object'
+    ? settings.sniffing
+    : { enabled: true, destOverride: ['http', 'tls', 'quic'] }) as Record<string, unknown>;
+
+  const realitySni = String(reality.serverNames?.[0 as never] || settings.realitySni || '');
+  const realityPublicKey = String(settings.realityPublicKey || reality.publicKey || '');
+  const activeCombo = combos?.items.find(
+    (c) => c.protocol === proto && c.transport === transport && c.security === security,
+  );
+  const items = combos?.items || [];
+
+  // Dynamic filtered options matching Ovira's matrix
+  const availableProtocols = Array.from(new Set(items.map((c) => c.protocol)));
+  const protocolsForView = availableProtocols.length > 0 ? availableProtocols : ['vless', 'vmess', 'trojan', 'shadowsocks'];
+
+  const transportsForProto = Array.from(
+    new Set(items.filter((c) => c.protocol === proto).map((c) => c.transport)),
+  );
+  const transportOptions =
+    transportsForProto.length > 0 ? transportsForProto : ['raw', 'ws', 'httpupgrade', 'xhttp', 'grpc', 'kcp'];
+
+  const securitiesForProtoTransport = Array.from(
+    new Set(items.filter((c) => c.protocol === proto && c.transport === transport).map((c) => c.security)),
+  );
+  const securityOptions =
+    securitiesForProtoTransport.length > 0 ? securitiesForProtoTransport : ['none', 'tls', 'reality'];
+
+  const applyTuple = (nextProto: string, nextTransport: string, nextSecurity: string) => {
+    let chosenTransport = nextTransport;
+    let chosenSecurity = nextSecurity;
+    if (items.length > 0) {
+      const exact = items.find(
+        (c) => c.protocol === nextProto && c.transport === chosenTransport && c.security === chosenSecurity,
+      );
+      if (!exact) {
+        const sameT = items.find((c) => c.protocol === nextProto && c.transport === chosenTransport);
+        const fallback = sameT || items.find((c) => c.protocol === nextProto);
+        if (fallback) {
+          chosenTransport = fallback.transport;
+          chosenSecurity = fallback.security;
+        }
+      }
+    }
+    const flowOpts =
+      items.find(
+        (c) => c.protocol === nextProto && c.transport === chosenTransport && c.security === chosenSecurity,
+      )?.flowOptions || [];
+    patch({
       protocol: nextProto,
-      transport: firstCombo?.transport || 'raw',
-      security: firstCombo?.security || 'none',
-      flow: firstCombo?.flows.includes(String(settings.flow || '')) ? settings.flow : firstCombo?.flows[0] || '',
+      transport: chosenTransport,
+      security: chosenSecurity,
+      flow: flowOpts.includes(String(settings.flow || ''))
+        ? settings.flow
+        : flowOpts.includes('xtls-rprx-vision')
+          ? 'xtls-rprx-vision'
+          : flowOpts[0] || '',
     });
   };
 
-  const handleTransportChange = (nextTrans: XrayComboItem['transport']) => {
-    const firstCombo = combos?.items.find((c) => c.protocol === protocol && c.transport === nextTrans);
-    update({
-      transport: nextTrans,
-      security: firstCombo?.security || security,
-      flow: firstCombo?.flows.includes(String(settings.flow || '')) ? settings.flow : '',
-    });
+  const activeRemotes =
+    remotes !== undefined
+      ? remotes
+      : Array.isArray(settings.remotes)
+        ? (settings.remotes as InboundRemote[])
+        : [];
+  const handleRemotesUpdate = (next: InboundRemote[]) => {
+    if (onRemotesChange) onRemotesChange(next);
+    patch({ remotes: next });
   };
 
-  const reality = (settings.reality && typeof settings.reality === 'object' ? settings.reality : {}) as Record<string, unknown>;
-  const tlsObj = (settings.tls && typeof settings.tls === 'object' ? settings.tls : {}) as Record<string, unknown>;
-  const sniffing = (settings.sniffing && typeof settings.sniffing === 'object' ? settings.sniffing : { enabled: true, destOverride: ['http', 'tls', 'quic'], routeOnly: false }) as Record<string, unknown>;
-  const currentSni = Array.isArray(reality.serverNames) ? String(reality.serverNames[0] || '') : '';
+  const fallbacks = Array.isArray(settings.fallbacks)
+    ? (settings.fallbacks as Array<{ name?: string; path?: string; dest: string }>)
+    : [];
 
-  const rotateRealityKeys = async () => {
+  const canBehindCdn = ['ws', 'httpupgrade', 'xhttp', 'grpc'].includes(transport);
+  const canProxyProtocol = transport !== 'kcp';
+
+  useEffect(() => {
+    setTestedSniResult(null);
+  }, [nodeId]);
+
+  useEffect(() => {
+    if (neighboursOpen && neighbourList.length === 0) {
+      apiFetch<{ items: SniCandidate[] }>(`/xray/sni?node=${nodeId || 0}`)
+        .then((res) => setNeighbourList(res.items || []))
+        .catch(() => {});
+    }
+  }, [neighboursOpen, nodeId, neighbourList.length]);
+
+  const handleInlineTestSni = async () => {
+    const clean = realitySni.trim();
+    if (!clean) return;
+    setTestingSni(true);
+    setActionError('');
+    try {
+      const res = await apiFetch<{ results: SniCandidate[] }>('/xray/sni/test', {
+        method: 'POST',
+        body: JSON.stringify({ node: nodeId || 0, domains: [clean] }),
+      });
+      if (res.results?.[0]) {
+        setTestedSniResult(res.results[0]);
+      }
+    } catch (err) {
+      setActionError((err as Error).message);
+    } finally {
+      setTestingSni(false);
+    }
+  };
+
+  const handleFindNeighbours = async () => {
+    setScanningNeighbours(true);
+    setActionError('');
+    setScanMessage(L('Scanning neighbouring IPs...', 'در حال اسکن سایت‌های همسایه...'));
+    try {
+      const res = await apiFetch<{ jobId: string }>('/xray/sni/scan', {
+        method: 'POST',
+        body: JSON.stringify({ node: nodeId || 0, force: true }),
+      });
+      for (let i = 0; i < 25; i++) {
+        await new Promise((r) => setTimeout(r, 1000));
+        const st = await apiFetch<{ status: string; progress?: string; results?: SniCandidate[] }>(
+          `/xray/sni/jobs/${res.jobId}`,
+        );
+        if (st.progress) setScanMessage(st.progress);
+        if (st.results && st.results.length > 0) setNeighbourList(st.results);
+        if (st.status === 'done' || st.status === 'error') break;
+      }
+      const latest = await apiFetch<{ items: SniCandidate[] }>(`/xray/sni?node=${nodeId || 0}`);
+      setNeighbourList(latest.items || []);
+    } catch (err) {
+      setActionError((err as Error).message);
+    } finally {
+      setScanningNeighbours(false);
+      setScanMessage('');
+    }
+  };
+
+  const handleRotateRealityKeys = async () => {
     if (!inboundId) return;
-    if (!window.confirm(fa ? 'تغییر کلید Reality لینک تمام کاربران را تغییر می‌دهد. ادامه می‌دهید؟' : 'Rotating Reality keys changes every client link. Continue?')) return;
-    setBusyAction('keys');
+    setActionError('');
     try {
       await apiFetch(`/inbounds/${inboundId}/xray/reality-keys`, {
         method: 'POST',
         body: JSON.stringify({ confirm: true }),
       });
+      setConfirmKeysModal(false);
       onRefreshInbound?.();
-    } finally {
-      setBusyAction('');
+    } catch (err) {
+      setActionError((err as Error).message);
     }
   };
 
-  const replaceBestSni = async () => {
-    if (!inboundId) return;
-    if (!window.confirm(fa ? 'جایگزینی دامنه SNI لینک تمام کاربران را تغییر می‌دهد. ادامه می‌دهید؟' : 'Replacing the camouflage site changes every client link. Continue?')) return;
-    setBusyAction('sni');
+  const handleReplaceSni = async () => {
+    if (!inboundId || !replaceSniTarget.trim()) return;
+    setActionError('');
     try {
       await apiFetch(`/inbounds/${inboundId}/xray/sni/replace`, {
         method: 'POST',
-        body: JSON.stringify({ confirm: true }),
+        body: JSON.stringify({ sni: replaceSniTarget.trim(), confirm: true }),
+      });
+      setConfirmReplaceSniModal(false);
+      onRefreshInbound?.();
+    } catch (err) {
+      setActionError((err as Error).message);
+    }
+  };
+
+  const handleIssueCert = async () => {
+    if (!inboundId) return;
+    setIssuingCert(true);
+    setActionError('');
+    try {
+      await apiFetch(`/inbounds/${inboundId}/xray/certificate`, {
+        method: 'POST',
+        body: JSON.stringify({ host: String(tls.certHost || tls.serverName || settings.cdnDomain || '') }),
       });
       onRefreshInbound?.();
+    } catch (err) {
+      setActionError((err as Error).message);
     } finally {
-      setBusyAction('');
+      setIssuingCert(false);
     }
   };
 
-  const checkProxyProtocol = async () => {
+  const handleProxyCheck = async () => {
     if (!inboundId) return;
-    setBusyAction('proxy');
+    setActionError('');
     try {
-      const res = await apiFetch<{ headerReceived: boolean; lastIp: string; looksLikeRelay: boolean }>(
-        `/inbounds/${inboundId}/xray/proxy-check`,
-      );
-      setProxyCheckResult(res);
-    } finally {
-      setBusyAction('');
+      const res = await apiFetch<{ message?: string; ok?: boolean }>(`/inbounds/${inboundId}/xray/proxy-check`);
+      setProxyCheckResult(res.message || (res.ok ? L('Verified.', 'تایید شد.') : L('Check finished.', 'بررسی انجام شد.')));
+    } catch (err) {
+      setActionError((err as Error).message);
     }
   };
 
-  const retryTlsCert = async () => {
-    if (!inboundId) return;
-    setBusyAction('cert');
-    try {
-      await apiFetch(`/inbounds/${inboundId}/xray/certificate`, { method: 'POST' });
-      onRefreshInbound?.();
-    } finally {
-      setBusyAction('');
-    }
-  };
+  const effectiveSniGrade = testedSniResult?.grade || sniGrade || '';
+  const effectiveSniMillis = testedSniResult?.millis ?? sniMillis ?? null;
 
   return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Select
-          label={fa ? 'پروتکل' : 'Protocol'}
-          value={protocol}
-          onChange={(e) => handleProtocolChange(e.target.value as XrayComboItem['protocol'])}
-        >
-          <option value="vless">VLESS</option>
-          <option value="vmess">VMess</option>
-          <option value="trojan">Trojan</option>
-          <option value="shadowsocks">Shadowsocks</option>
-        </Select>
-
-        <Select
-          label={fa ? 'ترنسپورت' : 'Transport'}
-          value={transport}
-          onChange={(e) => handleTransportChange(e.target.value as XrayComboItem['transport'])}
-        >
-          {allowedTransports.map((tr) => (
-            <option key={tr} value={tr}>
-              {tr === 'raw' ? 'TCP (raw)' : tr === 'ws' ? 'WebSocket (ws)' : tr === 'xhttp' ? 'XHTTP (splithttp)' : tr}
-            </option>
-          ))}
-        </Select>
-
-        <Select
-          label={fa ? 'امنیت' : 'Security'}
-          value={security}
-          onChange={(e) => update({ security: e.target.value })}
-        >
-          {allowedSecurities.map((sec) => (
-            <option key={sec} value={sec}>
-              {sec === 'reality' ? 'Reality' : sec === 'tls' ? 'TLS' : fa ? 'بدون رمزنگاری (None)' : 'None'}
-            </option>
-          ))}
-        </Select>
-      </div>
-
-      {activeCombo && activeCombo.flows.length > 1 && (
-        <Select
-          label="Flow"
-          value={String(settings.flow || '')}
-          onChange={(e) => update({ flow: e.target.value })}
-        >
-          {activeCombo.flows.map((f) => (
-            <option key={f || 'none'} value={f}>
-              {f || (fa ? 'بدون flow' : 'None')}
-            </option>
-          ))}
-        </Select>
-      )}
-
-      {protocol === 'shadowsocks' && (
-        <Select
-          label={fa ? 'روش رمزنگاری Shadowsocks' : 'Shadowsocks method'}
-          value={String(settings.ssMethod || '2022-blake3-aes-128-gcm')}
-          onChange={(e) => update({ ssMethod: e.target.value })}
-        >
-          {(combos?.ssMethods || ['2022-blake3-aes-128-gcm', '2022-blake3-aes-256-gcm', 'aes-128-gcm', 'aes-256-gcm', 'chacha20-ietf-poly1305']).map((m) => (
-            <option key={m} value={m}>{m}</option>
-          ))}
-        </Select>
-      )}
-
-      {/* Transport options */}
-      {transport === 'raw' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <Select
-            label={fa ? 'نوع هدر TCP' : 'Raw header'}
-            value={String(settings.rawHeader || 'none')}
-            onChange={(e) => update({ rawHeader: e.target.value })}
-          >
-            <option value="none">{fa ? 'عادی (none)' : 'none'}</option>
-            <option value="http">http</option>
-          </Select>
-          {settings.rawHeader === 'http' && (
-            <>
-              <Input
-                label={fa ? 'مسیر HTTP' : 'HTTP path'}
-                value={String(settings.rawHttpPath || '/')}
-                onChange={(e) => update({ rawHttpPath: e.target.value })}
-              />
-              <Input
-                label={fa ? 'هاست‌های HTTP (با کاما)' : 'HTTP hosts (comma-separated)'}
-                value={Array.isArray(settings.rawHttpHosts) ? settings.rawHttpHosts.join(', ') : ''}
-                onChange={(e) => update({ rawHttpHosts: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
-              />
-            </>
-          )}
+    <div className="space-y-6 text-sm">
+      {actionError && (
+        <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+          {actionError}
         </div>
       )}
 
-      {(transport === 'ws' || transport === 'httpupgrade' || transport === 'xhttp') && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <Input
-            label={fa ? 'مسیر (Path)' : 'Path'}
-            value={String(settings.path || '/')}
-            onChange={(e) => update({ path: e.target.value })}
-          />
-          <Input
-            label={fa ? 'هدر Host' : 'Host header'}
-            value={String(settings.host || '')}
-            onChange={(e) => update({ host: e.target.value })}
-          />
-          {transport === 'xhttp' && (
-            <Select
-              label={fa ? 'حالت XHTTP' : 'XHTTP mode'}
-              value={String(settings.xhttpMode || 'auto')}
-              onChange={(e) => update({ xhttpMode: e.target.value })}
-            >
-              {(combos?.xhttpModes || ['auto', 'packet-up', 'stream-up']).map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </Select>
-          )}
-        </div>
-      )}
-
-      {transport === 'grpc' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
-          <Input
-            label="gRPC serviceName"
-            value={String(settings.serviceName || 'grpc')}
-            onChange={(e) => update({ serviceName: e.target.value })}
-          />
-          <label className="inline-flex items-center gap-2 text-xs pb-2.5 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={Boolean(settings.grpcMultiMode)}
-              onChange={(e) => update({ grpcMultiMode: e.target.checked })}
-            />
-            <span>{fa ? 'حالت Multi-mode' : 'Multi mode'}</span>
-          </label>
-        </div>
-      )}
-
-      {transport === 'kcp' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Select
-            label={fa ? 'نوع هدر mKCP' : 'mKCP header'}
-            value={String(settings.kcpHeader || 'none')}
-            onChange={(e) => update({ kcpHeader: e.target.value })}
-          >
-            {(combos?.kcpHeaders || ['none', 'srtp', 'utp', 'wechat-video', 'dtls', 'wireguard']).map((h) => (
-              <option key={h} value={h}>{h}</option>
-            ))}
-          </Select>
-          <Input
-            label={fa ? 'سید mKCP (اختیاری)' : 'mKCP seed'}
-            value={String(settings.kcpSeed || '')}
-            onChange={(e) => update({ kcpSeed: e.target.value })}
-          />
-        </div>
-      )}
-
-      {/* Security: Reality */}
-      {security === 'reality' && (
-        <div className="rounded-xl border p-4 space-y-3" style={{ borderColor: 'var(--line)', background: 'var(--raise-2)' }}>
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="text-xs font-semibold flex items-center gap-1.5" style={{ color: 'var(--ink)' }}>
-              <Shield size={14} style={{ color: 'var(--accent)' }} />
-              <span>Reality</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button type="button" size="sm" variant="ghost" onClick={() => setSniModalOpen(true)}>
-                <Sparkles size={13} />
-                {fa ? 'تغییر دامنه استتار' : 'Change SNI'}
-              </Button>
-              {inboundId && (
-                <>
-                  <Button type="button" size="sm" variant="ghost" disabled={busyAction === 'sni'} onClick={replaceBestSni}>
-                    {fa ? 'جایگزینی خودکار SNI' : 'Auto-replace SNI'}
-                  </Button>
-                  <Button type="button" size="sm" variant="ghost" disabled={busyAction === 'keys'} onClick={rotateRealityKeys}>
-                    {fa ? 'چرخش کلید Reality' : 'Rotate Reality keys'}
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Input
-              label={fa ? 'دامنه استتار (SNI)' : 'Camouflage site (SNI)'}
-              value={currentSni}
-              onChange={(e) => {
-                const v = e.target.value.trim();
-                update({
-                  reality: { ...reality, serverNames: v ? [v] : [], target: v ? `${v}:443` : '' },
-                });
-              }}
-            />
-            <Input
-              label="Target (dest)"
-              value={String(reality.target || '')}
-              onChange={(e) => update({ reality: { ...reality, target: e.target.value } })}
-            />
-            <Input
-              label="Short IDs (comma-separated hex)"
-              value={Array.isArray(reality.shortIds) ? reality.shortIds.join(', ') : ''}
-              onChange={(e) =>
-                update({
-                  reality: {
-                    ...reality,
-                    shortIds: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
-                  },
-                })
-              }
-            />
-            <Select
-              label="TLS Fingerprint (uTLS)"
-              value={String(settings.fingerprint || 'chrome')}
-              onChange={(e) => update({ fingerprint: e.target.value })}
-            >
-              {['chrome', 'firefox', 'safari', 'ios', 'android', 'edge', 'random', 'randomized'].map((fp) => (
-                <option key={fp} value={fp}>{fp}</option>
-              ))}
-            </Select>
-          </div>
-          {Boolean(settings.realityPublicKey) && (
-            <div className="text-[11px] font-mono break-all" style={{ color: 'var(--ink-3)' }}>
-              Public Key: {String(settings.realityPublicKey)}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Security: TLS */}
-      {security === 'tls' && (
-        <div className="rounded-xl border p-4 space-y-3" style={{ borderColor: 'var(--line)', background: 'var(--raise-2)' }}>
-          <div className="flex items-center justify-between">
-            <div className="text-xs font-semibold" style={{ color: 'var(--ink)' }}>TLS</div>
-            {inboundId && (
-              <Button type="button" size="sm" variant="ghost" disabled={busyAction === 'cert'} onClick={retryTlsCert}>
-                {fa ? 'درخواست گواهی Let’s Encrypt' : 'Issue / retry Let’s Encrypt cert'}
-              </Button>
+      {/* Camouflage Banner for Reality */}
+      {security === 'reality' && realitySni && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-(--border-subtle) bg-(--bg-surface) px-3.5 py-2.5">
+          <div className="flex flex-wrap items-center gap-2.5 text-xs">
+            <span className="text-(--text-muted)">{L('Camouflage site', 'سایت استتار')}</span>
+            <span className="font-mono font-semibold text-(--text-primary)">{realitySni}</span>
+            {effectiveSniGrade && <StatusPill tone={gradeTone(effectiveSniGrade)} label={effectiveSniGrade} />}
+            {typeof effectiveSniMillis === 'number' && effectiveSniMillis > 0 && (
+              <span className="font-mono text-(--text-muted)">{effectiveSniMillis} ms</span>
             )}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Input
-              label={fa ? 'نام میزبان گواهی (TLS Host)' : 'Certificate host'}
-              value={String(settings.tlsHost || settings.cdnHost || '')}
-              onChange={(e) => update({ tlsHost: e.target.value })}
-            />
-            <Input
-              label={fa ? 'فایل گواهی (certFile)' : 'Cert file'}
-              value={String(tlsObj.certFile || '')}
-              onChange={(e) => update({ tls: { ...tlsObj, certFile: e.target.value } })}
-            />
-            <Input
-              label={fa ? 'فایل کلید خصوصی (keyFile)' : 'Key file'}
-              value={String(tlsObj.keyFile || '')}
-              onChange={(e) => update({ tls: { ...tlsObj, keyFile: e.target.value } })}
-            />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Input
-              label="ALPN"
-              value={Array.isArray(tlsObj.alpn) ? tlsObj.alpn.join(', ') : 'h2, http/1.1'}
-              onChange={(e) =>
-                update({ tls: { ...tlsObj, alpn: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) } })
-              }
-            />
-            <Select
-              label={fa ? 'حداقل نسخه TLS' : 'Lowest TLS version'}
-              value={String(tlsObj.minVersion || '1.2')}
-              onChange={(e) => update({ tls: { ...tlsObj, minVersion: e.target.value } })}
-            >
-              <option value="1.2">1.2</option>
-              <option value="1.3">1.3</option>
-            </Select>
-          </div>
+          {inboundId && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setReplaceSniTarget(realitySni);
+                  setConfirmReplaceSniModal(true);
+                }}
+              >
+                {L('Change camouflage site', 'تغییر سایت استتار')}
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => setConfirmKeysModal(true)}>
+                <RefreshCw className="h-3.5 w-3.5" />
+                {L('Replace keys', 'تغییر کلیدها')}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Relay / CDN / Device Limits */}
-      <div className="rounded-xl border p-4 space-y-3" style={{ borderColor: 'var(--line)', background: 'var(--raise-2)' }}>
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="text-xs font-semibold" style={{ color: 'var(--ink)' }}>
-            {fa ? 'رله، CDN و محدودیت سرعت/دستگاه' : 'Relay, CDN and devices'}
-          </div>
-          {inboundId && Boolean(settings.proxyProtocol) && (
-            <Button type="button" size="sm" variant="ghost" disabled={busyAction === 'proxy'} onClick={checkProxyProtocol}>
-              {fa ? 'بررسی دریافت PROXY protocol' : 'Check PROXY header'}
-            </Button>
-          )}
-        </div>
+      {/* Basics */}
+      <div className="space-y-4">
+        <h3 className="text-xs font-semibold tracking-wider text-(--text-muted) uppercase">
+          {L('Basics', 'پایه')}
+        </h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <label className="inline-flex items-center gap-2 text-xs cursor-pointer">
-            <input
-              type="checkbox"
-              checked={Boolean(settings.proxyProtocol)}
-              onChange={(e) => update({ proxyProtocol: e.target.checked })}
-            />
-            <span>{fa ? 'الزام PROXY protocol' : 'Require PROXY protocol'}</span>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {onPortChange && (
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Port', 'پورت')}</span>
+              <input
+                type="number"
+                min={1}
+                max={65535}
+                value={port ?? 443}
+                onChange={(e) => onPortChange(Number(e.target.value) || 443)}
+                className="input h-9! font-mono text-xs"
+              />
+            </label>
+          )}
+
+          <label className="block space-y-1">
+            <span className="text-xs text-(--text-muted)">{L('Protocol', 'پروتکل')}</span>
+            <select
+              value={proto}
+              onChange={(e) => applyTuple(e.target.value, transport, security)}
+              className="select h-9! text-xs"
+            >
+              {protocolsForView.map((p) => (
+                <option key={p} value={p}>
+                  {PROTOCOL_LABELS[p] || p}
+                </option>
+              ))}
+            </select>
           </label>
 
-          <Select
-            label={fa ? 'محاسبه محدودیت سرعت بر اساس' : 'Speed limit counted per'}
-            value={String(settings.speedMode || 'device')}
-            onChange={(e) => update({ speedMode: e.target.value })}
-          >
-            <option value="device">{fa ? 'هر دستگاه' : 'Device'}</option>
-            <option value="client">{fa ? 'کل کاربر' : 'Whole client'}</option>
-          </Select>
+          <label className="block space-y-1">
+            <span className="text-xs text-(--text-muted)">{L('Transport', 'انتقال')}</span>
+            <select
+              value={transport}
+              onChange={(e) => applyTuple(proto, e.target.value, security)}
+              className="select h-9! text-xs"
+            >
+              {transportOptions.map((t) => (
+                <option key={t} value={t}>
+                  {L(TRANSPORT_LABELS[t]?.en || t, TRANSPORT_LABELS[t]?.fa || t)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block space-y-1">
+            <span className="text-xs text-(--text-muted)">{L('Security', 'امنیت')}</span>
+            <select
+              value={security}
+              onChange={(e) => applyTuple(proto, transport, e.target.value)}
+              className="select h-9! text-xs"
+            >
+              {securityOptions.map((s) => (
+                <option key={s} value={s}>
+                  {L(SECURITY_LABELS[s]?.en || s, SECURITY_LABELS[s]?.fa || s)}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
-        <Input
-          label={fa ? 'آی‌پی یا رنج مجاز رله‌ها (allowFrom، با کاما)' : 'Allowed relay IPs/CIDRs (comma-separated)'}
-          value={Array.isArray(settings.allowFrom) ? settings.allowFrom.join(', ') : ''}
-          onChange={(e) => update({ allowFrom: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
-        />
+        {(activeCombo?.deprecatedProto || ['vmess', 'trojan', 'shadowsocks'].includes(proto)) && (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              {L(
+                `Xray marks this as old (${proto}). It still works in the bundled version and may be removed later.`,
+                `هسته Xray این پروتکل (${proto}) را قدیمی اعلام کرده است. در نسخه فعلی کار می‌کند اما ممکن است بعداً حذف شود.`,
+              )}
+            </span>
+          </div>
+        )}
 
-        {proxyCheckResult && (
-          <div className="text-xs" style={{ color: proxyCheckResult.headerReceived ? 'var(--good)' : 'var(--warn)' }}>
-            {proxyCheckResult.headerReceived
-              ? `PROXY header received · last IP: ${proxyCheckResult.lastIp}${proxyCheckResult.looksLikeRelay ? ' (relay IP)' : ''}`
-              : fa
-                ? 'هنوز هدر PROXY دریافت نشده است.'
-                : 'No PROXY protocol header seen yet.'}
+        {(activeCombo?.deprecatedTransport || ['ws', 'httpupgrade', 'grpc'].includes(transport)) && (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              {L(
+                `Xray marks ${TRANSPORT_LABELS[transport]?.en || transport} (${transport}) as legacy in favour of XHTTP. It still works in the bundled version.`,
+                `هسته Xray انتقال ${transport} را قدیمی در نظر گرفته است. در نسخه فعلی همچنان کار می‌کند.`,
+              )}
+            </span>
+          </div>
+        )}
+
+        {proto === 'vless' && transport === 'raw' && (security === 'tls' || security === 'reality') && (
+          <label className="block space-y-1">
+            <span className="text-xs text-(--text-muted)">{L('Flow', 'جریان (Flow)')}</span>
+            <select
+              value={String(settings.flow || '')}
+              onChange={(e) => patch({ flow: e.target.value })}
+              className="select h-9! text-xs"
+            >
+              <option value="">{L('None', 'هیچ‌کدام')}</option>
+              <option value="xtls-rprx-vision">xtls-rprx-vision</option>
+            </select>
+            <p className="text-[11px] text-(--text-muted)">
+              {L('Vision is the recommended flow where it is available.', 'حالت Vision در صورت پشتیبانی توصیه می‌شود.')}
+            </p>
+          </label>
+        )}
+
+        {proto === 'shadowsocks' && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Cipher', 'رمزنگاری (Cipher)')}</span>
+              <select
+                value={ssMethod}
+                onChange={(e) => patch({ ssMethod: e.target.value })}
+                className="select h-9! font-mono text-xs"
+              >
+                {(
+                  combos?.ssMethods || [
+                    '2022-blake3-aes-128-gcm',
+                    '2022-blake3-aes-256-gcm',
+                    'aes-128-gcm',
+                    'aes-256-gcm',
+                    'chacha20-ietf-poly1305',
+                    'xchacha20-ietf-poly1305',
+                  ]
+                ).map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Network', 'شبکه')}</span>
+              <select
+                value={ssNetwork}
+                onChange={(e) => patch({ ssNetwork: e.target.value })}
+                className="select h-9! font-mono text-xs"
+              >
+                <option value="tcp,udp">tcp,udp</option>
+                <option value="tcp">tcp</option>
+                <option value="udp">udp</option>
+              </select>
+            </label>
           </div>
         )}
       </div>
 
-      {/* Sniffing & Link Overrides */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Input
-          label={fa ? 'آدرس اتصال در لینک‌ها (Connect address)' : 'Connect address override'}
-          value={String(settings.connectAddress || '')}
-          onChange={(e) => update({ connectAddress: e.target.value })}
-          placeholder={fa ? 'پیش‌فرض آی‌پی نود' : 'Default node IP/host'}
-        />
-        <Input
-          label={fa ? 'SNI در لینک‌ها' : 'SNI in links'}
-          value={String(settings.sniOverride || '')}
-          onChange={(e) => update({ sniOverride: e.target.value })}
-        />
-        <Input
-          label={fa ? 'Host در لینک‌ها' : 'Host in links'}
-          value={String(settings.hostOverride || '')}
-          onChange={(e) => update({ hostOverride: e.target.value })}
+      {/* Transport sub-section */}
+      {transport === 'raw' && (
+        <div className="space-y-3 border-t border-(--border-subtle) pt-4">
+          <div>
+            <h3 className="text-xs font-semibold tracking-wider text-(--text-muted) uppercase">
+              {L('HTTP header', 'هدر HTTP')}
+            </h3>
+            <p className="mt-0.5 text-[11px] text-(--text-muted)">
+              {L('Makes the traffic look like plain HTTP.', 'ترافیک را شبیه به HTTP معمولی نشان می‌دهد.')}
+            </p>
+          </div>
+          <label className="block space-y-1">
+            <span className="text-xs text-(--text-muted)">{L('Header type', 'نوع هدر')}</span>
+            <select
+              value={headerType}
+              onChange={(e) => patch({ headerType: e.target.value })}
+              className="select h-9! text-xs"
+            >
+              <option value="none">none</option>
+              <option value="http">http</option>
+            </select>
+          </label>
+          {headerType === 'http' && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block space-y-1">
+                <span className="text-xs text-(--text-muted)">{L('Host names', 'نام‌های Host')}</span>
+                <textarea
+                  rows={2}
+                  dir="ltr"
+                  value={toLinesText(settings.httpHosts)}
+                  onChange={(e) => patch({ httpHosts: fromLinesText(e.target.value) })}
+                  placeholder="www.bing.com"
+                  className="textarea min-h-[68px]! font-mono text-xs"
+                />
+                <span className="text-[11px] text-(--text-muted)">{L('One per line.', 'در هر خط یک مورد.')}</span>
+              </label>
+              <label className="block space-y-1">
+                <span className="text-xs text-(--text-muted)">{L('Path', 'مسیر')}</span>
+                <input
+                  type="text"
+                  dir="ltr"
+                  value={String(settings.path || '/')}
+                  onChange={(e) => patch({ path: e.target.value })}
+                  className="input h-9! font-mono text-xs"
+                />
+              </label>
+            </div>
+          )}
+        </div>
+      )}
+
+      {transport === 'ws' && (
+        <div className="space-y-3 border-t border-(--border-subtle) pt-4">
+          <h3 className="text-xs font-semibold tracking-wider text-(--text-muted) uppercase">WebSocket</h3>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">Host</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={String(settings.host || '')}
+                onChange={(e) => patch({ host: e.target.value })}
+                placeholder="vpn.example.com"
+                className="input h-9! font-mono text-xs"
+              />
+              <span className="text-[11px] text-(--text-muted)">
+                {L('The Host header; usually your domain.', 'هدر Host؛ معمولاً دامنه شما.')}
+              </span>
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Path', 'مسیر')}</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={String(settings.path || '/')}
+                onChange={(e) => patch({ path: e.target.value })}
+                className="input h-9! font-mono text-xs"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Heartbeat (seconds)', 'ضربان (ثانیه)')}</span>
+              <input
+                type="number"
+                dir="ltr"
+                value={settings.wsHeartbeat ? String(settings.wsHeartbeat) : ''}
+                onChange={(e) => patch({ wsHeartbeat: e.target.value ? Number(e.target.value) : 0 })}
+                placeholder={L('Empty is off', 'خالی یعنی خاموش')}
+                className="input h-9! font-mono text-xs"
+              />
+              <span className="text-[11px] text-(--text-muted)">{L('Empty is off.', 'خالی یعنی خاموش.')}</span>
+            </label>
+          </div>
+        </div>
+      )}
+
+      {transport === 'httpupgrade' && (
+        <div className="space-y-3 border-t border-(--border-subtle) pt-4">
+          <h3 className="text-xs font-semibold tracking-wider text-(--text-muted) uppercase">HTTPUpgrade</h3>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">Host</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={String(settings.host || '')}
+                onChange={(e) => patch({ host: e.target.value })}
+                className="input h-9! font-mono text-xs"
+              />
+              <span className="text-[11px] text-(--text-muted)">
+                {L('The Host header; usually your domain.', 'هدر Host؛ معمولاً دامنه شما.')}
+              </span>
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Path', 'مسیر')}</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={String(settings.path || '/')}
+                onChange={(e) => patch({ path: e.target.value })}
+                className="input h-9! font-mono text-xs"
+              />
+            </label>
+          </div>
+        </div>
+      )}
+
+      {transport === 'xhttp' && (
+        <div className="space-y-3 border-t border-(--border-subtle) pt-4">
+          <h3 className="text-xs font-semibold tracking-wider text-(--text-muted) uppercase">XHTTP</h3>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">Host</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={String(settings.host || '')}
+                onChange={(e) => patch({ host: e.target.value })}
+                className="input h-9! font-mono text-xs"
+              />
+              <span className="text-[11px] text-(--text-muted)">
+                {L('The Host header; usually your domain.', 'هدر Host؛ معمولاً دامنه شما.')}
+              </span>
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Path', 'مسیر')}</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={String(settings.path || '/')}
+                onChange={(e) => patch({ path: e.target.value })}
+                className="input h-9! font-mono text-xs"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('XHTTP mode', 'حالت XHTTP')}</span>
+              <select
+                value={String(settings.xhttpMode || 'auto')}
+                onChange={(e) => patch({ xhttpMode: e.target.value })}
+                className="select h-9! font-mono text-xs"
+              >
+                {(combos?.xhttpModes || ['auto', 'packet-up', 'stream-up']).map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Padding bytes', 'بایت‌های Padding')}</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={String(settings.xPaddingBytes || '')}
+                onChange={(e) => patch({ xPaddingBytes: e.target.value })}
+                placeholder="100-1000"
+                className="input h-9! font-mono text-xs"
+              />
+              <span className="text-[11px] text-(--text-muted)">
+                {L('A number or a range such as 100-1000. Empty is the Xray default.', 'عدد یا بازه مثل 100-1000. خالی یعنی پیش‌فرض.')}
+              </span>
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Max buffered posts', 'حداکثر پست‌های بافر')}</span>
+              <input
+                type="number"
+                dir="ltr"
+                value={settings.scMaxBufferedPosts ? String(settings.scMaxBufferedPosts) : ''}
+                onChange={(e) => patch({ scMaxBufferedPosts: e.target.value ? Number(e.target.value) : '' })}
+                className="input h-9! font-mono text-xs"
+              />
+              <span className="text-[11px] text-(--text-muted)">{L('Empty is the Xray default.', 'خالی یعنی پیش‌فرض.')}</span>
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Max bytes per post', 'حداکثر بایت در هر پست')}</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={String(settings.scMaxEachPostBytes || '')}
+                onChange={(e) => patch({ scMaxEachPostBytes: e.target.value })}
+                className="input h-9! font-mono text-xs"
+              />
+              <span className="text-[11px] text-(--text-muted)">
+                {L('A number or a range such as 100-1000. Empty is the Xray default.', 'عدد یا بازه مثل 100-1000. خالی یعنی پیش‌فرض.')}
+              </span>
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Stream-up keep-alive (seconds)', 'نگهداری Stream-up (ثانیه)')}</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={String(settings.scStreamUpServerSecs || '')}
+                onChange={(e) => patch({ scStreamUpServerSecs: e.target.value })}
+                className="input h-9! font-mono text-xs"
+              />
+              <span className="text-[11px] text-(--text-muted)">
+                {L('A number or a range such as 100-1000. Empty is the Xray default.', 'عدد یا بازه مثل 100-1000. خالی یعنی پیش‌فرض.')}
+              </span>
+            </label>
+          </div>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={Boolean(settings.noSSEHeader)}
+              onChange={(e) => patch({ noSSEHeader: e.target.checked })}
+            />
+            <span className="track" />
+            <span className="sw-text">{L('No SSE header', 'بدون هدر SSE')}</span>
+          </label>
+        </div>
+      )}
+
+      {transport === 'grpc' && (
+        <div className="space-y-3 border-t border-(--border-subtle) pt-4">
+          <h3 className="text-xs font-semibold tracking-wider text-(--text-muted) uppercase">gRPC</h3>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Service name', 'نام سرویس')}</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={String(settings.grpcServiceName || '')}
+                onChange={(e) => patch({ grpcServiceName: e.target.value })}
+                className="input h-9! font-mono text-xs"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Authority', 'Authority')}</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={String(settings.grpcAuthority || '')}
+                onChange={(e) => patch({ grpcAuthority: e.target.value })}
+                placeholder={L('Optional', 'اختیاری')}
+                className="input h-9! font-mono text-xs"
+              />
+              <span className="text-[11px] text-(--text-muted)">{L('Optional.', 'اختیاری.')}</span>
+            </label>
+          </div>
+        </div>
+      )}
+
+      {transport === 'kcp' && (
+        <div className="space-y-3 border-t border-(--border-subtle) pt-4">
+          <div>
+            <h3 className="text-xs font-semibold tracking-wider text-(--text-muted) uppercase">mKCP</h3>
+            <p className="mt-0.5 text-[11px] text-(--text-muted)">
+              {L('Works over UDP and does not support PROXY protocol.', 'روی UDP کار می‌کند و از PROXY protocol پشتیبانی نمی‌کند.')}
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Header', 'هدر')}</span>
+              <select
+                value={String(settings.kcpHeader || 'none')}
+                onChange={(e) => patch({ kcpHeader: e.target.value })}
+                className="select h-9! font-mono text-xs"
+              >
+                {(combos?.kcpHeaders || ['none', 'srtp', 'utp', 'wechat-video', 'dtls', 'wireguard']).map((h) => (
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Seed', 'رمز (Seed)')}</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={String(settings.kcpSeed || '')}
+                onChange={(e) => patch({ kcpSeed: e.target.value })}
+                className="input h-9! font-mono text-xs"
+              />
+              <span className="text-[11px] text-(--text-muted)">
+                {L('Optional shared password for the stream.', 'گذرواژه مشترک اختیاری برای جریان داده.')}
+              </span>
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">MTU</span>
+              <input
+                type="number"
+                dir="ltr"
+                value={settings.kcpMtu ? String(settings.kcpMtu) : ''}
+                onChange={(e) => patch({ kcpMtu: e.target.value ? Number(e.target.value) : '' })}
+                placeholder={L('Empty is the Xray default', 'پیش‌فرض Xray')}
+                className="input h-9! font-mono text-xs"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('TTI (ms)', 'TTI (میلی‌ثانیه)')}</span>
+              <input
+                type="number"
+                dir="ltr"
+                value={settings.kcpTti ? String(settings.kcpTti) : ''}
+                onChange={(e) => patch({ kcpTti: e.target.value ? Number(e.target.value) : '' })}
+                placeholder={L('Empty is the Xray default', 'پیش‌فرض Xray')}
+                className="input h-9! font-mono text-xs"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Uplink (MB/s)', 'آپ‌لینک (MB/s)')}</span>
+              <input
+                type="number"
+                dir="ltr"
+                value={settings.kcpUplinkCapacity ? String(settings.kcpUplinkCapacity) : ''}
+                onChange={(e) => patch({ kcpUplinkCapacity: e.target.value ? Number(e.target.value) : '' })}
+                placeholder={L('Empty is the Xray default', 'پیش‌فرض Xray')}
+                className="input h-9! font-mono text-xs"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Downlink (MB/s)', 'داون‌لینک (MB/s)')}</span>
+              <input
+                type="number"
+                dir="ltr"
+                value={settings.kcpDownlinkCapacity ? String(settings.kcpDownlinkCapacity) : ''}
+                onChange={(e) => patch({ kcpDownlinkCapacity: e.target.value ? Number(e.target.value) : '' })}
+                placeholder={L('Empty is the Xray default', 'پیش‌فرض Xray')}
+                className="input h-9! font-mono text-xs"
+              />
+            </label>
+          </div>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={Boolean(settings.kcpCongestion)}
+              onChange={(e) => patch({ kcpCongestion: e.target.checked })}
+            />
+            <span className="track" />
+            <span className="sw-text">{L('Congestion control', 'کنترل ازدحام')}</span>
+          </label>
+        </div>
+      )}
+
+      {/* Reality section */}
+      {security === 'reality' && (
+        <div className="space-y-4 border-t border-(--border-subtle) pt-4">
+          <div>
+            <h3 className="text-xs font-semibold tracking-wider text-(--text-muted) uppercase">Reality</h3>
+            <p className="mt-0.5 text-[11px] text-(--text-muted)">
+              {L(
+                'The camouflage site, its names and the short IDs clients use.',
+                'سایت استتار، نام‌های پذیرفته‌شده و Short IDها.',
+              )}
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <span className="text-xs text-(--text-muted)">{L('Camouflage site', 'سایت استتار')}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                dir="ltr"
+                list={`sni-datalist-${nodeId}`}
+                value={realitySni}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const cleanHost = val.split(':')[0]?.trim() || '';
+                  patch({
+                    realitySni: val,
+                    reality: {
+                      ...reality,
+                      serverNames: [val, ...((reality.serverNames as string[] | undefined)?.slice(1) || [])],
+                      dest:
+                        !reality.dest || String(reality.dest).startsWith(`${realitySni}:`)
+                          ? cleanHost
+                            ? `${cleanHost}:443`
+                            : ''
+                          : reality.dest,
+                    },
+                  });
+                }}
+                placeholder="www.amd.com"
+                className="input h-9! min-w-[200px] flex-1 font-mono text-xs"
+              />
+              <datalist id={`sni-datalist-${nodeId}`}>
+                {neighbourList.map((c) => (
+                  <option key={c.domain} value={c.domain} />
+                ))}
+              </datalist>
+              <Button size="sm" variant="secondary" onClick={handleInlineTestSni} disabled={testingSni}>
+                {testingSni ? L('Testing…', 'در حال تست…') : L('Test', 'تست')}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setSniModalOpen(true)}>
+                {L('Browse', 'لیست')}
+              </Button>
+            </div>
+            {(testedSniResult || (sniGrade && realitySni)) && (
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                {effectiveSniGrade && <StatusPill tone={gradeTone(effectiveSniGrade)} label={effectiveSniGrade} />}
+                {typeof effectiveSniMillis === 'number' && effectiveSniMillis > 0 && (
+                  <span className="font-mono text-(--text-muted)">{effectiveSniMillis} ms</span>
+                )}
+                <span className="text-(--text-muted)">
+                  {testedSniResult?.error
+                    ? testedSniResult.error
+                    : effectiveSniMillis
+                      ? L(
+                          `Suitable. The server reaches it in ${effectiveSniMillis} ms.`,
+                          `مناسب است. سرور در ${effectiveSniMillis} میلی‌ثانیه به آن می‌رسد.`,
+                        )
+                      : ''}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-(--border-subtle) bg-(--bg-surface) px-3 py-2.5">
+            <button
+              type="button"
+              onClick={() => setNeighboursOpen((v) => !v)}
+              className="flex w-full items-center gap-2 text-left text-xs font-medium text-(--text-primary)"
+            >
+              <ChevronRight className={`h-3.5 w-3.5 transition-transform ${neighboursOpen ? 'rotate-90' : ''}`} />
+              <span>{L("Find a site from the server's neighbours", 'یافتن سایت از همسایه‌های سرور')}</span>
+            </button>
+            {neighboursOpen && (
+              <div className="mt-2.5 space-y-2.5 border-t border-(--border-subtle) pt-2.5">
+                <p className="text-[11px] text-(--text-muted)">
+                  {L(
+                    'Looks at nearby addresses in the same data center for sites that suit Reality. It is slow and gentle, and runs once a day at most.',
+                    'آدرس‌های همسایه در همان دیتاسنتر را برای سایت‌های مناسب Reality بررسی می‌کند.',
+                  )}
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant="secondary" onClick={handleFindNeighbours} disabled={scanningNeighbours}>
+                    <Sparkles className="h-3.5 w-3.5" />
+                    {scanningNeighbours ? L('Scanning…', 'در حال اسکن…') : L('Find from neighbours', 'یافتن از همسایه‌ها')}
+                  </Button>
+                  {scanMessage && <span className="text-xs text-blue-300">{scanMessage}</span>}
+                </div>
+                {neighbourList.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {neighbourList.slice(0, 14).map((c) => (
+                      <button
+                        key={c.domain}
+                        type="button"
+                        onClick={() =>
+                          patch({
+                            realitySni: c.domain,
+                            reality: {
+                              ...reality,
+                              serverNames: [c.domain],
+                              dest: `${c.domain}:443`,
+                            },
+                          })
+                        }
+                        className={`rounded-md border px-2 py-1 font-mono text-[11px] transition ${
+                          c.domain === realitySni
+                            ? 'border-(--accent) bg-(--accent-soft) text-(--text-primary)'
+                            : 'border-(--border-subtle) bg-(--bg-elevated) text-(--text-secondary) hover:border-(--border-strong)'
+                        }`}
+                      >
+                        {c.domain} {typeof c.millis === 'number' && c.millis > 0 ? `(${c.millis}ms)` : ''}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Other accepted names', 'سایر نام‌های پذیرفته‌شده')}</span>
+              <textarea
+                rows={2}
+                dir="ltr"
+                value={toLinesText(((reality.serverNames as string[] | undefined) || []).slice(1))}
+                onChange={(e) => {
+                  const rest = fromLinesText(e.target.value);
+                  patchNested('reality', { serverNames: realitySni ? [realitySni, ...rest] : rest });
+                }}
+                className="textarea min-h-[68px]! font-mono text-xs"
+              />
+              <span className="text-[11px] text-(--text-muted)">{L('One per line.', 'در هر خط یک نام.')}</span>
+            </label>
+
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">Short IDs</span>
+              <textarea
+                rows={2}
+                dir="ltr"
+                value={toLinesText(reality.shortIds)}
+                onChange={(e) => patchNested('reality', { shortIds: fromLinesText(e.target.value) })}
+                className="textarea min-h-[68px]! font-mono text-xs"
+              />
+              <span className="text-[11px] text-(--text-muted)">
+                {L('Hex, an even number of characters, up to 16.', 'هگز، تعداد کاراکتر زوج، تا ۱۶ کاراکتر.')}
+              </span>
+            </label>
+
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Target', 'هدف (Target)')}</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={String(reality.dest || (realitySni ? `${realitySni}:443` : ''))}
+                onChange={(e) => patchNested('reality', { dest: e.target.value })}
+                placeholder="www.amd.com:443"
+                className="input h-9! font-mono text-xs"
+              />
+              <span className="text-[11px] text-(--text-muted)">
+                {L('Where unknown visitors are sent, normally the site on port 443.', 'مقصد بازدیدکنندگان ناشناس، معمولاً پورت ۴۴۳ سایت استتار.')}
+              </span>
+            </label>
+
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">xver</span>
+              <select
+                value={Number(reality.xver || 0)}
+                onChange={(e) => patchNested('reality', { xver: Number(e.target.value) })}
+                className="select h-9! font-mono text-xs"
+              >
+                <option value={0}>0</option>
+                <option value={1}>1</option>
+                <option value={2}>2</option>
+              </select>
+              <span className="text-[11px] text-(--text-muted)">
+                {L('PROXY protocol version sent to the target. Normally 0.', 'نسخه PROXY protocol ارسالی به هدف. معمولاً ۰.')}
+              </span>
+            </label>
+
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">spiderX</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={String(reality.spiderX ?? '/')}
+                onChange={(e) => patchNested('reality', { spiderX: e.target.value })}
+                className="input h-9! font-mono text-xs"
+              />
+              <span className="text-[11px] text-(--text-muted)">
+                {L('The path apps start from (links only).', 'مسیر شروع برای کلاینت‌ها (فقط در لینک).')}
+              </span>
+            </label>
+
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Max time difference (ms)', 'حداکثر اختلاف زمان (ms)')}</span>
+              <input
+                type="number"
+                dir="ltr"
+                value={reality.maxTimeDiff ? String(reality.maxTimeDiff) : ''}
+                onChange={(e) =>
+                  patchNested('reality', { maxTimeDiff: e.target.value ? Number(e.target.value) : 0 })
+                }
+                className="input h-9! font-mono text-xs"
+              />
+              <span className="text-[11px] text-(--text-muted)">{L('Empty is the Xray default.', 'خالی یعنی پیش‌فرض.')}</span>
+            </label>
+
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Lowest client Xray version', 'کمترین نسخه Xray کلاینت')}</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={String(reality.minClientVer || '')}
+                onChange={(e) => patchNested('reality', { minClientVer: e.target.value })}
+                placeholder={L('Optional', 'اختیاری')}
+                className="input h-9! font-mono text-xs"
+              />
+            </label>
+
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Highest client Xray version', 'بیشترین نسخه Xray کلاینت')}</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={String(reality.maxClientVer || '')}
+                onChange={(e) => patchNested('reality', { maxClientVer: e.target.value })}
+                placeholder={L('Optional', 'اختیاری')}
+                className="input h-9! font-mono text-xs"
+              />
+            </label>
+          </div>
+
+          <label className="block space-y-1">
+            <span className="text-xs text-(--text-muted)">{L('Public key', 'کلید عمومی (Public key)')}</span>
+            <input
+              type="text"
+              readOnly
+              dir="ltr"
+              value={realityPublicKey || L('Generated automatically on create', 'در زمان ساخت به‌صورت خودکار تولید می‌شود')}
+              className="input h-9! font-mono text-xs opacity-80"
+            />
+          </label>
+        </div>
+      )}
+
+      {/* TLS section */}
+      {security === 'tls' && (
+        <div className="space-y-3 border-t border-(--border-subtle) pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-xs font-semibold tracking-wider text-(--text-muted) uppercase">TLS</h3>
+            {inboundId && (
+              <Button size="sm" variant="secondary" onClick={handleIssueCert} disabled={issuingCert}>
+                <ShieldCheck className="h-3.5 w-3.5" />
+                {issuingCert ? L('Issuing…', 'در حال صدور…') : L('Issue / check certificate', 'صدور / بررسی گواهی')}
+              </Button>
+            )}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Certificate host', 'میزبان گواهی')}</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={String(tls.certHost || tls.serverName || '')}
+                onChange={(e) => patchNested('tls', { certHost: e.target.value })}
+                placeholder="vpn.example.com"
+                className="input h-9! font-mono text-xs"
+              />
+              <span className="text-[11px] text-(--text-muted)">
+                {L('The domain of a certificate the panel already has.', 'دامنه گواهی موجود در پنل.')}
+              </span>
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">SNI</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={String(tls.sni || tls.serverName || '')}
+                onChange={(e) => patchNested('tls', { sni: e.target.value, serverName: e.target.value })}
+                className="input h-9! font-mono text-xs"
+              />
+              <span className="text-[11px] text-(--text-muted)">
+                {L('The name links ask for. Empty uses the certificate name.', 'نام مورد استفاده در لینک. خالی یعنی نام گواهی.')}
+              </span>
+            </label>
+            <label className="block space-y-1 sm:col-span-2">
+              <span className="text-xs text-(--text-muted)">ALPN</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={Array.isArray(tls.alpn) ? tls.alpn.join(', ') : String(tls.alpn || 'h2, http/1.1')}
+                onChange={(e) =>
+                  patchNested('tls', {
+                    alpn: e.target.value
+                      .split(',')
+                      .map((x) => x.trim())
+                      .filter(Boolean),
+                  })
+                }
+                className="input h-9! font-mono text-xs"
+              />
+              <span className="text-[11px] text-(--text-muted)">{L('Comma separated.', 'جداشده با کاما.')}</span>
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Lowest TLS version', 'کمترین نسخه TLS')}</span>
+              <select
+                value={String(tls.minVersion || '')}
+                onChange={(e) => patchNested('tls', { minVersion: e.target.value })}
+                className="select h-9! font-mono text-xs"
+              >
+                <option value="">{L('Default', 'پیش‌فرض')}</option>
+                <option value="1.2">1.2</option>
+                <option value="1.3">1.3</option>
+              </select>
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Highest TLS version', 'بیشترین نسخه TLS')}</span>
+              <select
+                value={String(tls.maxVersion || '')}
+                onChange={(e) => patchNested('tls', { maxVersion: e.target.value })}
+                className="select h-9! font-mono text-xs"
+              >
+                <option value="">{L('Default', 'پیش‌فرض')}</option>
+                <option value="1.2">1.2</option>
+                <option value="1.3">1.3</option>
+              </select>
+            </label>
+            <label className="block space-y-1 sm:col-span-2">
+              <span className="text-xs text-(--text-muted)">{L('Cipher suites', 'Cipher suites')}</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={String(tls.cipherSuites || '')}
+                onChange={(e) => patchNested('tls', { cipherSuites: e.target.value })}
+                className="input h-9! font-mono text-xs"
+              />
+              <span className="text-[11px] text-(--text-muted)">
+                {L('Go names separated by colons. Empty is the Go default.', 'نام‌های Go با دونقطه جدا شوند. خالی یعنی پیش‌فرض.')}
+              </span>
+            </label>
+          </div>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={Boolean(tls.rejectUnknownSni)}
+              onChange={(e) => patchNested('tls', { rejectUnknownSni: e.target.checked })}
+            />
+            <span className="track" />
+            <span className="sw-text">{L('Reject unknown SNI', 'رد SNI ناشناس')}</span>
+          </label>
+          <p className="text-[11px] text-(--text-muted)">
+            {L('Refuse handshakes for names the certificate does not cover.', 'رد اتصال برای دامنه‌هایی که در گواهی نیستند.')}
+          </p>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={Boolean(tls.allowInsecure)}
+              onChange={(e) => patchNested('tls', { allowInsecure: e.target.checked })}
+            />
+            <span className="track" />
+            <span className="sw-text">{L('Allow insecure (links)', 'اجازه ناامن (در لینک‌ها)')}</span>
+          </label>
+          <p className="text-[11px] text-(--text-muted)">
+            {L(
+              'Apps accept a certificate they cannot verify. Only for self-signed certificates.',
+              'اپلیکیشن‌ها گواهی امضا‌شده شخصی را می‌پذیرند.',
+            )}
+          </p>
+        </div>
+      )}
+
+      {/* Client side */}
+      {(security === 'tls' || security === 'reality') && (
+        <div className="space-y-2 border-t border-(--border-subtle) pt-4">
+          <h3 className="text-xs font-semibold tracking-wider text-(--text-muted) uppercase">
+            {L('Client side', 'سمت کلاینت')}
+          </h3>
+          <label className="block space-y-1">
+            <span className="text-xs text-(--text-muted)">{L('TLS fingerprint', 'اثر انگشت TLS')}</span>
+            <select
+              value={String(settings.fingerprint || 'chrome')}
+              onChange={(e) => patch({ fingerprint: e.target.value })}
+              className="select h-9! font-mono text-xs"
+            >
+              {DEFAULT_FINGERPRINTS.map((fp) => (
+                <option key={fp} value={fp}>
+                  {fp}
+                </option>
+              ))}
+            </select>
+            <span className="text-[11px] text-(--text-muted)">
+              {L('Which browser the connection pretends to be.', 'مرورگری که اتصال خود را شبیه آن می‌کند.')}
+            </span>
+          </label>
+        </div>
+      )}
+
+      {/* Connect addresses */}
+      <div className="space-y-2.5 border-t border-(--border-subtle) pt-4">
+        <h3 className="text-xs font-semibold tracking-wider text-(--text-muted) uppercase">
+          {L('Connect addresses', 'آدرس‌های اتصال')}
+        </h3>
+        <ConnectAddressesField
+          lang={lang}
+          remotes={activeRemotes}
+          onChange={handleRemotesUpdate}
+          showSni={security === 'tls' || security === 'reality'}
+          showHostHeader={transport === 'ws' || transport === 'httpupgrade' || transport === 'xhttp'}
         />
       </div>
 
-      <label className="inline-flex items-center gap-2 text-xs cursor-pointer">
-        <input
-          type="checkbox"
-          checked={sniffing.enabled !== false}
-          onChange={(e) => update({ sniffing: { ...sniffing, enabled: e.target.checked } })}
-        />
-        <span>{fa ? 'فعال‌سازی Sniffing ترافیک (http, tls, quic)' : 'Sniff traffic (http, tls, quic)'}</span>
-      </label>
+      {/* Relay, CDN and devices */}
+      <div className="space-y-3 border-t border-(--border-subtle) pt-4">
+        <div>
+          <h3 className="text-xs font-semibold tracking-wider text-(--text-muted) uppercase">
+            {L('Relay, CDN and devices', 'ریلی، CDN و دستگاه‌ها')}
+          </h3>
+          <p className="mt-0.5 text-[11px] text-(--text-muted)">
+            {L('Settings for servers placed in front of this inbound.', 'تنظیمات سرورهای قرارگرفته پیش از این اینباند.')}
+          </p>
+        </div>
 
+        <label className={`switch ${!canProxyProtocol ? 'opacity-50' : ''}`}>
+          <input
+            type="checkbox"
+            disabled={!canProxyProtocol}
+            checked={Boolean(settings.proxyProtocol) && canProxyProtocol}
+            onChange={(e) => patch({ proxyProtocol: e.target.checked })}
+          />
+          <span className="track" />
+          <span className="sw-text">{L('Require PROXY protocol', 'الزام به PROXY protocol')}</span>
+        </label>
+
+        {Boolean(settings.proxyProtocol) && canProxyProtocol && (
+          <div className="space-y-2 pl-2">
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Relay server IPs (optional)', 'آی‌پی سرورهای ریلی (اختیاری)')}</span>
+              <textarea
+                rows={2}
+                dir="ltr"
+                value={toLinesText(settings.relayAllowlist)}
+                onChange={(e) => patch({ relayAllowlist: fromLinesText(e.target.value) })}
+                placeholder="203.0.113.10"
+                className="textarea min-h-[68px]! font-mono text-xs"
+              />
+            </label>
+            {inboundId && (
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="secondary" onClick={handleProxyCheck}>
+                  {L('Verify relay headers', 'بررسی هدر ریلی')}
+                </Button>
+                {proxyCheckResult && <span className="text-xs text-emerald-400">{proxyCheckResult}</span>}
+              </div>
+            )}
+          </div>
+        )}
+
+        <label className={`switch ${!canBehindCdn ? 'opacity-50' : ''}`}>
+          <input
+            type="checkbox"
+            disabled={!canBehindCdn}
+            checked={Boolean(settings.behindCdn) && canBehindCdn}
+            onChange={(e) => patch({ behindCdn: e.target.checked })}
+          />
+          <span className="track" />
+          <span className="sw-text">{L('Behind a CDN (Cloudflare)', 'پشت CDN (کلادفلر)')}</span>
+        </label>
+
+        {Boolean(settings.behindCdn) && canBehindCdn && (
+          <div className="grid gap-3 pl-2 sm:grid-cols-2">
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Extra allowed ranges', 'بازه‌های مجاز اضافی')}</span>
+              <textarea
+                rows={2}
+                dir="ltr"
+                value={toLinesText(settings.cdnExtraRanges)}
+                onChange={(e) => patch({ cdnExtraRanges: fromLinesText(e.target.value) })}
+                className="textarea min-h-[68px]! font-mono text-xs"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-(--text-muted)">{L('Your domain on the CDN', 'دامنه شما روی CDN')}</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={String(settings.cdnDomain || '')}
+                onChange={(e) => patch({ cdnDomain: e.target.value })}
+                placeholder="vpn.example.com"
+                className="input h-9! font-mono text-xs"
+              />
+            </label>
+          </div>
+        )}
+
+        {canBehindCdn && (
+          <label className="block space-y-1">
+            <span className="text-xs text-(--text-muted)">
+              {L('Trusted X-Forwarded-For headers', 'هدرهای مورد اعتماد X-Forwarded-For')}
+            </span>
+            <input
+              type="text"
+              dir="ltr"
+              value={String(settings.trustedXff || '')}
+              onChange={(e) => patch({ trustedXff: e.target.value })}
+              className="input h-9! font-mono text-xs"
+            />
+          </label>
+        )}
+
+        <div className="space-y-1.5">
+          <span className="block text-xs text-(--text-muted)">
+            {L('Speed limit counted per', 'محاسبه محدودیت سرعت بر اساس')}
+          </span>
+          <Segmented
+            value={String(settings.speedMode || 'device')}
+            onChange={(val) => patch({ speedMode: val })}
+            options={[
+              { value: 'device', label: L('Device', 'دستگاه') },
+              { value: 'client', label: L('Whole client', 'کل کاربر') },
+            ]}
+          />
+        </div>
+      </div>
+
+      {/* Socket options */}
+      <div className="space-y-3 border-t border-(--border-subtle) pt-4">
+        <div>
+          <h3 className="text-xs font-semibold tracking-wider text-(--text-muted) uppercase">
+            {L('Socket options', 'تنظیمات سوکت')}
+          </h3>
+          <p className="mt-0.5 text-[11px] text-(--text-muted)">
+            {L('Tuning of the connections. Empty fields keep the Xray defaults.', 'بهینه‌سازی اتصالات. فیلدهای خالی پیش‌فرض Xray باقی می‌مانند.')}
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block space-y-1">
+            <span className="text-xs text-(--text-muted)">{L('TCP congestion', 'کنترل ازدحام TCP')}</span>
+            <select
+              value={String(settings.tcpCongestion || '')}
+              onChange={(e) => patch({ tcpCongestion: e.target.value })}
+              className="select h-9! font-mono text-xs"
+            >
+              <option value="">{L('Default', 'پیش‌فرض')}</option>
+              <option value="bbr">bbr</option>
+              <option value="cubic">cubic</option>
+              <option value="reno">reno</option>
+            </select>
+          </label>
+          <label className="block space-y-1">
+            <span className="text-xs text-(--text-muted)">{L('Domain strategy', 'استراتژی دامنه')}</span>
+            <select
+              value={String(settings.domainStrategy || '')}
+              onChange={(e) => patch({ domainStrategy: e.target.value })}
+              className="select h-9! font-mono text-xs"
+            >
+              <option value="">{L('Default', 'پیش‌فرض')}</option>
+              <option value="AsIs">AsIs</option>
+              <option value="UseIP">UseIP</option>
+              <option value="UseIPv4">UseIPv4</option>
+              <option value="UseIPv6">UseIPv6</option>
+            </select>
+          </label>
+          <label className="block space-y-1">
+            <span className="text-xs text-(--text-muted)">{L('Keep-alive idle (seconds)', 'زمان بیکاری Keep-alive (ثانیه)')}</span>
+            <input
+              type="number"
+              dir="ltr"
+              value={settings.tcpKeepAliveIdle ? String(settings.tcpKeepAliveIdle) : ''}
+              onChange={(e) => patch({ tcpKeepAliveIdle: e.target.value ? Number(e.target.value) : '' })}
+              className="input h-9! font-mono text-xs"
+            />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-xs text-(--text-muted)">{L('Keep-alive interval (seconds)', 'فاصله Keep-alive (ثانیه)')}</span>
+            <input
+              type="number"
+              dir="ltr"
+              value={settings.tcpKeepAliveInterval ? String(settings.tcpKeepAliveInterval) : ''}
+              onChange={(e) => patch({ tcpKeepAliveInterval: e.target.value ? Number(e.target.value) : '' })}
+              className="input h-9! font-mono text-xs"
+            />
+          </label>
+        </div>
+        <div className="flex flex-wrap gap-5 pt-1">
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={Boolean(settings.tcpFastOpen)}
+              onChange={(e) => patch({ tcpFastOpen: e.target.checked })}
+            />
+            <span className="track" />
+            <span className="sw-text">TCP Fast Open</span>
+          </label>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={Boolean(settings.tcpMptcp)}
+              onChange={(e) => patch({ tcpMptcp: e.target.checked })}
+            />
+            <span className="track" />
+            <span className="sw-text">Multipath TCP</span>
+          </label>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={Boolean(settings.v6only)}
+              onChange={(e) => patch({ v6only: e.target.checked })}
+            />
+            <span className="track" />
+            <span className="sw-text">{L('IPv6 only', 'فقط IPv6')}</span>
+          </label>
+        </div>
+      </div>
+
+      {/* Sniffing */}
+      <div className="space-y-3 border-t border-(--border-subtle) pt-4">
+        <div>
+          <h3 className="text-xs font-semibold tracking-wider text-(--text-muted) uppercase">Sniffing</h3>
+          <p className="mt-0.5 text-[11px] text-(--text-muted)">
+            {L(
+              'Lets the server read the site name inside the traffic, for routing.',
+              'به سرور اجازه می‌دهد نام سایت را برای مسیریابی از ترافیک بخواند.',
+            )}
+          </p>
+        </div>
+        <label className="switch">
+          <input
+            type="checkbox"
+            checked={sniffing.enabled !== false}
+            onChange={(e) => patchNested('sniffing', { enabled: e.target.checked })}
+          />
+          <span className="track" />
+          <span className="sw-text">{L('Sniff traffic', 'شنود ترافیک (Sniffing)')}</span>
+        </label>
+        <div className="flex flex-wrap gap-4">
+          {(['http', 'tls', 'quic', 'fakedns'] as const).map((protoKey) => {
+            const arr = Array.isArray(sniffing.destOverride) ? (sniffing.destOverride as string[]) : [];
+            const checked = arr.includes(protoKey);
+            return (
+              <label key={protoKey} className="inline-flex items-center gap-1.5 text-xs text-(--text-primary)">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(e) => {
+                    const nextArr = e.target.checked
+                      ? Array.from(new Set([...arr, protoKey]))
+                      : arr.filter((x) => x !== protoKey);
+                    patchNested('sniffing', { destOverride: nextArr });
+                  }}
+                />
+                <span className="font-mono">{protoKey}</span>
+              </label>
+            );
+          })}
+        </div>
+        <div className="space-y-2">
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={Boolean(sniffing.routeOnly)}
+              onChange={(e) => patchNested('sniffing', { routeOnly: e.target.checked })}
+            />
+            <span className="track" />
+            <span className="sw-text">{L('Use the sniffed name only for routing.', 'استفاده از نام شنودشده فقط برای مسیریابی.')}</span>
+          </label>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={Boolean(sniffing.metadataOnly)}
+              onChange={(e) => patchNested('sniffing', { metadataOnly: e.target.checked })}
+            />
+            <span className="track" />
+            <span className="sw-text">
+              {L(
+                'Sniff from connection metadata only, never the payload.',
+                'شنود فقط از متادیتای اتصال، بدون خواندن محتوا.',
+              )}
+            </span>
+          </label>
+        </div>
+        <label className="block space-y-1">
+          <span className="text-xs text-(--text-muted)">{L('Excluded domains', 'دامنه‌های مستثنی')}</span>
+          <textarea
+            rows={2}
+            dir="ltr"
+            value={toLinesText(sniffing.domainsExcluded)}
+            onChange={(e) => patchNested('sniffing', { domainsExcluded: fromLinesText(e.target.value) })}
+            className="textarea min-h-[68px]! font-mono text-xs"
+          />
+          <span className="text-[11px] text-(--text-muted)">{L('One per line.', 'در هر خط یک مورد.')}</span>
+        </label>
+      </div>
+
+      {/* Fallbacks (TCP raw + TLS) */}
+      {transport === 'raw' && security === 'tls' && (
+        <div className="space-y-3 border-t border-(--border-subtle) pt-4">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-xs font-semibold tracking-wider text-(--text-muted) uppercase">
+              {L('Fallbacks', 'مسیرهای جایگزین (Fallbacks)')}
+            </h3>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => patch({ fallbacks: [...fallbacks, { name: '', path: '', dest: '80' }] })}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {L('Add a fallback', 'افزودن fallback')}
+            </Button>
+          </div>
+          {fallbacks.map((fb, idx) => (
+            <div key={idx} className="grid gap-2 sm:grid-cols-4">
+              <input
+                type="text"
+                dir="ltr"
+                placeholder={L('Name (SNI)', 'نام (SNI)')}
+                value={fb.name || ''}
+                onChange={(e) =>
+                  patch({
+                    fallbacks: fallbacks.map((x, i) => (i === idx ? { ...x, name: e.target.value } : x)),
+                  })
+                }
+                className="input h-8! font-mono text-xs"
+              />
+              <input
+                type="text"
+                dir="ltr"
+                placeholder={L('Path', 'مسیر')}
+                value={fb.path || ''}
+                onChange={(e) =>
+                  patch({
+                    fallbacks: fallbacks.map((x, i) => (i === idx ? { ...x, path: e.target.value } : x)),
+                  })
+                }
+                className="input h-8! font-mono text-xs"
+              />
+              <input
+                type="text"
+                dir="ltr"
+                placeholder={L('Destination (e.g. 80)', 'مقصد')}
+                value={fb.dest || ''}
+                onChange={(e) =>
+                  patch({
+                    fallbacks: fallbacks.map((x, i) => (i === idx ? { ...x, dest: e.target.value } : x)),
+                  })
+                }
+                className="input h-8! font-mono text-xs"
+              />
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={() => patch({ fallbacks: fallbacks.filter((_, i) => i !== idx) })}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                {L('Remove', 'حذف')}
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Client links */}
+      <div className="space-y-3 border-t border-(--border-subtle) pt-4">
+        <div>
+          <h3 className="text-xs font-semibold tracking-wider text-(--text-muted) uppercase">
+            {L('Client links', 'لینک‌های کلاینت')}
+          </h3>
+          <p className="mt-0.5 text-[11px] text-(--text-muted)">
+            {L(
+              'The SNI and host every address uses unless the address sets its own.',
+              'مقدار SNI و Host پیش‌فرض برای تمام آدرس‌ها مگر آنکه آدرس مقدار خودش را داشته باشد.',
+            )}
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block space-y-1">
+            <span className="text-xs text-(--text-muted)">{L('SNI in links', 'SNI در لینک‌ها')}</span>
+            <input
+              type="text"
+              dir="ltr"
+              value={String(settings.linkSni || '')}
+              onChange={(e) => patch({ linkSni: e.target.value })}
+              className="input h-9! font-mono text-xs"
+            />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-xs text-(--text-muted)">{L('Host in links', 'Host در لینک‌ها')}</span>
+            <input
+              type="text"
+              dir="ltr"
+              value={String(settings.linkHost || '')}
+              onChange={(e) => patch({ linkHost: e.target.value })}
+              className="input h-9! font-mono text-xs"
+            />
+          </label>
+        </div>
+      </div>
+
+      {/* Modals */}
       <XraySniPickerModal
         open={sniModalOpen}
         onClose={() => setSniModalOpen(false)}
         nodeId={nodeId}
-        currentSni={currentSni}
-        onSelect={(domain, grade, tlsMs) => {
-          update({
-            reality: { ...reality, serverNames: [domain], target: `${domain}:443` },
-            ...(grade ? { sniGrade: grade, sniMillis: tlsMs ?? 0, sniTested: true } : {}),
-          });
-        }}
+        currentSni={realitySni}
+        onSelect={(domain) =>
+          patch({
+            realitySni: domain,
+            reality: { ...reality, serverNames: [domain], dest: `${domain}:443` },
+          })
+        }
       />
+
+      <Modal
+        open={confirmKeysModal}
+        onClose={() => setConfirmKeysModal(false)}
+        title={L('Replace Reality keys?', 'جایگزینی کلیدهای Reality؟')}
+        subtitle={L(
+          'Rotating the X25519 keypair invalidates older client links until they refresh their subscription.',
+          'تغییر کلیدهای X25519 لینک‌های قبلی را نامعتبر می‌کند تا زمانی که اشتراک را به‌روزرسانی کنند.',
+        )}
+        size="sm"
+      >
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="secondary" onClick={() => setConfirmKeysModal(false)}>
+            {L('Cancel', 'انصراف')}
+          </Button>
+          <Button variant="danger" onClick={handleRotateRealityKeys}>
+            {L('Replace keys', 'تغییر کلیدها')}
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={confirmReplaceSniModal}
+        onClose={() => setConfirmReplaceSniModal(false)}
+        title={L('Change camouflage site', 'تغییر سایت استتار')}
+        size="sm"
+      >
+        <div className="space-y-3">
+          <input
+            type="text"
+            dir="ltr"
+            value={replaceSniTarget}
+            onChange={(e) => setReplaceSniTarget(e.target.value)}
+            placeholder="www.amd.com"
+            className="input h-9! font-mono text-xs"
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setConfirmReplaceSniModal(false)}>
+              {L('Cancel', 'انصراف')}
+            </Button>
+            <Button onClick={handleReplaceSni}>{L('Apply', 'اعمال')}</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
