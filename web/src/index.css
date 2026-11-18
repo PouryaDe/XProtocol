@@ -1757,34 +1757,54 @@ h1 .w > span {
 .tabs .count,
 .tabs .t-count { font-size: var(--t-xs); color: var(--ink-3); font-weight: 500; font-variant-numeric: tabular-nums; }
 
-.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.clients-page { gap: 16px; }
+
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.clients-toolbar {
+  justify-content: space-between;
+  gap: 16px;
+}
 .sort-group {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   margin-inline-start: auto;
+}
+@media (min-width: 780px) {
+  .clients-toolbar .sort-group {
+    display: contents;
+  }
 }
 .sort {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+}
+.sort > span {
+  font-size: var(--t-sm);
+  color: var(--ink-2);
 }
 .sort .select {
   width: auto;
   min-width: 0;
-  height: 38px;
-  padding-inline: 14px 32px;
+  height: 36px;
+  padding-inline: 12px 28px;
+  font-size: var(--t-sm);
   font-weight: 550;
-}
-.search .input {
-  height: 38px;
+  border-radius: 9px;
+  field-sizing: content;
 }
 .search {
   position: relative;
-  flex: 1;
-  min-width: 200px;
-  max-width: 420px;
+  flex: 1 1 320px;
+  min-width: 220px;
+  max-width: 380px;
+}
+.search .input {
+  height: 36px;
+  border-radius: 9px;
+  font-size: var(--t-sm);
 }
 .inb-search {
   position: relative;
@@ -1850,7 +1870,7 @@ h1 .w > span {
   position: relative;
   background: var(--raise);
   border: 1px solid var(--line);
-  border-radius: var(--r-lg);
+  border-radius: 13px;
   overflow-x: auto;
   box-shadow: var(--shadow-card);
 }
@@ -1869,6 +1889,46 @@ h1 .w > span {
 .table td { padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .table tbody tr:last-child td { border-bottom: none; }
 .table .end { text-align: end; }
+.clients-table th {
+  padding: 12px 16px;
+  letter-spacing: 0.08em;
+}
+.clients-table td {
+  padding: 14px 16px;
+}
+.clients-table .col-check {
+  width: 46px;
+  padding-inline: 16px 8px !important;
+}
+.clients-table .col-actions {
+  padding-inline: 12px 16px;
+}
+.clients-table .row-actions {
+  gap: 4px;
+}
+.clients-table .row-actions .btn.icon {
+  width: 30px;
+  height: 30px;
+}
+.clients-table .tag.cert-tag {
+  height: 23px;
+  padding: 0 10px;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+}
+.clients-table .lamps {
+  gap: 2.5px;
+}
+.clients-table .lamps i {
+  width: 5px;
+  height: 11px;
+  border-radius: 1.5px;
+}
+.clients-table .cell-2 {
+  gap: 2px;
+  line-height: 1.35;
+}
 .clients-table tbody tr { cursor: pointer; transition: background var(--fast) var(--ease); }
 .clients-table tbody tr:hover { background: var(--accent-wash); }
 .table tbody tr.selected { background: var(--raise-2); }

@@ -498,7 +498,7 @@ export function ClientsPage({
   };
 
   return (
-    <div className="page">
+    <div className="page clients-page">
       <PageHead
         title={t.clients.title}
         sub={lang === 'fa' ? `${counts.all} کاربر` : `${counts.all} clients`}
@@ -529,7 +529,7 @@ export function ClientsPage({
         ]}
       />
 
-      <div className="toolbar">
+      <div className="toolbar clients-toolbar">
         <label className="search">
           <Search aria-hidden="true" />
           <input
