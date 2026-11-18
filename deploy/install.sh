@@ -128,9 +128,34 @@ sync_cli_scripts() {
   chmod +x "$INSTALL_DIR/deploy/xprotocol-tui.sh" "$INSTALL_DIR/deploy/node.sh" 2>/dev/null || true
 }
 
+install_xray_binary() {
+  if command -v xray >/dev/null 2>&1 || [[ -x /usr/local/bin/xray ]]; then
+    return 0
+  fi
+  info "Installing Xray-core runtime binary..."
+  bash -c "$(curl -fsSL https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install >>"$INSTALL_LOG" 2>&1 || true
+  if ! command -v xray >/dev/null 2>&1 && [[ ! -x /usr/local/bin/xray ]]; then
+    local arch="64"
+    [[ "$(uname -m)" == "aarch64" || "$(uname -m)" == "arm64" ]] && arch="arm64-v8a"
+    apt-get install -y -qq unzip >>"$INSTALL_LOG" 2>&1 || true
+    local tmp_zip
+    tmp_zip="$(mktemp -d)"
+    if curl -fsSL "https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-${arch}.zip" -o "${tmp_zip}/xray.zip" >>"$INSTALL_LOG" 2>&1; then
+      unzip -o -q "${tmp_zip}/xray.zip" -d "$tmp_zip" >>"$INSTALL_LOG" 2>&1 || true
+      if [[ -f "${tmp_zip}/xray" ]]; then
+        install -m 0755 "${tmp_zip}/xray" /usr/local/bin/xray
+        mkdir -p /usr/local/lib/xprotocol/xray
+        cp "${tmp_zip}/geoip.dat" "${tmp_zip}/geosite.dat" /usr/local/lib/xprotocol/xray/ 2>/dev/null || true
+      fi
+    fi
+    rm -rf "$tmp_zip"
+  fi
+}
+
 do_update_from_src() {
   section "UPDATING XPROTOCOL OPEN-CORE"
   info "Copying updated source and building server + React dashboard..."
+  install_xray_binary
   mkdir -p "$INSTALL_DIR"
   rm -rf "$INSTALL_DIR/server" "$INSTALL_DIR/web" "$INSTALL_DIR/deploy" "$INSTALL_DIR/.git"
   cp -r "$SRC_DIR/package.json" "$SRC_DIR/server" "$SRC_DIR/web" "$SRC_DIR/deploy" "$INSTALL_DIR/"
@@ -278,7 +303,7 @@ section "INSTALLING XPROTOCOL OPEN-CORE"
 
 info "Installing base Ubuntu packages..."
 run_q apt-get update -qq
-PKGS=(curl ca-certificates gnupg openssl ufw iptables certbot wireguard-tools)
+PKGS=(curl unzip ca-certificates gnupg openssl ufw iptables certbot wireguard-tools)
 if (( LOCAL_NODE )); then
   PKGS+=(openvpn ocserv strongswan strongswan-swanctl libcharon-extra-plugins xl2tpd ppp)
 fi
@@ -286,6 +311,7 @@ run_q apt-get install -y -qq "${PKGS[@]}"
 if (( LOCAL_NODE )); then
   systemctl stop ocserv.socket ocserv.service xl2tpd.service >/dev/null 2>&1 || true
   systemctl disable ocserv.socket ocserv.service xl2tpd.service >/dev/null 2>&1 || true
+  install_xray_binary
 fi
 ok "System packages installed"
 

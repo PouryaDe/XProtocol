@@ -851,6 +851,85 @@ export function buildUnifiedXrayConfig(): { configJson: string; hasActiveXray: b
   return { configJson: JSON.stringify(unified, null, 2), hasActiveXray: true };
 }
 
+const XRAY_CANDIDATE_PATHS = ['/usr/local/bin/xray', '/usr/bin/xray', '/usr/local/lib/xprotocol/xray/xray'];
+
+async function findXrayBinary(): Promise<string | null> {
+  for (const p of XRAY_CANDIDATE_PATHS) {
+    if (fs.existsSync(p)) return p;
+  }
+  const whichXray = await execFileAsync('which', ['xray'], { timeout: 3000 }).catch(() => null);
+  const found = whichXray?.stdout?.trim();
+  return found || null;
+}
+
+/** Auto-install official Xray-core binary on Ubuntu Linux if missing when an Xray inbound is activated. */
+async function ensureXrayBinary(assetDir: string): Promise<{ bin: string | null; error?: string }> {
+  const existing = await findXrayBinary();
+  if (existing) return { bin: existing };
+  if (process.platform !== 'linux' || process.env.XPROTOCOL_SKIP_NET_FETCH === '1') {
+    return { bin: null, error: 'xray binary not installed on host' };
+  }
+
+  const arch = process.arch === 'arm64' ? 'arm64-v8a' : '64';
+  const zipUrl = `https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-${arch}.zip`;
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'xp-xray-inst-'));
+  const zipPath = path.join(tmpDir, 'xray.zip');
+
+  try {
+    const res = await fetch(zipUrl, { redirect: 'follow', signal: AbortSignal.timeout(45_000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status} downloading Xray-linux-${arch}.zip`);
+    fs.writeFileSync(zipPath, Buffer.from(await res.arrayBuffer()));
+
+    // Prefer unzip, install it if needed, or fall back to python3 zipfile
+    const hasUnzip = await execFileAsync('which', ['unzip'], { timeout: 2000 }).catch(() => null);
+    if (!hasUnzip?.stdout?.trim()) {
+      await execFileAsync('apt-get', ['install', '-y', '-qq', 'unzip'], { timeout: 30_000 }).catch(() => undefined);
+    }
+    const unzipAfter = await execFileAsync('which', ['unzip'], { timeout: 2000 }).catch(() => null);
+    if (unzipAfter?.stdout?.trim()) {
+      await execFileAsync('unzip', ['-o', '-q', zipPath, '-d', tmpDir], { timeout: 20_000 });
+    } else {
+      await execFileAsync('python3', ['-m', 'zipfile', '-e', zipPath, tmpDir], { timeout: 20_000 });
+    }
+
+    const extractedBin = path.join(tmpDir, 'xray');
+    if (!fs.existsSync(extractedBin)) throw new Error('Extracted archive did not contain xray binary');
+    fs.mkdirSync('/usr/local/bin', { recursive: true });
+    fs.copyFileSync(extractedBin, '/usr/local/bin/xray');
+    fs.chmodSync('/usr/local/bin/xray', 0o755);
+
+    fs.mkdirSync(assetDir, { recursive: true });
+    for (const asset of ['geoip.dat', 'geosite.dat']) {
+      const src = path.join(tmpDir, asset);
+      if (fs.existsSync(src)) fs.copyFileSync(src, path.join(assetDir, asset));
+    }
+    return { bin: '/usr/local/bin/xray' };
+  } catch (err) {
+    // Fallback to official XTLS install-release.sh
+    try {
+      const scriptRes = await fetch('https://github.com/XTLS/Xray-install/raw/main/install-release.sh', {
+        redirect: 'follow',
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (scriptRes.ok) {
+        const scriptFile = path.join(tmpDir, 'install-release.sh');
+        fs.writeFileSync(scriptFile, await scriptRes.text(), { mode: 0o700 });
+        await execFileAsync('bash', [scriptFile, 'install'], { timeout: 90_000 });
+        const installed = await findXrayBinary();
+        if (installed) return { bin: installed };
+      }
+    } catch {
+      // fall through
+    }
+    return {
+      bin: null,
+      error: `xray binary not installed and auto-install failed (${err instanceof Error ? err.message : String(err)}). Run: bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install`,
+    };
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
 export async function syncAndApplyXrayEngine(): Promise<{ ok: boolean; statusMessage: string }> {
   const { configJson, hasActiveXray } = buildUnifiedXrayConfig();
   const dir = process.platform === 'linux' ? '/usr/local/lib/xprotocol/xray' : path.join(os.tmpdir(), 'xprotocol-xray');
@@ -866,43 +945,49 @@ export async function syncAndApplyXrayEngine(): Promise<{ ok: boolean; statusMes
   }
 
   fs.mkdirSync('/var/log/xprotocol', { recursive: true });
-  const whichXray = await execFileAsync('which', ['xray'], { timeout: 3000 }).catch(() => null);
-  if (!whichXray || !whichXray.stdout.trim()) {
-    return { ok: false, statusMessage: hasActiveXray ? 'xray binary not installed on host' : 'Disabled (xray not installed)' };
+  const unitPath = '/etc/systemd/system/xprotocol-xray.service';
+
+  if (!hasActiveXray) {
+    if (fs.existsSync(unitPath)) {
+      await execFileAsync('systemctl', ['stop', 'xprotocol-xray'], { timeout: 5000 }).catch(() => undefined);
+    }
+    return { ok: true, statusMessage: 'Stopped' };
   }
 
-  const xrayBin = whichXray.stdout.trim();
-  const unitPath = '/etc/systemd/system/xprotocol-xray.service';
-  if (!fs.existsSync(unitPath)) {
-    fs.writeFileSync(
-      unitPath,
-      `[Unit]
+  const ensured = await ensureXrayBinary(dir);
+  if (!ensured.bin) {
+    return { ok: false, statusMessage: ensured.error || 'xray binary not installed on host' };
+  }
+
+  const desiredUnit = `[Unit]
 Description=XProtocol Xray Core Engine
 After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=${xrayBin} run -c ${cfgPath}
+Environment=XRAY_LOCATION_ASSET=${dir}
+ExecStart=${ensured.bin} run -c ${cfgPath}
 Restart=on-failure
 RestartSec=3
+LimitNOFILE=1048576
 
 [Install]
 WantedBy=multi-user.target
-`,
-    );
+`;
+  const existingUnit = fs.existsSync(unitPath) ? fs.readFileSync(unitPath, 'utf8') : '';
+  if (existingUnit !== desiredUnit) {
+    fs.writeFileSync(unitPath, desiredUnit);
     await execFileAsync('systemctl', ['daemon-reload'], { timeout: 5000 }).catch(() => undefined);
   }
 
-  if (hasActiveXray) {
-    try {
-      await execFileAsync('systemctl', ['restart', 'xprotocol-xray'], { timeout: 10000 });
-      return { ok: true, statusMessage: 'Xray engine running' };
-    } catch (err) {
-      return { ok: false, statusMessage: String(err) };
-    }
-  } else {
-    await execFileAsync('systemctl', ['stop', 'xprotocol-xray'], { timeout: 5000 }).catch(() => undefined);
-    return { ok: true, statusMessage: 'Stopped' };
+  try {
+    await execFileAsync('systemctl', ['enable', 'xprotocol-xray'], { timeout: 5000 }).catch(() => undefined);
+    await execFileAsync('systemctl', ['restart', 'xprotocol-xray'], { timeout: 10000 });
+    return { ok: true, statusMessage: `Xray engine running (${ensured.bin})` };
+  } catch (err: unknown) {
+    const e = err as { stderr?: string; message?: string };
+    return { ok: false, statusMessage: (e.stderr || e.message || String(err)).trim() };
   }
 }
 
@@ -916,8 +1001,10 @@ export interface XrayUserStatSample {
 /** Collect live per-user byte deltas from Xray StatsService API on 127.0.0.1:10085. */
 export async function collectXrayLiveStats(): Promise<XrayUserStatSample[]> {
   if (process.platform !== 'linux') return [];
+  const xrayBin = await findXrayBinary();
+  if (!xrayBin) return [];
   try {
-    const res = await execFileAsync('xray', ['api', 'statsquery', '--server=127.0.0.1:10085', '-reset'], { timeout: 3500 });
+    const res = await execFileAsync(xrayBin, ['api', 'statsquery', '--server=127.0.0.1:10085', '-reset'], { timeout: 3500 });
     const parsed = JSON.parse(res.stdout || '{}') as { stat?: Array<{ name?: string; value?: number | string }> };
     const byUser = new Map<string, { up: number; down: number }>();
     for (const item of parsed.stat || []) {
@@ -971,8 +1058,10 @@ export async function collectXrayLiveStats(): Promise<XrayUserStatSample[]> {
 
 export async function kickXrayClient(inboundName: string, clientName: string): Promise<boolean> {
   if (process.platform !== 'linux') return true;
+  const xrayBin = await findXrayBinary();
+  if (!xrayBin) return false;
   try {
-    await execFileAsync('xray', ['api', 'rmu', '--server=127.0.0.1:10085', `-tag=xr-${inboundName}`, clientName], { timeout: 3000 });
+    await execFileAsync(xrayBin, ['api', 'rmu', '--server=127.0.0.1:10085', `-tag=xr-${inboundName}`, clientName], { timeout: 3000 });
     return true;
   } catch {
     return false;
