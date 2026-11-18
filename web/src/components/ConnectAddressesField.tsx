@@ -76,7 +76,7 @@ export function ConnectAddressesField({
               placeholder={L('Label', 'برچسب')}
               value={r.label}
               onChange={(e) => patchRow(idx, { label: e.target.value })}
-              className="input h-8! min-w-[130px] flex-1 px-2.5! text-xs"
+              className="input h-8! min-w-32.5 flex-1 px-2.5! text-xs"
             />
 
             <div className="flex items-center gap-1">

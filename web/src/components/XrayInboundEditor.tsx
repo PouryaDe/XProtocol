@@ -1201,7 +1201,7 @@ export function XrayAdvancedSection({
                   const rest = fromLinesText(e.target.value);
                   patchNested('reality', { serverNames: realitySni ? [realitySni, ...rest] : rest });
                 }}
-                className="textarea min-h-[82px]! font-mono text-xs"
+                className="textarea min-h-20.5! font-mono text-xs"
               />
               <span className="block text-xs text-(--text-muted)">{L('One per line.', 'در هر خط یک نام.')}</span>
             </label>
@@ -1213,7 +1213,7 @@ export function XrayAdvancedSection({
                 dir="ltr"
                 value={toLinesText(reality.shortIds)}
                 onChange={(e) => patchNested('reality', { shortIds: fromLinesText(e.target.value) })}
-                className="textarea min-h-[82px]! font-mono text-xs"
+                className="textarea min-h-20.5! font-mono text-xs"
               />
               <span className="block text-xs text-(--text-muted)">
                 {L('Hex, an even number of characters, up to 16.', 'هگز، تعداد کاراکتر زوج، تا ۱۶ کاراکتر.')}
@@ -1799,7 +1799,7 @@ export function XrayAdvancedSection({
             value={toLinesText(sniffing.domainsExcluded)}
             onChange={(e) => patchNested('sniffing', { domainsExcluded: fromLinesText(e.target.value) })}
             placeholder="courier.push.apple.com"
-            className="textarea min-h-[78px]! font-mono text-xs"
+            className="textarea min-h-19.5! font-mono text-xs"
           />
           <span className="block text-xs text-(--text-muted)">{L('One per line.', 'در هر خط یک مورد.')}</span>
         </label>
