@@ -708,7 +708,7 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
             {L(lang, 'Protocol', 'پروتکل')}
           </span>
           <div className="flex items-center gap-2.5">
-            <span className="inline-flex items-center rounded-md border border-(--border-strong) bg-(--bg-elevated) px-2.5 py-1 text-xs font-medium text-(--text-primary)">
+            <span className="kind-badge">
               {formatKindBadge(kind, settings.obfuscation)}
             </span>
             {!isNew && (
@@ -850,7 +850,7 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
         )}
 
         {inbound?.protocol !== 'xray' && kind !== 'smartdns' && kind !== 'telegram' && (
-          <details className="inb-advanced-basics">
+          <details className="inb-advanced-basics" open={kind === 'ikev2' || kind === 'l2tp'}>
             <summary>{L(lang, 'Tunnel network', 'شبکه تونل')}</summary>
             <div className="pt-1">
               <TunnelNetworkPicker
@@ -988,22 +988,32 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
     }
     if (kind === 'ocserv') {
       return (
-        <>
-          <OpenConnectSection settings={settings} certs={certs} onPatch={patchSettings} />
-          {renderNetworkAndDnsSection()}
-        </>
+        <div className="px-5.5 py-4">
+          <details className="inb-advanced-basics">
+            <summary>{L(lang, 'Advanced', 'پیشرفته')}</summary>
+            <div className="pt-2">
+              <OpenConnectSection settings={settings} certs={certs} onPatch={patchSettings} />
+              {renderNetworkAndDnsSection()}
+            </div>
+          </details>
+        </div>
       );
     }
     if (kind === 'wireguard') {
       return (
-        <>
-          <WireGuardSection
-            settings={settings}
-            serverPublicKey={inbound?.serverPublicKey}
-            onPatch={patchSettings}
-          />
-          {renderNetworkAndDnsSection()}
-        </>
+        <div className="px-5.5 py-4">
+          <details className="inb-advanced-basics">
+            <summary>{L(lang, 'Advanced', 'پیشرفته')}</summary>
+            <div className="pt-2">
+              <WireGuardSection
+                settings={settings}
+                serverPublicKey={inbound?.serverPublicKey}
+                onPatch={patchSettings}
+              />
+              {renderNetworkAndDnsSection()}
+            </div>
+          </details>
+        </div>
       );
     }
     return (
@@ -1095,8 +1105,45 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
           {step === 1 && (
             <div className="panel editor">
               <div className="ed-section inb-create-identity">
-                <div className="flex flex-col justify-between gap-8">
+                <div>
                   <h2>{L(lang, 'Protocol & name', 'پروتکل و نام')}</h2>
+                </div>
+
+                <div className="min-w-0">
+                  <div className="kind-cards">
+                    <label className="kind-card">
+                      <input
+                        type="radio"
+                        name="inb-protocol-kind"
+                        checked={false}
+                        onChange={() => navigate('/inbounds/new?kind=xray')}
+                      />
+                      <strong>Xray</strong>
+                      <span className="text-xs leading-relaxed text-(--text-secondary)">
+                        {lang === 'fa'
+                          ? 'VLESS، VMess، Trojan یا Shadowsocks با تمام تنظیمات Xray مانند 3x-ui. در صورت تمایل از یک قالب شروع کنید.'
+                          : 'VLESS, VMess, Trojan or Shadowsocks with every Xray setting, like 3x-ui. Start from a template if you like.'}
+                      </span>
+                    </label>
+                    {PROTOCOL_CARDS.map((card) => {
+                      const selected = kind === card.kind;
+                      return (
+                        <label key={card.kind} className="kind-card">
+                          <input
+                            type="radio"
+                            name="inb-protocol-kind"
+                            checked={selected}
+                            onChange={() => handleSelectKind(card.kind)}
+                          />
+                          <strong>{card.title}</strong>
+                          <span className="text-xs leading-relaxed text-(--text-secondary)">
+                            {lang === 'fa' ? card.descFa : card.descEn}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+
                   <label className="field block">
                     <span className="mb-1.5 block text-xs font-medium text-(--text-primary)">
                       {L(lang, 'Display name', 'نام نمایشی')}
@@ -1106,7 +1153,7 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
                       placeholder={activeCardMeta.defaultPlaceholder}
-                      className="w-full rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-3 py-2 text-sm text-(--text-primary)"
+                      className="input text-sm"
                     />
                     <span className="mt-1.5 block text-xs text-(--text-muted)">
                       {L(
@@ -1116,40 +1163,6 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
                       )}
                     </span>
                   </label>
-                </div>
-
-                <div className="kind-cards self-start">
-                  <label className="kind-card">
-                    <input
-                      type="radio"
-                      name="inb-protocol-kind"
-                      checked={false}
-                      onChange={() => navigate('/inbounds/new?kind=xray')}
-                    />
-                    <strong>Xray</strong>
-                    <span className="text-xs text-(--text-secondary) leading-relaxed">
-                      {lang === 'fa'
-                        ? 'VLESS، VMess، Trojan یا Shadowsocks با تمام تنظیمات Xray مانند 3x-ui. در صورت تمایل از یک قالب شروع کنید.'
-                        : 'VLESS, VMess, Trojan or Shadowsocks with every Xray setting, like 3x-ui. Start from a template if you like.'}
-                    </span>
-                  </label>
-                  {PROTOCOL_CARDS.map((card) => {
-                    const selected = kind === card.kind;
-                    return (
-                      <label key={card.kind} className="kind-card">
-                        <input
-                          type="radio"
-                          name="inb-protocol-kind"
-                          checked={selected}
-                          onChange={() => handleSelectKind(card.kind)}
-                        />
-                        <strong>{card.title}</strong>
-                        <span className="text-xs text-(--text-secondary) leading-relaxed">
-                          {lang === 'fa' ? card.descFa : card.descEn}
-                        </span>
-                      </label>
-                    );
-                  })}
                 </div>
               </div>
 

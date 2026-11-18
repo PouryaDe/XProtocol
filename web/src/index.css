@@ -2297,13 +2297,19 @@ h1 .w > span {
 
 .inb-settings-body { display: grid; gap: 20px; min-inline-size: 0; }
 .inb-settings-body[hidden] { display: none; }
-.inb-create-identity .kind-cards { margin-block: 18px 24px; }
-.inb-create-identity > .field { max-inline-size: 520px; }
+.inb-create-identity .kind-cards { margin-block: 0 20px; }
+.inb-create-identity .field { max-inline-size: 340px; }
 
 .kind-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
+}
+@media (max-width: 1120px) {
+  .kind-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .kind-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .kind-card {
   position: relative;
@@ -2463,6 +2469,151 @@ h1 .w > span {
   gap: 6px;
 }
 .ep-head span { font-size: var(--t-xs); color: var(--ink-3); }
+
+/* Xray single-page transparent layout & fieldsets (matching Ovira exact styling) */
+.xr-create { display: grid; gap: 6px; }
+.xr-canvas-section {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 24px;
+  padding: 22px 0;
+}
+.xr-canvas-section + .xr-canvas-section {
+  border-top: 1px solid var(--line);
+}
+.xr-canvas-section > h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  align-self: start;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-md);
+  font-weight: 600;
+  color: var(--ink);
+}
+.xr-canvas-section.xr-settings-row > h2 {
+  align-self: center;
+}
+.xr-step-num {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  inline-size: 24px;
+  block-size: 24px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+  color: var(--accent-text);
+  font-size: var(--t-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.xr-main-col { display: grid; gap: 16px; min-inline-size: 0; }
+.xr-row-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.xr-row-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 900px) {
+  .xr-canvas-section { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .xr-row-3, .xr-row-2 { grid-template-columns: minmax(0, 1fr); }
+}
+
+.xr-group {
+  margin: 0;
+  min-inline-size: 0;
+  padding: 16px 20px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  display: grid;
+  gap: 14px;
+}
+.xr-group > legend {
+  padding-inline: 8px;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.xr-sni-current {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--t-sm);
+}
+.xr-neighbours-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r);
+  background: var(--raise);
+  color: var(--ink);
+  font-size: var(--t-sm);
+  font-weight: 550;
+  text-align: start;
+  cursor: pointer;
+}
+.xr-neighbours-btn:hover { background: var(--raise-2); }
+
+.banner {
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: var(--r);
+  font-size: var(--t-sm);
+  line-height: 1.5;
+}
+.banner.quiet {
+  border: 1px solid var(--line);
+  background: var(--raise-2);
+  color: var(--ink-2);
+}
+.banner.warn {
+  border: 1px solid color-mix(in srgb, var(--warn) 38%, var(--line));
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  color: var(--ink);
+}
+
+.xr-cf-guide {
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: color-mix(in srgb, var(--raise-2) 55%, var(--raise));
+  display: grid;
+  gap: 10px;
+  font-size: var(--t-sm);
+  color: var(--ink-2);
+}
+
+.kind-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--raise-2);
+  color: var(--ink-2);
+  font-size: var(--t-xs);
+  font-weight: 600;
+}
+
+.inb-cat-card {
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: color-mix(in srgb, var(--raise) 82%, var(--ground));
+  padding: 12px 14px;
+}
+.inb-cat-chevron {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 30px;
+  block-size: 30px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  border: 1px solid var(--line-strong);
+  background: var(--raise-2);
+  color: var(--ink-2);
+}
+.inb-cat-chevron:hover { color: var(--ink); border-color: var(--ink-3); }
 
 .wg-filename-group {
   display: grid;

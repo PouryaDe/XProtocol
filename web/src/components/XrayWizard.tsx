@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ArrowLeft, Plus } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { navigate } from '../lib/router';
 import { useUi } from '../i18n/context';
@@ -24,6 +24,7 @@ const TEMPLATES: Array<{
   titleFa: string;
   descEn: string;
   descFa: string;
+  suggestedSlug: string;
 }> = [
   {
     id: 'direct',
@@ -31,6 +32,7 @@ const TEMPLATES: Array<{
     titleFa: 'اتصال مستقیم',
     descEn: 'The best choice for most servers. Nothing to enter: the port and the camouflage site are picked for you.',
     descFa: 'بهترین انتخاب برای اکثر سرورها. بدون نیاز به تنظیم دستی: پورت و سایت استتار خودکار انتخاب می‌شوند.',
+    suggestedSlug: 'vless-raw',
   },
   {
     id: 'cdn',
@@ -38,6 +40,7 @@ const TEMPLATES: Array<{
     titleFa: 'پشت CDN (کلادفلر)',
     descEn: 'Hide this server behind your own domain on Cloudflare. You need a domain.',
     descFa: 'سرور را پشت دامنه خودتان در کلادفلر مخفی کنید. نیاز به دامنه دارید.',
+    suggestedSlug: 'vless-ws',
   },
   {
     id: 'relay',
@@ -45,6 +48,7 @@ const TEMPLATES: Array<{
     titleFa: 'پشت سرور واسط یا تانل',
     descEn: 'Clients reach you through a tunnel or relay, for example from Iran, with PROXY protocol so their real address is known.',
     descFa: 'کلاینت‌ها از طریق سرور واسط یا تانل متصل می‌شوند و با PROXY protocol آی‌پی واقعی مشخص است.',
+    suggestedSlug: 'vless-relay',
   },
   {
     id: 'vmess-classic',
@@ -52,6 +56,7 @@ const TEMPLATES: Array<{
     titleFa: 'VMess کلاسیک',
     descEn: 'The older protocol every app understands. Nothing to enter.',
     descFa: 'پروتکل قدیمی که تمام برنامه‌ها پشتیبانی می‌کنند.',
+    suggestedSlug: 'vmess-raw',
   },
   {
     id: 'trojan',
@@ -59,6 +64,7 @@ const TEMPLATES: Array<{
     titleFa: 'Trojan',
     descEn: 'Looks like an ordinary secure website. Nothing to enter.',
     descFa: 'شبیه یک وب‌سایت امن معمولی به نظر می‌رسد.',
+    suggestedSlug: 'trojan-raw',
   },
   {
     id: 'shadowsocks',
@@ -66,6 +72,7 @@ const TEMPLATES: Array<{
     titleFa: 'Shadowsocks',
     descEn: 'Simple and light, with a separate key for every client. Nothing to enter.',
     descFa: 'ساده و سبک، با کلید مجزا برای هر کاربر.',
+    suggestedSlug: 'ss-raw',
   },
   {
     id: 'manual',
@@ -73,6 +80,7 @@ const TEMPLATES: Array<{
     titleFa: 'دستی (پیشرفته)',
     descEn: 'Start from a plain setup and choose every detail yourself.',
     descFa: 'شروع از یک تنظیمات خام و انتخاب تمام جزئیات به‌صورت دستی.',
+    suggestedSlug: 'vless-raw',
   },
 ];
 
@@ -88,7 +96,6 @@ export function XrayWizard({ onBackOtherProtocols }: { onBackOtherProtocols: () 
   const [pendingPreset, setPendingPreset] = useState<PresetId | null>(null);
   const [displayName, setDisplayName] = useState('');
   const [cdnDomain, setCdnDomain] = useState('');
-  const [cfGuideOpen, setCfGuideOpen] = useState(false);
 
   const [port, setPort] = useState<number>(443);
   const [settings, setSettings] = useState<Record<string, unknown>>({});
@@ -154,7 +161,6 @@ export function XrayWizard({ onBackOtherProtocols }: { onBackOtherProtocols: () 
     }
   }, [selectedNodeId]);
 
-  // Sync CDN domain into settings live when on cdn template
   useEffect(() => {
     if (preset !== 'cdn' || !selectedNodeId) return;
     const cleanDom = cdnDomain.trim();
@@ -195,7 +201,14 @@ export function XrayWizard({ onBackOtherProtocols }: { onBackOtherProtocols: () 
 
   const activeTemplate = TEMPLATES.find((t) => t.id === preset) || TEMPLATES[0];
   const needsCdnDomain = preset === 'cdn' && !cdnDomain.trim();
-  const canSubmit = Boolean(selectedNodeId) && !needsCdnDomain && !loadingDefaults && !submitting;
+  const showSettingsFields = Boolean(selectedNodeId) && !needsCdnDomain && !loadingDefaults;
+  const canSubmit = showSettingsFields && !submitting;
+
+  const suggestedName = !selectedNodeId
+    ? 'xray-raw'
+    : settings.protocol && settings.transport
+      ? `${String(settings.protocol)}-${String(settings.transport)}`
+      : activeTemplate.suggestedSlug;
 
   const handleCreate = async () => {
     if (!canSubmit) return;
@@ -229,7 +242,7 @@ export function XrayWizard({ onBackOtherProtocols }: { onBackOtherProtocols: () 
   };
 
   return (
-    <div className="space-y-5">
+    <div className="page xr-create">
       <PageHead
         title={L('New Xray inbound', 'اینباند Xray جدید')}
         sub={L(
@@ -237,7 +250,8 @@ export function XrayWizard({ onBackOtherProtocols }: { onBackOtherProtocols: () 
           'سرور را انتخاب کنید، از یک قالب شروع کنید و همه چیز را مطابق نیاز تنظیم کنید. کلیدها، پورت و سایت استتار به‌صورت خودکار پر می‌شوند.',
         )}
         actions={
-          <Button variant="secondary" size="sm" onClick={onBackOtherProtocols}>
+          <Button variant="secondary" onClick={onBackOtherProtocols}>
+            <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
             {L('Other protocols', 'سایر پروتکل‌ها')}
           </Button>
         }
@@ -249,19 +263,15 @@ export function XrayWizard({ onBackOtherProtocols }: { onBackOtherProtocols: () 
         </div>
       )}
 
-      <div className="panel editor">
-        {/* Section 1: Server and template */}
-        <section className="ed-section">
-          <div>
-            <h2>{L('Server and template', 'سرور و قالب')}</h2>
-            <p className="ed-lede">
-              {L(
-                'Pick which server runs this Xray inbound and which scenario to pre-fill from.',
-                'سرور میزبان و قالب اولیه این اینباند را انتخاب کنید.',
-              )}
-            </p>
-          </div>
-          <div className="ed-fields">
+      {/* Section 1: Server and template */}
+      <section className="xr-canvas-section">
+        <h2>
+          <span className="xr-step-num">1</span>
+          <span>{L('Server and template', 'سرور و قالب')}</span>
+        </h2>
+
+        <div className="xr-main-col">
+          <div className="xr-row-3">
             <label className="block space-y-1.5">
               <span className="text-xs font-medium text-(--text-primary)">{L('Server', 'سرور')}</span>
               <select
@@ -301,84 +311,6 @@ export function XrayWizard({ onBackOtherProtocols }: { onBackOtherProtocols: () 
               </span>
             </label>
 
-            {preset === 'cdn' && (
-              <div className="space-y-3 rounded-lg border border-(--border-subtle) bg-(--bg-surface) p-3.5">
-                <label className="block space-y-1.5">
-                  <span className="text-xs font-medium text-(--text-primary)">
-                    {L('Your domain on the CDN', 'دامنه شما روی CDN')}
-                  </span>
-                  <input
-                    type="text"
-                    dir="ltr"
-                    value={cdnDomain}
-                    onChange={(e) => {
-                      setCdnDomain(e.target.value);
-                      setDirty(true);
-                    }}
-                    placeholder="vpn.example.com"
-                    className="input font-mono text-xs"
-                  />
-                  <span className="block text-xs text-(--text-muted)">
-                    {L(
-                      'The domain you set up in Cloudflare, for example vpn.example.com.',
-                      'دامنه‌ای که در کلادفلر تنظیم کرده‌اید، مثلاً vpn.example.com.',
-                    )}
-                  </span>
-                </label>
-
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => setCfGuideOpen((v) => !v)}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-(--text-primary) hover:text-(--accent)"
-                  >
-                    <ChevronRight className={`h-3.5 w-3.5 transition-transform ${cfGuideOpen ? 'rotate-90' : ''}`} />
-                    <span>{L('How to set this up in Cloudflare', 'راهنمای تنظیم در کلادفلر')}</span>
-                  </button>
-                  {cfGuideOpen && (
-                    <ol className="mt-2.5 list-decimal space-y-1.5 pl-5 text-xs leading-relaxed text-(--text-muted)">
-                      <li>
-                        {L(
-                          'Point your domain nameservers to Cloudflare and wait for DNS activation.',
-                          'نیم‌سرورهای دامنه را روی کلادفلر تنظیم کنید.',
-                        )}
-                      </li>
-                      <li>
-                        {L(
-                          'Create an A record (or subdomain such as vpn) pointing to this server IP with the orange proxy cloud enabled.',
-                          'یک رکورد A به آی‌پی این سرور با ابر نارنجی (Proxied) بسازید.',
-                        )}
-                      </li>
-                      <li>
-                        {L(
-                          'Under SSL/TLS -> Overview, choose Full or Full (strict). Never use Flexible.',
-                          'در بخش SSL/TLS گزینه Full یا Full (strict) را انتخاب کنید.',
-                        )}
-                      </li>
-                      <li>
-                        {L(
-                          'Under Network, make sure WebSockets is turned On.',
-                          'در بخش Network مطمئن شوید WebSockets روشن است.',
-                        )}
-                      </li>
-                      <li>
-                        {L(
-                          'Use a Cloudflare-proxied HTTPS port such as 443, 8443, 2053, 2083, 2087, or 2096.',
-                          'از پورت‌های HTTPS کلادفلر مانند 443، 8443، 2053، 2083، 2087 یا 2096 استفاده کنید.',
-                        )}
-                      </li>
-                      <li>
-                        {L(
-                          'Keep Proxy mode enabled only for traffic and test client connection after saving.',
-                          'پس از ذخیره، اتصال کلاینت را آزمایش کنید.',
-                        )}
-                      </li>
-                    </ol>
-                  )}
-                </div>
-              </div>
-            )}
-
             <label className="block space-y-1.5">
               <span className="text-xs font-medium text-(--text-primary)">{L('Name', 'نام')}</span>
               <input
@@ -388,7 +320,7 @@ export function XrayWizard({ onBackOtherProtocols }: { onBackOtherProtocols: () 
                   setDisplayName(e.target.value);
                   setDirty(true);
                 }}
-                placeholder={L('Optional', 'اختیاری')}
+                placeholder={suggestedName}
                 className="input text-sm"
               />
               <span className="block text-xs text-(--text-muted)">
@@ -396,70 +328,110 @@ export function XrayWizard({ onBackOtherProtocols }: { onBackOtherProtocols: () 
               </span>
             </label>
           </div>
-        </section>
 
-        {/* Section 2: Settings */}
-        <section className="ed-section">
-          <div>
-            <h2>{L('Settings', 'تنظیمات')}</h2>
-            <p className="ed-lede">
+          {preset === 'cdn' && (
+            <>
+              <label className="block space-y-1.5">
+                <span className="text-xs font-medium text-(--text-primary)">
+                  {L('Your domain on the CDN', 'دامنه شما روی CDN')}
+                </span>
+                <input
+                  type="text"
+                  dir="ltr"
+                  value={cdnDomain}
+                  onChange={(e) => {
+                    setCdnDomain(e.target.value);
+                    setDirty(true);
+                  }}
+                  placeholder="vpn.example.com"
+                  className="input font-mono text-sm"
+                />
+                <span className="block text-xs text-(--text-muted)">
+                  {L(
+                    'The domain you set up in Cloudflare, for example vpn.example.com.',
+                    'دامنه‌ای که در کلادفلر تنظیم کرده‌اید، مثلاً vpn.example.com.',
+                  )}
+                </span>
+              </label>
+
+              <div className="xr-cf-guide">
+                <strong className="text-(--text-primary)">
+                  {L('How to set this up in Cloudflare', 'راهنمای تنظیم در کلادفلر')}
+                </strong>
+                <ol className="list-decimal space-y-1.5 pl-5 text-xs leading-relaxed">
+                  <li>{L('Add your domain to Cloudflare and use its name servers.', 'دامنه خود را به کلادفلر اضافه کرده و نیم‌سرورها را تنظیم کنید.')}</li>
+                  <li>
+                    {L(
+                      `Under DNS, add an A record for ${cdnDomain.trim() || 'your domain'} that points to this server's IP, with the orange cloud (Proxied) on.`,
+                      `در بخش DNS یک رکورد A برای ${cdnDomain.trim() || 'دامنه خود'} به آی‌پی این سرور با ابر نارنجی (Proxied) بسازید.`,
+                    )}
+                  </li>
+                  <li>{L('Under SSL/TLS, choose the mode Full.', 'در بخش SSL/TLS حالت Full را انتخاب کنید.')}</li>
+                  <li>{L('Under Network, make sure WebSockets is on.', 'در بخش Network مطمئن شوید WebSockets روشن است.')}</li>
+                  <li>{L('Type the same domain in the field above and press Create.', 'همان دامنه را در فیلد بالا وارد کرده و دکمه Create را بزنید.')}</li>
+                </ol>
+                <strong className="text-xs text-(--text-primary)">
+                  {L(
+                    'Cloudflare only forwards a few ports (443, 8443, 2053, 2083, 2087, 2096). The port chosen here is one of them.',
+                    'کلادفلر فقط پورت‌های محدودی (443، 8443، 2053، 2083، 2087، 2096) را فوروارد می‌کند. پورت انتخاب‌شده یکی از آن‌هاست.',
+                  )}
+                </strong>
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+
+      {/* Section 2: Settings */}
+      <section className={`xr-canvas-section${showSettingsFields ? '' : ' xr-settings-row'}`}>
+        <h2>
+          <span className="xr-step-num">2</span>
+          <span>{L('Settings', 'تنظیمات')}</span>
+        </h2>
+
+        <div className="xr-main-col">
+          {!selectedNodeId ? (
+            <p className="banner quiet">
               {L(
-                'Every Xray transport, security, Reality SNI, connect address, socket and sniffing control.',
-                'تمام تنظیمات پروتکل، انتقال، امنیت Reality/TLS، آدرس اتصال و سوکت.',
+                'Choose a server first. The port and camouflage site are picked for that server.',
+                'ابتدا یک سرور انتخاب کنید. پورت و سایت استتار متناسب با آن سرور انتخاب می‌شوند.',
               )}
             </p>
-          </div>
-          <div className="ed-fields">
-            {!selectedNodeId ? (
-              <div className="rounded-lg border border-(--border-subtle) bg-(--bg-surface) px-4 py-4 text-xs text-(--text-muted)">
-                {L(
-                  'Choose a server first. The port and camouflage site are picked for that server.',
-                  'ابتدا یک سرور انتخاب کنید. پورت و سایت استتار متناسب با آن سرور انتخاب می‌شوند.',
-                )}
-              </div>
-            ) : needsCdnDomain ? (
-              <div className="rounded-lg border border-(--border-subtle) bg-(--bg-surface) px-4 py-4 text-xs text-(--text-muted)">
-                {L('Enter your CDN domain first.', 'ابتدا دامنه CDN خود را وارد کنید.')}
-              </div>
-            ) : loadingDefaults ? (
-              <div className="rounded-lg border border-(--border-subtle) bg-(--bg-surface) px-4 py-4 text-xs text-(--text-muted)">
-                {L('Loading recommended defaults for this server...', 'در حال بارگذاری تنظیمات پیشنهادی سرور...')}
-              </div>
-            ) : (
-              <XrayAdvancedSection
-                settings={settings}
-                onChange={(next) => {
-                  setSettings(next);
-                  setDirty(true);
-                }}
-                combos={combos}
-                nodeId={Number(selectedNodeId)}
-                port={port}
-                onPortChange={(p) => {
-                  setPort(p);
-                  setDirty(true);
-                }}
-                sniGrade={sniGrade}
-                sniMillis={sniMillis}
-              />
-            )}
-          </div>
-        </section>
+          ) : needsCdnDomain ? (
+            <p className="banner quiet">
+              {L('Enter your CDN domain first.', 'ابتدا دامنه CDN خود را وارد کنید.')}
+            </p>
+          ) : loadingDefaults ? (
+            <p className="banner quiet">
+              {L('Loading recommended defaults for this server...', 'در حال بارگذاری تنظیمات پیشنهادی سرور...')}
+            </p>
+          ) : (
+            <XrayAdvancedSection
+              settings={settings}
+              onChange={(next) => {
+                setSettings(next);
+                setDirty(true);
+              }}
+              combos={combos}
+              nodeId={Number(selectedNodeId)}
+              port={port}
+              onPortChange={(p) => {
+                setPort(p);
+                setDirty(true);
+              }}
+              sniGrade={sniGrade}
+              sniMillis={sniMillis}
+            />
+          )}
 
-        {/* Footer */}
-        <div className="savebar">
-          <span className="text-xs text-(--text-muted)">
-            {!selectedNodeId
-              ? L('Select a server to enable creation.', 'برای ساخت اینباند یک سرور انتخاب کنید.')
-              : needsCdnDomain
-                ? L('Enter a CDN domain to continue.', 'برای ادامه دامنه CDN را وارد کنید.')
-                : L('Ready to create on the chosen server.', 'آماده ساخت روی سرور انتخاب‌شده.')}
-          </span>
-          <Button onClick={handleCreate} disabled={!canSubmit}>
-            {submitting ? L('Creating…', 'در حال ساخت…') : L('Create', 'ایجاد')}
-          </Button>
+          <div className="pt-1">
+            <Button variant="primary" onClick={handleCreate} disabled={!canSubmit}>
+              <Plus className="h-4 w-4" />
+              {submitting ? L('Creating…', 'در حال ساخت…') : L('Create', 'ایجاد')}
+            </Button>
+          </div>
         </div>
-      </div>
+      </section>
 
       <Modal
         open={pendingPreset !== null}

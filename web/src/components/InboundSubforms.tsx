@@ -891,7 +891,7 @@ export function OpenConnectSection({
         )}
       </div>
 
-      <div className="form-row three">
+      <div className="form-row">
         <label className="block">
           <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
             {L(lang, 'Idle timeout (s)', 'مهلت بیکاری (ثانیه)')}
@@ -906,7 +906,19 @@ export function OpenConnectSection({
         </label>
         <label className="block">
           <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
-            {L(lang, 'DPD (s)', 'بررسی قطع اتصال DPD (ثانیه)')}
+            {L(lang, 'Idle timeout, mobile (s)', 'مهلت بیکاری موبایل (ثانیه)')}
+          </span>
+          <input
+            type="number"
+            dir="ltr"
+            value={settings.mobileIdleTimeout ?? 2400}
+            onChange={(e) => onPatch({ mobileIdleTimeout: Number(e.target.value) || 0 })}
+            className="w-full rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-3 py-2 font-mono text-sm text-(--text-primary)"
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
+            {L(lang, 'Dead peer detection (s)', 'بررسی قطع اتصال DPD (ثانیه)')}
           </span>
           <input
             type="number"
@@ -918,17 +930,30 @@ export function OpenConnectSection({
         </label>
         <label className="block">
           <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
-            {L(lang, 'Cookie timeout (s)', 'اعتبار کوکی (ثانیه)')}
+            {L(lang, 'Dead peer detection, mobile (s)', 'DPD موبایل (ثانیه)')}
           </span>
           <input
             type="number"
             dir="ltr"
-            value={settings.cookieTimeout ?? 300}
-            onChange={(e) => onPatch({ cookieTimeout: Number(e.target.value) || 0 })}
+            value={settings.mobileDpd ?? 1800}
+            onChange={(e) => onPatch({ mobileDpd: Number(e.target.value) || 0 })}
             className="w-full rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-3 py-2 font-mono text-sm text-(--text-primary)"
           />
         </label>
       </div>
+
+      <label className="block">
+        <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
+          {L(lang, 'Session resume window (s)', 'بازه بازیابی نشست (ثانیه)')}
+        </span>
+        <input
+          type="number"
+          dir="ltr"
+          value={settings.cookieTimeout ?? 300}
+          onChange={(e) => onPatch({ cookieTimeout: Number(e.target.value) || 0 })}
+          className="w-full rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-3 py-2 font-mono text-sm text-(--text-primary)"
+        />
+      </label>
 
       <div className="form-row">
         <label className="block">
@@ -1446,6 +1471,33 @@ export function IpsecSection({
 /*  SmartDnsSection                                                            */
 /* -------------------------------------------------------------------------- */
 
+const SMARTDNS_DESC: Record<string, { en: string; fa: string }> = {
+  games: {
+    en: 'Launchers, stores and publishers: EA, Epic, Riot, Battle.net, Ubisoft, PlayStation, Xbox and more.',
+    fa: 'لانچرها، فروشگاه‌ها و ناشران بازی مانند EA، Epic، Riot و Battle.net.',
+  },
+  dev: {
+    en: 'Google developer tools, Docker, JetBrains, GitLab, driver and SDK downloads.',
+    fa: 'ابزارهای برنامه‌نویسی گوگل، داکر، جت‌برینز، گیت‌لب و دانلود SDK.',
+  },
+  ai: {
+    en: 'ChatGPT, Gemini, Claude and other AI tools that refuse Iranian addresses.',
+    fa: 'ChatGPT، Gemini، Claude و سایر سرویس‌های هوش مصنوعی.',
+  },
+  general: {
+    en: 'Design, work and learning services that refuse Iranian addresses.',
+    fa: 'سرویس‌های طراحی، کاری و آموزشی تحریم‌شده.',
+  },
+  download: {
+    en: 'Game and driver download networks. They rarely block Iran, and turning this on sends whole downloads through the node.',
+    fa: 'شبکه‌های دانلود درایور و بازی؛ فعال‌سازی باعث عبور کل دانلود از سرور می‌شود.',
+  },
+  broad: {
+    en: 'Warning: sends ALL traffic of Google, Microsoft, Amazon, Apple, Cloudflare and Akamai through the server, not only blocked services. It counts toward users’ quota and can use a lot of traffic. Leave off unless you need it.',
+    fa: 'هشدار: تمام ترافیک گوگل، مایکروسافت، آمازون، اپل و کلادفلر را از سرور عبور می‌دهد و مصرف ترافیک را به‌شدت افزایش می‌دهد.',
+  },
+};
+
 export function SmartDnsSection({
   settings,
   onPatch,
@@ -1493,62 +1545,56 @@ export function SmartDnsSection({
           <p className="ed-lede">
             {L(
               lang,
-              'Choose which categories of sanctioned domains this Smart DNS proxies for clients.',
-              'دسته‌بندی سرویس‌هایی که این Smart DNS عبور می‌دهد را انتخاب کنید.',
+              'Only domains in the enabled lists pass through this server; every other site gets its normal answer.',
+              'فقط دامنه‌های فهرست‌های فعال از این سرور عبور می‌کنند؛ سایر سایت‌ها پاسخ عادی دریافت می‌کنند.',
             )}
           </p>
         </div>
-        <div className="ed-fields space-y-3">
+        <div className="ed-fields space-y-2.5">
           {SMARTDNS_CATEGORIES.map((cat) => {
             const enabled = activeCategories.includes(cat.id);
             const isOpen = expandedCat === cat.id;
             const currentSelected = getCategorySelected(cat.id, cat.domains);
             const q = domainSearch.trim().toLowerCase();
             const filteredDomains = q ? cat.domains.filter((d) => d.toLowerCase().includes(q)) : cat.domains;
+            const desc = SMARTDNS_DESC[cat.id];
 
-            const isBroad = cat.id === 'broad';
             return (
-              <div
-                key={cat.id}
-                className="rounded-xl border border-(--border-subtle) bg-(--bg-surface) p-3"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <label className="switch">
-                    <input type="checkbox" checked={enabled} onChange={() => toggleCategory(cat.id)} />
-                    <span className="track" />
-                    <span className="sw-text font-medium">{L(lang, cat.labelEn, cat.labelFa)}</span>
-                  </label>
-                  <div className="flex items-center gap-2 text-xs text-(--text-muted)">
-                    <span>
-                      {lang === 'fa' ? `${cat.domains.length} دامنه` : `${cat.domains.length} domains`}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDomainSearch('');
-                        setExpandedCat(isOpen ? null : cat.id);
-                      }}
-                      className="inline-flex items-center gap-1 rounded-lg border border-(--border-subtle) px-2 py-1 text-xs text-(--text-secondary) hover:border-(--border-strong) hover:text-(--text-primary)"
-                    >
-                      <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-                      <span>
-                        {lang === 'fa'
-                          ? `انتخاب دامنه‌ها (${currentSelected.length}/${cat.domains.length})`
-                          : `Choose domains in ${cat.labelEn}`}
-                      </span>
-                    </button>
+              <div key={cat.id} className="inb-cat-card">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 flex-1 items-start gap-3">
+                    <label className="switch mt-0.5 shrink-0">
+                      <input type="checkbox" checked={enabled} onChange={() => toggleCategory(cat.id)} />
+                      <span className="track" />
+                    </label>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-baseline gap-2">
+                        <strong className="text-sm font-semibold text-(--text-primary)">
+                          {L(lang, cat.labelEn, cat.labelFa)}
+                        </strong>
+                        <span className="text-xs text-(--text-muted)">
+                          {lang === 'fa' ? `${cat.domains.length} دامنه` : `${cat.domains.length} domains`}
+                        </span>
+                      </div>
+                      {desc && (
+                        <p className="mt-0.5 text-xs leading-relaxed text-(--text-muted)">
+                          {L(lang, desc.en, desc.fa)}
+                        </p>
+                      )}
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    aria-label={L(lang, `Choose domains in ${cat.labelEn}`, `انتخاب دامنه‌های ${cat.labelFa}`)}
+                    onClick={() => {
+                      setDomainSearch('');
+                      setExpandedCat(isOpen ? null : cat.id);
+                    }}
+                    className="inb-cat-chevron"
+                  >
+                    <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                  </button>
                 </div>
-
-                {isBroad && enabled && (
-                  <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-300">
-                    {L(
-                      lang,
-                      'Broad matching routes entire cloud/CDN company ranges through DNS proxy and can increase bandwidth usage.',
-                      'انتخاب این فهرست باعث عبور کل رنج‌های شرکت‌های بزرگ و افزایش مصرف ترافیک می‌شود.',
-                    )}
-                  </p>
-                )}
 
                 {isOpen && (
                   <div className="mt-3 space-y-2.5 border-t border-(--border-subtle) pt-3">
@@ -1558,7 +1604,7 @@ export function SmartDnsSection({
                         value={domainSearch}
                         onChange={(e) => setDomainSearch(e.target.value)}
                         placeholder={L(lang, 'Search domains', 'جستجوی دامنه‌ها')}
-                        className="input h-8! min-w-[180px] flex-1 text-xs"
+                        className="input h-9! min-w-[180px] flex-1 text-xs"
                       />
                       <Button
                         size="sm"
@@ -1575,13 +1621,13 @@ export function SmartDnsSection({
                         {L(lang, 'Select none', 'لغو همه')}
                       </Button>
                     </div>
-                    <div className="grid max-h-48 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2">
+                    <div className="max-h-56 space-y-1 overflow-y-auto rounded-lg border border-(--border-subtle) bg-(--bg-elevated) p-2">
                       {filteredDomains.map((dom) => {
                         const checked = currentSelected.includes(dom);
                         return (
                           <label
                             key={dom}
-                            className="inline-flex items-center gap-2 rounded-md px-2 py-1 text-xs text-(--text-secondary) hover:bg-(--bg-elevated)"
+                            className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1 text-xs text-(--text-primary) hover:bg-(--bg-surface)"
                           >
                             <input
                               type="checkbox"
@@ -1610,35 +1656,38 @@ export function SmartDnsSection({
         <div>
           <h2>{L(lang, 'Your own domains', 'دامنه‌های دلخواه شما')}</h2>
         </div>
-        <div className="ed-fields">
-          <div className="form-row">
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
-                {L(lang, 'Extra domains', 'دامنه‌های اضافی')}
-              </span>
-              <textarea
-                rows={4}
-                dir="ltr"
-                value={Array.isArray(settings.extraDomains) ? settings.extraDomains.join('\n') : String(settings.extraDomains || '')}
-                onChange={(e) => onPatch({ extraDomains: e.target.value.split('\n') })}
-                placeholder="example.com"
-                className="textarea font-mono text-xs"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
-                {L(lang, 'Never pass these', 'عبور ندادن این دامنه‌ها')}
-              </span>
-              <textarea
-                rows={4}
-                dir="ltr"
-                value={Array.isArray(settings.neverPassDomains) ? settings.neverPassDomains.join('\n') : String(settings.neverPassDomains || '')}
-                onChange={(e) => onPatch({ neverPassDomains: e.target.value.split('\n') })}
-                placeholder="bank.ir"
-                className="textarea font-mono text-xs"
-              />
-            </label>
-          </div>
+        <div className="ed-fields space-y-4">
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
+              {L(lang, 'Extra domains', 'دامنه‌های اضافی')}
+            </span>
+            <textarea
+              rows={3}
+              dir="ltr"
+              value={Array.isArray(settings.extraDomains) ? settings.extraDomains.join('\n') : String(settings.extraDomains || '')}
+              onChange={(e) => onPatch({ extraDomains: e.target.value.split('\n') })}
+              placeholder="example.com"
+              className="textarea font-mono text-xs"
+            />
+            <span className="mt-1.5 block text-xs text-(--text-muted)">
+              {L(lang, 'One per line. Each entry covers the name and everything below it.', 'در هر خط یک دامنه بنویسید.')}
+            </span>
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
+              {L(lang, 'Never pass these', 'عبور ندادن این دامنه‌ها')}
+            </span>
+            <textarea
+              rows={3}
+              dir="ltr"
+              value={Array.isArray(settings.neverPassDomains) ? settings.neverPassDomains.join('\n') : String(settings.neverPassDomains || '')}
+              onChange={(e) => onPatch({ neverPassDomains: e.target.value.split('\n') })}
+              className="textarea font-mono text-xs"
+            />
+            <span className="mt-1.5 block text-xs text-(--text-muted)">
+              {L(lang, 'Your own exclusions, one per line. Single domains of the built-in lists are switched off in the lists above.', 'استثناهای اختصاصی شما، هر خط یک مورد.')}
+            </span>
+          </label>
         </div>
       </div>
 
@@ -1647,7 +1696,7 @@ export function SmartDnsSection({
           <h2>{L(lang, 'Clients', 'کلاینت‌ها')}</h2>
         </div>
         <div className="ed-fields">
-          <label className="block max-w-xs">
+          <label className="block">
             <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
               {L(lang, 'Addresses per client', 'تعداد آدرس برای هر کلاینت')}
             </span>
@@ -1660,55 +1709,64 @@ export function SmartDnsSection({
               onChange={(e) => onPatch({ maxAddressesPerClient: Number(e.target.value) || 1 })}
               className="input font-mono text-sm"
             />
+            <span className="mt-1.5 block text-xs text-(--text-muted)">
+              {L(
+                lang,
+                'How many IP addresses one client can register. At the limit a new registration replaces the oldest. This is separate from the device limit.',
+                'تعداد آی‌پی مجاز ثبت برای هر کاربر. جدا از محدودیت دستگاه است.',
+              )}
+            </span>
           </label>
         </div>
       </div>
 
-      <FoldSection
-        title={L(lang, 'Advanced', 'پیشرفته')}
-        summaryPrefix={L(lang, 'Upstream resolvers and bind options. ', 'سرورهای DNS بالادست و آدرس‌دهی. ')}
-        summary={String(settings.smartDnsIpv4 || 'Auto')}
-      >
-        <div className="form-row">
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
-              {L(lang, 'Upstream resolvers', 'سرورهای بالادست')}
-            </span>
-            <textarea
-              rows={3}
-              dir="ltr"
-              value={Array.isArray(settings.upstreams) ? settings.upstreams.join('\n') : String(settings.upstreams || '1.1.1.1\n8.8.8.8')}
-              onChange={(e) => onPatch({ upstreams: e.target.value.split('\n') })}
-              className="textarea font-mono text-xs"
-            />
-          </label>
-          <div className="space-y-3">
+      <div className="px-5.5 py-4">
+        <details className="inb-advanced-basics">
+          <summary>{L(lang, 'Advanced', 'پیشرفته')}</summary>
+          <div className="ed-fields space-y-4">
             <label className="block">
               <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
-                {L(lang, 'IPv4 address', 'آدرس IPv4')}
+                {L(lang, 'Upstream resolvers', 'سرورهای بالادست')}
               </span>
-              <input
-                type="text"
+              <textarea
+                rows={3}
                 dir="ltr"
-                value={settings.smartDnsIpv4 || ''}
-                onChange={(e) => onPatch({ smartDnsIpv4: e.target.value })}
-                placeholder={L(lang, 'Auto-detected server IP', 'تشخیص خودکار آی‌پی سرور')}
-                className="input font-mono text-xs"
+                value={Array.isArray(settings.upstreams) ? settings.upstreams.join('\n') : String(settings.upstreams || 'https://1.1.1.1/dns-query')}
+                onChange={(e) => onPatch({ upstreams: e.target.value.split('\n') })}
+                className="textarea font-mono text-xs"
               />
             </label>
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
-                {L(lang, 'IPv6 address', 'آدرس IPv6')}
-              </span>
-              <input
-                type="text"
-                dir="ltr"
-                value={settings.smartDnsIpv6 || ''}
-                onChange={(e) => onPatch({ smartDnsIpv6: e.target.value })}
-                placeholder={L(lang, 'Optional', 'اختیاری')}
-                className="input font-mono text-xs"
-              />
-            </label>
+            <div className="form-row">
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
+                  {L(lang, 'IPv4 address', 'آدرس IPv4')}
+                </span>
+                <input
+                  type="text"
+                  dir="ltr"
+                  value={settings.smartDnsIpv4 || ''}
+                  onChange={(e) => onPatch({ smartDnsIpv4: e.target.value })}
+                  placeholder="203.0.113.10"
+                  className="input font-mono text-xs"
+                />
+                <span className="mt-1.5 block text-xs text-(--text-muted)">
+                  {L(lang, 'Empty uses the public address of the node.', 'در صورت خالی بودن از آدرس عمومی نود استفاده می‌شود.')}
+                </span>
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
+                  {L(lang, 'IPv6 address', 'آدرس IPv6')}
+                </span>
+                <input
+                  type="text"
+                  dir="ltr"
+                  value={settings.smartDnsIpv6 || ''}
+                  onChange={(e) => onPatch({ smartDnsIpv6: e.target.value })}
+                  placeholder="2001:db8::10"
+                  className="input font-mono text-xs"
+                />
+              </label>
+            </div>
             <label className="block">
               <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
                 {L(lang, 'Extra TLS ports', 'پورت‌های TLS اضافی')}
@@ -1721,10 +1779,13 @@ export function SmartDnsSection({
                 placeholder="8443"
                 className="input font-mono text-xs"
               />
+              <span className="mt-1.5 block text-xs text-(--text-muted)">
+                {L(lang, 'Comma separated, for example 8443. Ports 80 and 443 are always passed.', 'جداشده با کاما، مثلاً 8443. پورت‌های ۸۰ و ۴۴۳ همیشه باز هستند.')}
+              </span>
             </label>
           </div>
-        </div>
-      </FoldSection>
+        </details>
+      </div>
     </>
   );
 }
@@ -1750,13 +1811,13 @@ export function TelegramProxySection({
           <p className="ed-lede">
             {L(
               lang,
-              'Choose which MTProto handshake modes this proxy accepts.',
-              'حالت‌های MTProto قابل‌پذیرش توسط این پروکسی را انتخاب کنید.',
+              'Fake-TLS is the hardest to detect and the right choice for almost everyone.',
+              'حالت Fake-TLS سخت‌ترین حالت برای شناسایی و بهترین انتخاب برای اکثر کاربران است.',
             )}
           </p>
         </div>
-        <div className="ed-fields">
-          <div className="checks-inline">
+        <div className="ed-fields space-y-3">
+          <div>
             <label className="switch">
               <input
                 type="checkbox"
@@ -1766,6 +1827,12 @@ export function TelegramProxySection({
               <span className="track" />
               <span className="sw-text">Fake-TLS</span>
             </label>
+            <p className="mt-1 pl-12 text-xs text-(--text-muted)">
+              {L(lang, 'The connection looks like a normal visit to a real website. Needs a recent Telegram app.', 'اتصال شبیه بازدید عادی از یک وب‌سایت واقعی است.')}
+            </p>
+          </div>
+
+          <div>
             <label className="switch">
               <input
                 type="checkbox"
@@ -1775,6 +1842,12 @@ export function TelegramProxySection({
               <span className="track" />
               <span className="sw-text">{L(lang, 'Secure', 'امن (dd)')}</span>
             </label>
+            <p className="mt-1 pl-12 text-xs text-(--text-muted)">
+              {L(lang, 'Random padding. Easier to detect than Fake-TLS.', 'پدینگ تصادفی؛ نسبت به Fake-TLS ساده‌تر شناسایی می‌شود.')}
+            </p>
+          </div>
+
+          <div>
             <label className="switch">
               <input
                 type="checkbox"
@@ -1784,6 +1857,9 @@ export function TelegramProxySection({
               <span className="track" />
               <span className="sw-text">{L(lang, 'Classic', 'کلاسیک')}</span>
             </label>
+            <p className="mt-1 pl-12 text-xs text-(--text-muted)">
+              {L(lang, 'Unpadded legacy mode for very old Telegram clients.', 'حالت قدیمی برای نسخه‌های بسیار قدیم تلگرام.')}
+            </p>
           </div>
         </div>
       </div>
@@ -1791,9 +1867,16 @@ export function TelegramProxySection({
       <div className="ed-section">
         <div>
           <h2>{L(lang, 'Cover site', 'سایت پوششی')}</h2>
+          <p className="ed-lede">
+            {L(
+              lang,
+              'The Fake-TLS handshake claims to be a visit to this site, and anything that is not Telegram is passed on to the real site.',
+              'در حالت Fake-TLS هندشیک شبیه بازدید از این سایت است و سایر درخواست‌ها به سایت واقعی هدایت می‌شوند.',
+            )}
+          </p>
         </div>
         <div className="ed-fields space-y-3">
-          <label className="block max-w-md">
+          <label className="block">
             <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
               {L(lang, 'Fake-TLS domain', 'دامنه Fake-TLS')}
             </span>
@@ -1804,8 +1887,20 @@ export function TelegramProxySection({
               onChange={(e) => onPatch({ fakeTlsDomain: e.target.value })}
               className="input font-mono text-sm"
             />
+            <span className="mt-1.5 block text-xs text-(--text-muted)">
+              {L(lang, 'A large, popular site that is reachable from inside Iran.', 'یک سایت معتبر و بزرگ که از داخل کشور در دسترس باشد.')}
+            </span>
           </label>
-          <div className="checks-inline">
+
+          <p className="banner warn">
+            {L(
+              lang,
+              "The domain is part of every client's link. If you change it later, every client has to add the proxy again with a new link.",
+              'دامنه جزئی از لینک کلاینت‌هاست؛ در صورت تغییر، کاربران باید لینک جدید را دوباره اضافه کنند.',
+            )}
+          </p>
+
+          <div>
             <label className="switch">
               <input
                 type="checkbox"
@@ -1817,6 +1912,12 @@ export function TelegramProxySection({
                 {L(lang, 'Pass other traffic to the real site', 'هدایت سایر ترافیک به سایت واقعی')}
               </span>
             </label>
+            <p className="mt-1 pl-12 text-xs text-(--text-muted)">
+              {L(lang, 'Probes and browsers that connect to the proxy see the real site, not a proxy.', 'مرورگرها و اسکنرها سایت واقعی را می‌بینند.')}
+            </p>
+          </div>
+
+          <div>
             <label className="switch">
               <input
                 type="checkbox"
@@ -1828,6 +1929,9 @@ export function TelegramProxySection({
                 {L(lang, "Copy the site's handshake", 'کپی کردن هندشیک سایت')}
               </span>
             </label>
+            <p className="mt-1 pl-12 text-xs text-(--text-muted)">
+              {L(lang, "Makes the handshake the same size as the real site's.", 'اندازه هندشیک را دقیقاً مشابه سایت اصلی تنظیم می‌کند.')}
+            </p>
           </div>
         </div>
       </div>
@@ -1837,45 +1941,61 @@ export function TelegramProxySection({
           <h2>{L(lang, 'More options', 'گزینه‌های بیشتر')}</h2>
         </div>
         <div className="ed-fields space-y-3">
-          <div className="form-row">
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
-                {L(lang, 'Sponsored channel tag', 'تگ کانال اسپانسری')}
-              </span>
-              <input
-                type="text"
-                dir="ltr"
-                maxLength={32}
-                value={settings.sponsoredTag || ''}
-                onChange={(e) => onPatch({ sponsoredTag: e.target.value })}
-                placeholder={L(lang, '32 chars from @MTProxybot', '۳۲ کاراکتر از @MTProxybot')}
-                className="input font-mono text-xs"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
-                {L(lang, 'Connection limit', 'محدودیت اتصال')}
-              </span>
-              <input
-                type="number"
-                min={1}
-                dir="ltr"
-                value={settings.maxClients ?? 10000}
-                onChange={(e) => onPatch({ maxClients: Number(e.target.value) || 10000 })}
-                className="input font-mono text-sm"
-              />
-            </label>
-          </div>
-          <label className="switch">
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
+              {L(lang, 'Sponsored channel tag', 'تگ کانال اسپانسری')}
+            </span>
             <input
-              type="checkbox"
-              checked={settings.listenIpv6 !== false}
-              onChange={(e) => onPatch({ listenIpv6: e.target.checked })}
+              type="text"
+              dir="ltr"
+              maxLength={32}
+              value={settings.sponsoredTag || ''}
+              onChange={(e) => onPatch({ sponsoredTag: e.target.value })}
+              placeholder="00112233445566778899aabbccddeeff"
+              className="input font-mono text-sm"
             />
-            <span className="track" />
-            <span className="sw-text">{L(lang, 'Listen on IPv6', 'شنود روی IPv6')}</span>
+            <span className="mt-1.5 block text-xs text-(--text-muted)">
+              {L(
+                lang,
+                '32 characters from @MTProxybot, or empty. A client can have its own tag. Needs the middle-proxy network, which turns on by itself.',
+                '۳۲ کاراکتر دریافتی از @MTProxybot یا خالی.',
+              )}
+            </span>
           </label>
-          <p className="text-xs text-(--text-muted)" dir="ltr">
+
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-(--text-secondary)">
+              {L(lang, 'Connection limit', 'محدودیت اتصال')}
+            </span>
+            <input
+              type="number"
+              min={1}
+              dir="ltr"
+              value={settings.maxClients ?? 10000}
+              onChange={(e) => onPatch({ maxClients: Number(e.target.value) || 10000 })}
+              className="input font-mono text-sm"
+            />
+            <span className="mt-1.5 block text-xs text-(--text-muted)">
+              {L(lang, 'Simultaneous connections of the whole proxy. The usual value is 10,000.', 'تعداد اتصالات همزمان کل پروکسی (مقدار معمول ۱۰۰۰۰).')}
+            </span>
+          </label>
+
+          <div>
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={settings.listenIpv6 !== false}
+                onChange={(e) => onPatch({ listenIpv6: e.target.checked })}
+              />
+              <span className="track" />
+              <span className="sw-text">{L(lang, 'Listen on IPv6', 'شنود روی IPv6')}</span>
+            </label>
+            <p className="mt-1 pl-12 text-xs text-(--text-muted)">
+              {L(lang, 'Lets clients reach the proxy over IPv6 as well.', 'امکان اتصال کلاینت‌ها از طریق IPv6.')}
+            </p>
+          </div>
+
+          <p className="pt-1 text-xs text-(--text-muted)" dir="ltr">
             MTProto engine: telemt
           </p>
         </div>
