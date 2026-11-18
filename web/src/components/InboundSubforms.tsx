@@ -1604,7 +1604,7 @@ export function SmartDnsSection({
                         value={domainSearch}
                         onChange={(e) => setDomainSearch(e.target.value)}
                         placeholder={L(lang, 'Search domains', 'جستجوی دامنه‌ها')}
-                        className="input h-9! min-w-[180px] flex-1 text-xs"
+                        className="input h-9! min-w-45 flex-1 text-xs"
                       />
                       <Button
                         size="sm"

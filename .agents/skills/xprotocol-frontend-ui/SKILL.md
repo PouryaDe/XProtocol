@@ -25,3 +25,9 @@ Read [components-and-routes.md](./references/components-and-routes.md) for the e
 - **Clients & Templates**: `ClientsPage.tsx` handles `templatesOnly` resellers, `.txt` batch download, bulk action bar (`set_speed`, `set_devices`, `set_sub`, `apply_template`, `move_owner`, etc.); `ClientDetailPage.tsx` shows V2Ray share URIs + QR + rotate keys + speed/reset fields.
 - **Settings (`SettingsPage.tsx`)**: Delegates heavy tabs to `SettingsWebhooksTab.tsx`, `SettingsBackupDestinations.tsx`, `SettingsSubDomainsAndApps.tsx`, and `SettingsSecurityAndNotifications.tsx`.
 - **I18n**: Update BOTH `web/src/i18n/en.ts` and `web/src/i18n/fa.ts`; put `dir="ltr"` on URLs, CIDRs, tokens, hostnames, ports, and code snippets.
+
+## Tailwind v4 & Ovira CSS Parity Rules
+- **Always use canonical Tailwind v4 spacing-scale tokens (never `[Npx]` when `N % 4 === 0`)**: Tailwind v4 dynamically resolves any multiple of `4px` (`value / 4`): write `min-w-50` instead of `min-w-[200px]`, `min-w-60` instead of `min-w-[240px]`, `min-w-45` instead of `min-w-[180px]`, `min-h-18` instead of `min-h-[72px]`, `min-h-19` instead of `min-h-[76px]`. Only keep bracket notation for non-multiples of 4 (e.g., `min-w-[130px]`, `min-h-[82px]`).
+- **Use Ovira's native `web/src/index.css` layout primitives before adding Tailwind wrappers**:
+  - Xray create page (`/inbounds/new?kind=xray`): transparent canvas `.page.xr-create` + `.xr-canvas-section` (`.xr-step-num`) + `.xr-row-3`/`.xr-row-2` + `<fieldset className="xr-group">` + `.banner.quiet`/`.banner.warn` (do NOT wrap in `.panel.editor` or sticky `.savebar`).
+  - Non-Xray inbound steps (`/inbounds/new`): `.panel.editor` + 5-column `.kind-cards` (desktop) + `.inb-cat-card` + `.kind-badge`.

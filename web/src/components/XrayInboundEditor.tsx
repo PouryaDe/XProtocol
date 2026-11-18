@@ -195,7 +195,7 @@ export function XraySniPickerModal({
             value={customInput}
             onChange={(e) => setCustomInput(e.target.value)}
             placeholder="www.amd.com"
-            className="input h-9! min-w-[200px] flex-1 font-mono text-xs"
+            className="input h-9! min-w-50 flex-1 font-mono text-xs"
           />
           <Button size="sm" variant="secondary" onClick={handleTestCustom} disabled={testing}>
             <Search className="h-3.5 w-3.5" />
@@ -735,7 +735,7 @@ export function XrayAdvancedSection({
                   value={toLinesText(settings.httpHosts)}
                   onChange={(e) => patch({ httpHosts: fromLinesText(e.target.value) })}
                   placeholder="www.bing.com"
-                  className="textarea min-h-[76px]! font-mono text-xs"
+                  className="textarea min-h-19! font-mono text-xs"
                 />
                 <span className="block text-xs text-(--text-muted)">{L('One per line.', 'در هر خط یک مورد.')}</span>
               </label>
@@ -1069,7 +1069,7 @@ export function XrayAdvancedSection({
           <div className="space-y-1.5">
             <span className="text-xs text-(--text-muted)">{L('Camouflage site', 'سایت استتار')}</span>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="relative min-w-[240px] flex-1">
+              <div className="relative min-w-60 flex-1">
                 <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-(--text-muted)" />
                 <input
                   type="text"
@@ -1533,7 +1533,7 @@ export function XrayAdvancedSection({
                 value={toLinesText(settings.relayAllowlist)}
                 onChange={(e) => patch({ relayAllowlist: fromLinesText(e.target.value) })}
                 placeholder="203.0.113.10"
-                className="textarea min-h-[72px]! font-mono text-xs"
+                className="textarea min-h-18! font-mono text-xs"
               />
             </label>
             {inboundId && (
@@ -1575,7 +1575,7 @@ export function XrayAdvancedSection({
                 dir="ltr"
                 value={toLinesText(settings.cdnExtraRanges)}
                 onChange={(e) => patch({ cdnExtraRanges: fromLinesText(e.target.value) })}
-                className="textarea min-h-[72px]! font-mono text-xs"
+                className="textarea min-h-18! font-mono text-xs"
               />
               <span className="block text-xs text-(--text-muted)">
                 {L("The CDN's own ranges are always allowed. Add others here, one per line.", 'بازه‌های CDN همیشه مجاز هستند.')}
