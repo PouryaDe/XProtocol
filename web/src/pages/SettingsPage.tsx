@@ -289,7 +289,13 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
   const cleanSecretPath = (panelAccess.secretPath || '').replace(/^\/+|\/+$/g, '');
   const computedPanelUrl = `${panelAccess.tlsCertFile ? 'https' : 'http'}://${general.publicAddress || window.location.hostname}:${panelAccess.port || 2053}${cleanSecretPath ? `/${cleanSecretPath}/` : '/'}`;
   const selectedLook = LOOKS.find((l) => l.id === subSettings?.look) || LOOKS[0];
-  const effectiveSubAccent = subSettings?.accentColor || selectedLook.defaultHex || ACCENT_PALETTES[accent].dark.accent;
+  const isAutoSubAccent = !subSettings?.accentColor || subSettings.accentColor === 'theme';
+  const panelThemeHex = ACCENT_PALETTES[general.panelColor || accent]?.dark.accent || ACCENT_PALETTES[accent].dark.accent;
+  const effectiveSubAccent = !isAutoSubAccent
+    ? subSettings.accentColor
+    : selectedLook.id === 'night_shift'
+      ? panelThemeHex
+      : selectedLook.defaultHex || panelThemeHex;
 
   return (
     <div className="page">
@@ -637,7 +643,7 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
                         >
                           <span
                             className={`tc-mock ${l.mockClass}`}
-                            style={{ '--mock': subSettings.accentColor || l.defaultHex } as React.CSSProperties}
+                            style={{ '--mock': (!isAutoSubAccent ? subSettings.accentColor : null) || panelThemeHex || l.defaultHex } as React.CSSProperties}
                             aria-hidden="true"
                           >
                             <b>36.4</b>
@@ -663,10 +669,10 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
                     <div className="swatches" role="group" aria-label="Subscription accent">
                       <button
                         type="button"
-                        className={`swatch auto ${!subSettings.accentColor ? 'on' : ''}`}
-                        style={{ '--c': selectedLook.defaultHex } as React.CSSProperties}
-                        onClick={() => setSubSettings({ ...subSettings, accentColor: '' })}
-                        title={isFa ? 'پیش‌فرض قالب' : 'Theme default'}
+                        className={`swatch auto ${isAutoSubAccent ? 'on' : ''}`}
+                        style={{ '--c': panelThemeHex } as React.CSSProperties}
+                        onClick={() => setSubSettings({ ...subSettings, accentColor: 'theme' })}
+                        title={isFa ? 'پیروی از تم پنل' : 'Follow panel theme'}
                       />
                       {SUB_SWATCHES.map((hex) => (
                         <button
@@ -692,9 +698,9 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
                         className="input accent-hex"
                         dir="ltr"
                         maxLength={7}
-                        placeholder={selectedLook.defaultHex}
-                        value={subSettings.accentColor}
-                        onChange={(e) => setSubSettings({ ...subSettings, accentColor: e.target.value.trim() })}
+                        placeholder={panelThemeHex}
+                        value={isAutoSubAccent ? '' : subSettings.accentColor}
+                        onChange={(e) => setSubSettings({ ...subSettings, accentColor: e.target.value.trim() || 'theme' })}
                       />
                     </div>
                   </div>

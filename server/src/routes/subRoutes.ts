@@ -205,10 +205,21 @@ export function createSubRouter(): Router {
     const primarySubUrl = `${primaryOrigin}${subPathClean}/${tokenClean}`;
     const newSubUrl = primaryOrigin !== reqOrigin ? primarySubUrl : undefined;
 
-    const daily = db
-      .prepare("SELECT ts, download_bytes, upload_bytes FROM traffic_samples WHERE granularity = 'day' ORDER BY ts DESC LIMIT 7")
-      .all()
-      .reverse();
+    const dailyFromClient = db
+      .prepare(
+        "SELECT ts, download_bytes, upload_bytes FROM client_traffic_samples WHERE client_id = ? AND granularity = 'day' ORDER BY ts DESC LIMIT 30",
+      )
+      .all(clientId)
+      .reverse() as Array<{ ts: string; download_bytes: number; upload_bytes: number }>;
+
+    const clientDl = Number(client.download_bytes || 0);
+    const clientUl = Number(client.upload_bytes || 0);
+    const daily =
+      dailyFromClient.length > 0
+        ? dailyFromClient
+        : clientDl > 0 || clientUl > 0
+          ? [{ ts: new Date().toISOString().slice(0, 10), download_bytes: clientDl, upload_bytes: clientUl }]
+          : [];
 
     res.json({
       client: {
@@ -231,6 +242,7 @@ export function createSubRouter(): Router {
       appearance: {
         look: subSettings.look,
         accentColor: subSettings.accentColor,
+        panelColor: general.panelColor,
         shopName: subSettings.shopName,
         supportLink: subSettings.supportLink || proxyApps.supportUrl,
         supportButtonText: subSettings.supportButtonText,

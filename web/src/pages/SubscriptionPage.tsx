@@ -22,7 +22,7 @@ import '../styles/subscription.css';
 import { BrandMark, EqLoader, Odometer, useSlidingIndicator } from '../components/UiPrimitives';
 import { TrafficChart, type TrafficSample } from '../components/TrafficChart';
 import { formatBytes, formatBytesParts, formatDateTime } from '../lib/format';
-import { useUi } from '../i18n/context';
+import { useUi, type AccentName } from '../i18n/context';
 import {
   applySubTheme,
   detectPlatform,
@@ -101,6 +101,7 @@ export interface SubPayload {
   appearance: {
     look: string;
     accentColor: string;
+    panelColor?: AccentName;
     shopName: string;
     supportLink: string;
     supportButtonText: string;
@@ -1726,7 +1727,7 @@ function MonoView({ m }: { m: SubViewModel }) {
 /* ======================== ROOT PAGE COMPONENT ======================== */
 
 export function SubscriptionPage({ token }: { token: string }) {
-  const { lang, setLang, resolvedTheme, setTheme, accent } = useUi();
+  const { lang, setLang, resolvedTheme, setTheme, accent, setAccent } = useUi();
   const [rawData, setRawData] = useState<SubPayload | null>(null);
   const [previewOverride, setPreviewOverride] = useState<PreviewSettingsOverride | null>(null);
   const [error, setError] = useState('');
@@ -1760,6 +1761,9 @@ export function SubscriptionPage({ token }: { token: string }) {
       const json = (await res.json()) as SubPayload;
       setRawData(json);
       setUpdatedAt(Date.now());
+      if (json.appearance?.panelColor && window.self === window.top) {
+        setAccent(json.appearance.panelColor);
+      }
       if (!initializedLangRef.current) {
         initializedLangRef.current = true;
         if (json.appearance?.defaultLanguage) {
@@ -1769,7 +1773,7 @@ export function SubscriptionPage({ token }: { token: string }) {
     } catch {
       setError('not_found');
     }
-  }, [subPath, token, setLang]);
+  }, [subPath, token, setLang, setAccent]);
 
   useEffect(() => {
     loadData();
@@ -1818,11 +1822,13 @@ export function SubscriptionPage({ token }: { token: string }) {
   const theme = normalizeSubTheme(data?.appearance.look);
   const mode: SubMode = resolvedTheme === 'light' ? 'light' : 'dark';
   const locale: SubLocale = lang === 'fa' ? 'fa' : 'en';
+  const effectivePanelAccent: AccentName =
+    window.self === window.top ? data?.appearance.panelColor || accent : accent || data?.appearance.panelColor || 'mint';
 
   useLayoutEffect(() => {
     if (!data) return;
-    return applySubTheme(theme, data.appearance.accentColor || '', mode);
-  }, [data, theme, data?.appearance.accentColor, mode, locale, accent]);
+    return applySubTheme(theme, data.appearance.accentColor || '', mode, effectivePanelAccent);
+  }, [data, theme, data?.appearance.accentColor, mode, locale, effectivePanelAccent]);
 
   useEffect(() => {
     if (!data) return;

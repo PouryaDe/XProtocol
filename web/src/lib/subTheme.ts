@@ -1,3 +1,5 @@
+import { ACCENT_PALETTES, type AccentName } from '../i18n/context';
+
 export type SubThemeKey = 'night' | 'aurora' | 'pop' | 'ticket' | 'orbit' | 'mono';
 export type SubMode = 'light' | 'dark';
 export type SubLocale = 'en' | 'fa';
@@ -31,8 +33,16 @@ const ACCENT_CSS_VARS = [
   '--accent-glow',
   '--accent-2',
   '--accent-3',
+  '--focus',
   '--grid-lit',
+  '--grid-dot',
+  '--line',
+  '--line-strong',
+  '--border-subtle',
+  '--border-strong',
   '--blob-a',
+  '--blob-b',
+  '--blob-c',
 ] as const;
 
 export function normalizeSubTheme(look: string | undefined | null): SubThemeKey {
@@ -133,23 +143,65 @@ export function computeSubAccentTokens(theme: SubThemeKey, accentHex: string, mo
   };
 }
 
-export function applySubTheme(theme: SubThemeKey, accentHex: string, mode: SubMode): () => void {
+export function applySubTheme(
+  theme: SubThemeKey,
+  accentHex: string,
+  mode: SubMode,
+  panelAccent: AccentName = 'mint',
+): () => void {
   const root = document.documentElement;
   const prevDark = root.classList.contains('dark');
   const prevLight = root.classList.contains('light');
+  const prevInline = new Map<string, string>();
+  for (const key of ACCENT_CSS_VARS) {
+    prevInline.set(key, root.style.getPropertyValue(key));
+  }
+
   root.dataset.subTheme = theme;
   root.dataset.mode = mode;
   root.classList.toggle('dark', mode === 'dark');
   root.classList.toggle('light', mode === 'light');
 
-  for (const key of ACCENT_CSS_VARS) {
-    root.style.removeProperty(key);
+  const trimmedAccent = (accentHex || '').trim();
+  const hasCustomAccent = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmedAccent);
+  const panelPal = (ACCENT_PALETTES[panelAccent] || ACCENT_PALETTES.mint)[mode];
+
+  let tokens: Record<string, string>;
+  if (hasCustomAccent) {
+    tokens = computeSubAccentTokens(theme, trimmedAccent, mode);
+  } else if (theme === 'night') {
+    tokens = {
+      '--accent': panelPal.accent,
+      '--accent-text': panelPal.accentText,
+      '--accent-ink': panelPal.accentInk,
+      '--accent-wash': panelPal.accentWash,
+      '--accent-glow': panelPal.accentGlow,
+      '--focus': panelPal.focus,
+      '--grid-lit': panelPal.gridLit,
+      '--grid-dot': panelPal.gridDot,
+      '--line': panelPal.line,
+      '--line-strong': panelPal.lineStrong,
+      '--border-subtle': panelPal.line,
+      '--border-strong': panelPal.lineStrong,
+      '--blob-a': panelPal.blobA,
+      '--blob-b': panelPal.blobB,
+      '--blob-c': panelPal.blobC,
+      '--accent-2': panelPal.accent2,
+      '--accent-3': panelPal.accent2,
+    };
+  } else {
+    const usePanelAccent = !trimmedAccent || trimmedAccent.toLowerCase() === 'theme';
+    tokens = computeSubAccentTokens(theme, usePanelAccent ? panelPal.accent : SUB_DEFAULT_ACCENT[theme], mode);
+    if (usePanelAccent) {
+      tokens['--focus'] = panelPal.focus;
+    }
   }
-  const hasCustomAccent = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test((accentHex || '').trim());
-  if (theme !== 'night' || hasCustomAccent) {
-    const tokens = computeSubAccentTokens(theme, accentHex, mode);
-    for (const [k, v] of Object.entries(tokens)) {
-      root.style.setProperty(k, v);
+
+  for (const key of ACCENT_CSS_VARS) {
+    if (tokens[key] !== undefined) {
+      root.style.setProperty(key, tokens[key]);
+    } else {
+      root.style.removeProperty(key);
     }
   }
 
@@ -157,7 +209,12 @@ export function applySubTheme(theme: SubThemeKey, accentHex: string, mode: SubMo
     delete root.dataset.subTheme;
     delete root.dataset.mode;
     for (const key of ACCENT_CSS_VARS) {
-      root.style.removeProperty(key);
+      const prev = prevInline.get(key) || '';
+      if (prev) {
+        root.style.setProperty(key, prev);
+      } else {
+        root.style.removeProperty(key);
+      }
     }
     root.classList.toggle('dark', prevDark);
     root.classList.toggle('light', prevLight);

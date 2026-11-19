@@ -453,6 +453,15 @@ export function initDatabase(): { initialPasswordGenerated?: string } {
       PRIMARY KEY (ts, granularity)
     );
 
+    CREATE TABLE IF NOT EXISTS client_traffic_samples (
+      client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      ts TEXT NOT NULL,
+      granularity TEXT NOT NULL,
+      download_bytes INTEGER NOT NULL DEFAULT 0,
+      upload_bytes INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (client_id, ts, granularity)
+    );
+
     CREATE TABLE IF NOT EXISTS outbounds (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,

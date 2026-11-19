@@ -201,6 +201,7 @@ export async function runCollectorTick(): Promise<void> {
 
   let tickDl = 0;
   let tickUl = 0;
+  const perClientTick = new Map<number, { dl: number; ul: number }>();
 
   // Preserve original connected_at timestamps for sessions already online
   const prevConnectedAt = new Map<string, string>();
@@ -264,6 +265,12 @@ export async function runCollectorTick(): Promise<void> {
     const weightedDelta = Math.round((deltaIn + deltaOut) * mult);
     tickDl += deltaOut;
     tickUl += deltaIn;
+    if (deltaOut > 0 || deltaIn > 0) {
+      const cur = perClientTick.get(client.id) || { dl: 0, ul: 0 };
+      cur.dl += deltaOut;
+      cur.ul += deltaIn;
+      perClientTick.set(client.id, cur);
+    }
 
     if (client.first_connect_days && !client.first_connected_at) {
       const exp = new Date(nowMs + client.first_connect_days * 86400_000).toISOString();
@@ -522,6 +529,20 @@ export async function runCollectorTick(): Promise<void> {
          download_bytes = download_bytes + excluded.download_bytes,
          upload_bytes = upload_bytes + excluded.upload_bytes`,
     ).run(dayKey, tickDl, tickUl);
+  }
+
+  if (perClientTick.size > 0) {
+    const upsertClientSample = db.prepare(
+      `INSERT INTO client_traffic_samples (client_id, ts, granularity, download_bytes, upload_bytes)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(client_id, ts, granularity) DO UPDATE SET
+         download_bytes = download_bytes + excluded.download_bytes,
+         upload_bytes = upload_bytes + excluded.upload_bytes`,
+    );
+    for (const [cid, cDelta] of perClientTick) {
+      upsertClientSample.run(cid, hourKey, 'hour', cDelta.dl, cDelta.ul);
+      upsertClientSample.run(cid, dayKey, 'day', cDelta.dl, cDelta.ul);
+    }
   }
 }
 

@@ -582,6 +582,44 @@ test('Ovira 2.0 end-to-end API: templates, bulk actions, proxy app sub, events, 
       const tgTab = (subData.protocolTabs as Array<{ id: string; profiles: Array<{ uri?: string }> }>).find((t) => t.id === 'telegram');
       assert.ok(String(tgTab?.profiles?.[0]?.uri || '').startsWith('tg://proxy?'));
     }
+
+    // 10. Subscription page follows panelColor and isolates usageChart strictly per client (no server-wide traffic leak)
+    await fetch(`${baseUrl}/api/settings/general`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ panelColor: 'violet' }),
+    });
+    const isolatedClientRes = await fetch(`${baseUrl}/api/clients`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ name: 'sub_isolated_user', trafficLimitGb: 20 }),
+    });
+    assert.equal(isolatedClientRes.status, 201);
+    const isolatedPayload = (await isolatedClientRes.json()) as { items: Array<{ id: number; subToken: string }> };
+    const isolatedClient = isolatedPayload.items[0];
+    db.prepare(
+      "INSERT OR REPLACE INTO traffic_samples (ts, granularity, download_bytes, upload_bytes) VALUES ('2026-11-18', 'day', 999999999, 888888888)",
+    ).run();
+    db.prepare(
+      "INSERT INTO client_traffic_samples (client_id, ts, granularity, download_bytes, upload_bytes) VALUES (?, '2026-11-18', 'day', 12345, 6789)",
+    ).run(isolatedClient.id);
+
+    const isolatedSub = await fetch(`${baseUrl}/sub/${isolatedClient.subToken}/data`).then((r) => r.json());
+    assert.equal(isolatedSub.appearance.panelColor, 'violet');
+    assert.equal(isolatedSub.usageChart.length, 1);
+    assert.equal(isolatedSub.usageChart[0].download_bytes, 12345);
+    assert.equal(isolatedSub.usageChart[0].upload_bytes, 6789);
+
+    const zeroClientRes = await fetch(`${baseUrl}/api/clients`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ name: 'sub_zero_user', trafficLimitGb: 10 }),
+    });
+    assert.equal(zeroClientRes.status, 201);
+    const zeroPayload = (await zeroClientRes.json()) as { items: Array<{ subToken: string }> };
+    const zeroClient = zeroPayload.items[0];
+    const zeroSub = await fetch(`${baseUrl}/sub/${zeroClient.subToken}/data`).then((r) => r.json());
+    assert.deepEqual(zeroSub.usageChart, []);
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
