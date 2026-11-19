@@ -217,6 +217,7 @@ export function XrayWizard({ onBackOtherProtocols }: { onBackOtherProtocols: () 
     try {
       const res = await apiFetch<{ id?: number; ids?: number[] }>('/inbounds', {
         method: 'POST',
+        timeoutMs: 20_000,
         body: JSON.stringify({
           kind: 'xray',
           preset,
@@ -240,7 +241,12 @@ export function XrayWizard({ onBackOtherProtocols }: { onBackOtherProtocols: () 
       }
       navigate(`/inbounds/${createdId}`);
     } catch (err) {
-      setError((err as Error).message);
+      const e = err as Error;
+      setError(
+        e.name === 'AbortError'
+          ? L('Request timed out. Please try again.', 'زمان درخواست به پایان رسید. لطفاً دوباره تلاش کنید.')
+          : e.message,
+      );
       setSubmitting(false);
     }
   };

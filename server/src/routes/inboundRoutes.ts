@@ -43,26 +43,37 @@ async function applyRuntimeBounded(
     }
   }
 
-  const runPromise = applyInboundRuntime(driverMode, row, peers, action)
-    .then((rt) => {
-      recordInboundLogs(row.id, rt.logs);
-      const dbNow = getDb();
-      if (action === 'stop' || !rt.ok) {
-        dbNow.prepare('UPDATE inbounds SET running = 0 WHERE id = ?').run(row.id);
-      }
-      return { completed: true, ok: rt.ok, logs: rt.logs };
-    })
-    .catch((err) => {
-      const msg = `[${new Date().toISOString()}] Runtime ${action} error: ${err instanceof Error ? err.message : String(err)}`;
-      recordInboundLogs(row.id, [msg]);
-      getDb().prepare('UPDATE inbounds SET running = 0 WHERE id = ?').run(row.id);
-      return { completed: true, ok: false, logs: [msg] };
-    });
+  const startRuntimeJob = () =>
+    applyInboundRuntime(driverMode, row, peers, action)
+      .then((rt) => {
+        recordInboundLogs(row.id, rt.logs);
+        const dbNow = getDb();
+        if (action === 'stop' || !rt.ok) {
+          dbNow.prepare('UPDATE inbounds SET running = 0 WHERE id = ?').run(row.id);
+        }
+        return { completed: true, ok: rt.ok, logs: rt.logs };
+      })
+      .catch((err) => {
+        const msg = `[${new Date().toISOString()}] Runtime ${action} error: ${err instanceof Error ? err.message : String(err)}`;
+        recordInboundLogs(row.id, [msg]);
+        getDb().prepare('UPDATE inbounds SET running = 0 WHERE id = ?').run(row.id);
+        return { completed: true, ok: false, logs: [msg] };
+      });
 
   if (process.platform !== 'linux' || driverMode === 'mock') {
-    return await runPromise;
+    return await startRuntimeJob();
   }
 
+  if (inlineTimeoutMs <= 0) {
+    const bgLog = `[${new Date().toISOString()}] Provisioning ${row.name} (${action}) in background...`;
+    recordInboundLogs(row.id, [bgLog]);
+    setImmediate(() => {
+      void startRuntimeJob();
+    });
+    return { completed: false, ok: true, logs: [bgLog] };
+  }
+
+  const runPromise = startRuntimeJob();
   let timer: NodeJS.Timeout | undefined;
   try {
     const res = await Promise.race([
@@ -453,7 +464,7 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
         }
         if (shouldRun) {
           const row = db.prepare('SELECT * FROM inbounds WHERE id = ?').get(id) as unknown as InboundRow;
-          await applyRuntimeBounded(driverMode, row, getInboundPeers(id, row.subnet), 'start');
+          await applyRuntimeBounded(driverMode, row, getInboundPeers(id, row.subnet), 'start', 0);
         }
       }
       recordAudit({ accountId: acc.id, username: acc.username, action: 'instance.create', target: name, ip: req.clientIp });

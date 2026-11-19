@@ -27,20 +27,41 @@ export function registerMfaConfirmHandler(fn: (() => Promise<boolean>) | null): 
   mfaConfirmHandler = fn;
 }
 
-export async function apiFetch<T = unknown>(path: string, init: RequestInit = {}, _retriedMfa = false): Promise<T> {
-  const headers = new Headers(init.headers);
-  if (init.body && !headers.has('Content-Type')) {
+export async function apiFetch<T = unknown>(
+  path: string,
+  init: RequestInit & { timeoutMs?: number } = {},
+  _retriedMfa = false,
+): Promise<T> {
+  const { timeoutMs, signal: outerSignal, ...fetchInit } = init;
+  const headers = new Headers(fetchInit.headers);
+  if (fetchInit.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
-  if (csrfToken && init.method && init.method !== 'GET' && init.method !== 'HEAD') {
+  if (csrfToken && fetchInit.method && fetchInit.method !== 'GET' && fetchInit.method !== 'HEAD') {
     headers.set('X-CSRF-Token', csrfToken);
   }
 
-  const res = await fetch(`${getApiBase()}${path}`, {
-    ...init,
-    headers,
-    credentials: 'include',
-  });
+  const controller = timeoutMs && timeoutMs > 0 ? new AbortController() : null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  if (controller) {
+    timer = setTimeout(() => controller.abort(), timeoutMs);
+    if (outerSignal) {
+      if (outerSignal.aborted) controller.abort();
+      else outerSignal.addEventListener('abort', () => controller.abort(), { once: true });
+    }
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(`${getApiBase()}${path}`, {
+      ...fetchInit,
+      signal: controller ? controller.signal : outerSignal,
+      headers,
+      credentials: 'include',
+    });
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
