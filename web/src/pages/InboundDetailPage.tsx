@@ -183,19 +183,22 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
 
   const hydrateFromInbound = useCallback((ib: InboundItem) => {
     setInbound(ib);
+    const isXray = ib.protocol.toLowerCase() === 'xray';
     const k = normalizeKind(ib.protocol);
     setKind(k);
     setDisplayName(ib.displayName || ib.settings?.displayName || ib.name);
-    setTransport(ib.transport || (k === 'ocserv' ? 'tcp' : 'udp'));
+    setTransport(ib.transport || (isXray || k === 'ocserv' || k === 'telegram' ? 'tcp' : 'udp'));
     setPort(String(ib.port));
     setSubnet(ib.subnet || '');
-    setCidrValid(validateCidr(ib.subnet || '', k).ok);
+    setCidrValid(isXray ? true : validateCidr(ib.subnet || '', k).ok);
     setDescription(ib.description || '');
     setEnabled(!!ib.enabled);
-    const merged: InboundSettings = {
-      ...buildDefaultSettings(k),
-      ...(ib.settings || {}),
-    };
+    const merged: InboundSettings = isXray
+      ? ({ ...(ib.settings || {}) } as InboundSettings)
+      : {
+          ...buildDefaultSettings(k),
+          ...(ib.settings || {}),
+        };
     if (ib.protocol.toLowerCase() === 'amneziawg') {
       merged.obfuscation = 'amnezia';
     }
@@ -406,12 +409,19 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
 
     setSaving(true);
     try {
+      const isXray = inbound.protocol.toLowerCase() === 'xray';
       await apiFetch(`/inbounds/${inbound.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
           displayName: displayName.trim() || inbound.name,
-          transport: kind === 'ikev2' || kind === 'l2tp' ? 'udp' : transport,
-          port: Number(port) || defaultPortForKind(kind),
+          transport: isXray
+            ? String(settings.transport || '') === 'kcp'
+              ? 'udp'
+              : 'tcp'
+            : kind === 'ikev2' || kind === 'l2tp'
+              ? 'udp'
+              : transport,
+          port: Number(port) || (isXray ? inbound.port || 443 : defaultPortForKind(kind)),
           subnet: subnet.trim() || inbound.subnet,
           authMode: settings.authMode || inbound.authMode,
           description: description.trim(),
@@ -723,7 +733,7 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
           </span>
           <div className="flex items-center gap-2.5">
             <span className="kind-badge">
-              {formatKindBadge(kind, settings.obfuscation)}
+              {formatKindBadge(inbound?.protocol || kind, settings.obfuscation)}
             </span>
             {!isNew && (
               <span className="text-xs text-(--text-muted)">
@@ -742,7 +752,7 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder={activeCardMeta.defaultPlaceholder}
+              placeholder={inbound?.protocol === 'xray' ? inbound.name : activeCardMeta.defaultPlaceholder}
               className="w-full rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-3 py-2 text-sm text-(--text-primary)"
             />
             <span className="mt-1.5 block text-xs text-(--text-muted)">
