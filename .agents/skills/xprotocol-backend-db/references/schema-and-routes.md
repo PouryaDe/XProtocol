@@ -5,7 +5,7 @@
 | :----- | :---------- | :-------- |
 | `/api/auth` | `authRoutes.ts` | `/login`, `/logout`, `/me`, `/me/password`, `/me/2fa/{setup,enable,confirm}`, `/me/sessions/:id` |
 | `/api/dashboard` | `dashboardRoutes.ts` | Live overview KPIs, traffic timeseries, protocol counts |
-| `/api/clients` | `clientRoutes.ts` | `POST` -> `{ids, items}`; `POST /bulk` or `/bulk-action`; export `.txt` |
+| `/api/clients` | `clientRoutes.ts` | `GET /:id`, `POST` -> `{ids, items}`; `POST /:id/{enable,disable,extend,replace-certificate,reset-traffic,regenerate-sub}`; `GET /:id/{usage,wireguard}`; `POST /bulk` or `/bulk-action`; export `.txt` |
 | `/api/client-templates` | `templateRoutes.ts` | Owner CRUD -> returns flat `TemplateRow` `{id, name, settings, sort, enabled}` |
 | `/api/groups` | `groupRoutes.ts` | Client groups & bandwidth defaults |
 | `/api/inbounds`, `/api/instances` | `inboundRoutes.ts` | `POST` -> `{id, ids}`; `/defaults?kind=xray`, `/preflight`, `/:id/xray/{reality-keys,sni/replace,certificate,proxy-check}` |
@@ -32,7 +32,7 @@
 - `nodes(id, is_local, name, address, port, node_key, multiplier, connect_addresses_json, allow_from_json, note, enabled, status, last_seen_at, cpu_pct, mem_pct, disk_pct, uptime_sec, real_traffic_bytes, xprotocol_version, openvpn_version, wireguard_ready, openconnect_version, ikev2_ready, l2tp_ready)`
 - `inbounds(id, node_id, protocol, name, transport, port, subnet, auth_mode, description, public_address_override, enabled, running, cert_id, server_public_key, server_private_key, settings_json, created_at)`
 - `groups(id, name, note, all_inbounds, enabled, download_mbps, upload_mbps, created_at)` & `group_inbounds(group_id, inbound_id)`
-- `clients(id, name, owner_id, traffic_limit_bytes, traffic_used_bytes, upload_bytes, download_bytes, expires_at, first_connect_days, first_connected_at, device_limit, download_mbps, upload_mbps, reset_period, reset_every_days, reset_anchor, template_id, next_reset_at, fixed_ip, enabled, note, contact, sub_token, wg_private_key, wg_public_key, vpn_password, xray_uuid, ss_password, sub_update_hours, sub_announce, created_at, last_online_at)`
+- `clients(id, name, owner_id, traffic_limit_bytes, traffic_used_bytes, upload_bytes, download_bytes, total_upload_bytes, total_download_bytes, expires_at, first_connect_days, first_connected_at, device_limit, download_mbps, upload_mbps, reset_period, reset_every_days, reset_anchor, template_id, next_reset_at, fixed_ip, enabled, note, contact, sub_token, cert_serial, cert_expires_at, wg_private_key, wg_public_key, vpn_password, xray_uuid, ss_password, sub_update_hours, sub_announce, created_at, last_online_at)`
   - *Note*: NO `email` or `updated_at` columns; `name`, `owner_id`, `wg_private_key`, `wg_public_key`, `vpn_password`, `sub_token`, `created_at` are `NOT NULL`.
 - `client_groups(client_id, group_id)`, `client_inbounds(client_id, inbound_id)`, `client_device_slots(id, client_id, slot_index, wg_private_key, wg_public_key, created_at)`
 - `connections_live(id, client_id, inbound_id, node_id, remote_ip, tunnel_ip, device, connected_at, bytes_in, bytes_out, speed_in_bps, speed_out_bps)` & `connections_history(...)`

@@ -227,6 +227,59 @@ export async function ensureClientCertificate(clientName: string): Promise<{ cer
   };
 }
 
+/** Read or deterministically derive a client's certificate serial and expiration timestamp without mutating state. */
+export function getClientCertDetails(
+  clientName: string,
+  existingSerial?: string | null,
+  existingExpiresAt?: string | null,
+  fallbackCreatedAt?: string | null,
+): { serial: string; expiresAt: string } {
+  const safeName = clientName.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const crtPath = path.join(getPkiDir(), 'clients', `${safeName}.crt`);
+  if (fs.existsSync(crtPath)) {
+    try {
+      const pem = fs.readFileSync(crtPath, 'utf-8');
+      const cert = new crypto.X509Certificate(pem);
+      const validToMs = Date.parse(cert.validTo);
+      return {
+        serial: cert.serialNumber.toUpperCase(),
+        expiresAt: Number.isFinite(validToMs)
+          ? new Date(validToMs).toISOString()
+          : new Date(Date.now() + 3650 * 86400_000).toISOString(),
+      };
+    } catch {
+      // fall through to stored metadata
+    }
+  }
+  const baseMs = fallbackCreatedAt ? Date.parse(fallbackCreatedAt) || Date.now() : Date.now();
+  const deterministicSerial = crypto
+    .createHash('sha256')
+    .update(`${clientName}:${fallbackCreatedAt || ''}`)
+    .digest('hex')
+    .slice(0, 32)
+    .toUpperCase();
+  return {
+    serial: existingSerial && existingSerial.trim() ? existingSerial.trim().toUpperCase() : deterministicSerial,
+    expiresAt: existingExpiresAt && existingExpiresAt.trim() ? existingExpiresAt : new Date(baseMs + 3650 * 86400_000).toISOString(),
+  };
+}
+
+/** Revoke/remove any existing client PKI cert files and issue a fresh certificate/serial. */
+export async function replaceClientCertificate(clientName: string): Promise<{ serial: string; expiresAt: string }> {
+  const safeName = clientName.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const clientsDir = path.join(getPkiDir(), 'clients');
+  for (const ext of ['crt', 'key', 'csr', 'ext']) {
+    const p = path.join(clientsDir, `${safeName}.${ext}`);
+    try {
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+    } catch {
+      // ignore unlink errors
+    }
+  }
+  await ensureClientCertificate(clientName).catch(() => null);
+  return getClientCertDetails(clientName, '', null, new Date().toISOString());
+}
+
 /** Atomically write current active connection counts per lowercase client name for OpenVPN login enforcement. */
 export function writeLiveClientCounts(countsByClientNameLower: Record<string, number>): void {
   const authDir = getAuthDir();

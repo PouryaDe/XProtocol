@@ -304,8 +304,15 @@ export async function runCollectorTick(): Promise<void> {
     if (weightedDelta > 0) {
       client.traffic_used_bytes += weightedDelta;
       db.prepare(
-        'UPDATE clients SET traffic_used_bytes = traffic_used_bytes + ?, download_bytes = download_bytes + ?, upload_bytes = upload_bytes + ?, last_online_at = ? WHERE id = ?',
-      ).run(weightedDelta, deltaOut, deltaIn, nowIso, client.id);
+        `UPDATE clients
+         SET traffic_used_bytes = traffic_used_bytes + ?,
+             download_bytes = download_bytes + ?,
+             upload_bytes = upload_bytes + ?,
+             total_download_bytes = total_download_bytes + ?,
+             total_upload_bytes = total_upload_bytes + ?,
+             last_online_at = ?
+         WHERE id = ?`,
+      ).run(weightedDelta, deltaOut, deltaIn, deltaOut, deltaIn, nowIso, client.id);
 
       db.prepare('UPDATE accounts SET traffic_used_bytes = traffic_used_bytes + ? WHERE id = ?').run(
         weightedDelta,

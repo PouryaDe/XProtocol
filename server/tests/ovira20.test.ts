@@ -835,6 +835,141 @@ test('Ovira 2.0 end-to-end API: templates, bulk actions, proxy app sub, events, 
     );
     assert.equal(renamedRow?.name, 'user-renamed');
     assert.equal(renamedRow?.expiresAt, null);
+
+    // 15. Client Detail parity APIs: single GET, disable/enable, all-time traffic retention, extend, replace-certificate, usage, wireguard slots
+    const detailCid = severalJson.items[0].id;
+    const wgInb = (
+      await fetch(`${baseUrl}/api/inbounds`, { headers: { Cookie: cookie } }).then((r) => r.json())
+    ).inbounds.find((ib: { protocol: string }) => ib.protocol === 'wireguard') as { id: number } | undefined;
+    assert.ok(wgInb, 'Expected seeded WireGuard inbound');
+
+    await fetch(`${baseUrl}/api/clients/${detailCid}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ deviceLimit: 2, inboundIds: [wgInb.id], trafficGb: 50 }),
+    });
+
+    const dbConn = getDb();
+    dbConn
+      .prepare(
+        'UPDATE clients SET traffic_used_bytes = 5120, download_bytes = 4096, upload_bytes = 1024, total_download_bytes = 4096, total_upload_bytes = 1024 WHERE id = ?',
+      )
+      .run(detailCid);
+
+    const detail1 = (await fetch(`${baseUrl}/api/clients/${detailCid}`, { headers: { Cookie: cookie } }).then((r) =>
+      r.json(),
+    )) as { client: { certSerial: string; certExpiresAt: string; totalDownloadBytes: number; totalUploadBytes: number } };
+    assert.ok(detail1.client.certSerial.length >= 16);
+    assert.ok(detail1.client.certExpiresAt);
+    assert.equal(detail1.client.totalDownloadBytes, 4096);
+    assert.equal(detail1.client.totalUploadBytes, 1024);
+
+    // Disable & enable
+    const disRes = await fetch(`${baseUrl}/api/clients/${detailCid}/disable`, { method: 'POST', headers });
+    assert.equal(disRes.status, 200);
+    const enRes = await fetch(`${baseUrl}/api/clients/${detailCid}/enable`, { method: 'POST', headers });
+    assert.equal(enRes.status, 200);
+
+    // Reset traffic preserves all-time counters
+    const rstRes = await fetch(`${baseUrl}/api/clients/${detailCid}/reset-traffic`, { method: 'POST', headers });
+    assert.equal(rstRes.status, 200);
+    const afterReset = (await fetch(`${baseUrl}/api/clients/${detailCid}`, { headers: { Cookie: cookie } }).then((r) =>
+      r.json(),
+    )) as { client: { trafficUsedBytes: number; totalDownloadBytes: number; totalUploadBytes: number } };
+    assert.equal(afterReset.client.trafficUsedBytes, 0);
+    assert.equal(afterReset.client.totalDownloadBytes, 4096);
+    assert.equal(afterReset.client.totalUploadBytes, 1024);
+
+    // Extend with addDays + addTrafficGb + resetUsedTraffic
+    const extRes = await fetch(`${baseUrl}/api/clients/${detailCid}/extend`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ addDays: 30, addTrafficGb: 25, resetUsedTraffic: true }),
+    });
+    assert.equal(extRes.status, 200);
+    const afterExt = (await fetch(`${baseUrl}/api/clients/${detailCid}`, { headers: { Cookie: cookie } }).then((r) =>
+      r.json(),
+    )) as { client: { trafficLimitBytes: number; expiresAt: string | null } };
+    assert.equal(afterExt.client.trafficLimitBytes, 75 * 1024 ** 3);
+    assert.ok(afterExt.client.expiresAt);
+
+    // Replace certificate rotates serial
+    const certRes = await fetch(`${baseUrl}/api/clients/${detailCid}/replace-certificate`, { method: 'POST', headers });
+    assert.equal(certRes.status, 200);
+    const certJson = (await certRes.json()) as { certSerial: string };
+    assert.notEqual(certJson.certSerial, detail1.client.certSerial);
+
+    // Usage series (24h matches collector.ts ISO hour keys, 30d zero-filled)
+    const curHour = new Date();
+    curHour.setUTCMinutes(0, 0, 0);
+    dbConn
+      .prepare(
+        `INSERT OR REPLACE INTO client_traffic_samples (client_id, ts, granularity, download_bytes, upload_bytes)
+         VALUES (?, ?, 'hour', 12345, 6789)`,
+      )
+      .run(detailCid, curHour.toISOString());
+    const u24 = (await fetch(`${baseUrl}/api/clients/${detailCid}/usage?range=24h`, { headers: { Cookie: cookie } }).then((r) =>
+      r.json(),
+    )) as { points: Array<{ download_bytes: number; upload_bytes: number }> };
+    assert.equal(u24.points.length, 24);
+    assert.equal(u24.points[23].download_bytes, 12345);
+    assert.equal(u24.points[23].upload_bytes, 6789);
+    const u30 = (await fetch(`${baseUrl}/api/clients/${detailCid}/usage?range=30d`, { headers: { Cookie: cookie } }).then((r) =>
+      r.json(),
+    )) as { points: unknown[] };
+    assert.equal(u30.points.length, 30);
+
+    // Extend validation & unlimited-plan preservation edge cases
+    const badExt = await fetch(`${baseUrl}/api/clients/${detailCid}/extend`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ addDays: -5 }),
+    });
+    assert.equal(badExt.status, 400);
+
+    const unlimCid = severalJson.items[1].id;
+    await fetch(`${baseUrl}/api/clients/${unlimCid}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ trafficGb: null }),
+    });
+    const unlimExt = await fetch(`${baseUrl}/api/clients/${unlimCid}/extend`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ addDays: 10, addTrafficGb: 50, resetUsedTraffic: false }),
+    });
+    assert.equal(unlimExt.status, 200);
+    const unlimAfter = (await fetch(`${baseUrl}/api/clients/${unlimCid}`, { headers: { Cookie: cookie } }).then((r) =>
+      r.json(),
+    )) as { client: { trafficLimitBytes: number | null } };
+    assert.equal(unlimAfter.client.trafficLimitBytes, null);
+
+    // Non-existent client returns 404
+    const missingDetail = await fetch(`${baseUrl}/api/clients/999999`, { headers: { Cookie: cookie } });
+    assert.equal(missingDetail.status, 404);
+
+    // WireGuard single-keypair device endpoint, .conf download, reset keys & invalid slot rejection
+    const wgRes = (await fetch(`${baseUrl}/api/clients/${detailCid}/wireguard`, { headers: { Cookie: cookie } }).then((r) =>
+      r.json(),
+    )) as { devices: Array<{ slot: number; inbounds: Array<{ id: number; configText: string }> }> };
+    assert.equal(wgRes.devices.length, 1);
+    const confRes = await fetch(`${baseUrl}/api/clients/${detailCid}/wireguard/1/${wgInb.id}/config.conf`, {
+      headers: { Cookie: cookie },
+    });
+    assert.equal(confRes.status, 200);
+    const confText = await confRes.text();
+    assert.ok(confText.includes('[Interface]'));
+    const wgInvalidSlot = await fetch(`${baseUrl}/api/clients/${detailCid}/wireguard/2/reset`, {
+      method: 'POST',
+      headers,
+    });
+    assert.equal(wgInvalidSlot.status, 400);
+    const wgRst = await fetch(`${baseUrl}/api/clients/${detailCid}/wireguard/1/reset`, { method: 'POST', headers });
+    assert.equal(wgRst.status, 200);
+    const wgResAfter = (await fetch(`${baseUrl}/api/clients/${detailCid}/wireguard`, {
+      headers: { Cookie: cookie },
+    }).then((r) => r.json())) as { devices: Array<{ slot: number; inbounds: Array<{ configText: string }> }> };
+    assert.notEqual(wgResAfter.devices[0].inbounds[0].configText, confText);
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }

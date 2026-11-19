@@ -22,7 +22,7 @@ Read [components-and-routes.md](./references/components-and-routes.md) for the e
 ## Key UI Surfaces & Conventions
 - **Navigation (`Layout.tsx` + `CommandPalette.tsx` + `NotificationsDrawer.tsx`)**: Global `Ctrl+K` / `Cmd+K` search palette, notification bell (`unread` count polling), `Templates` route (`/templates` -> `TemplatesPage`), `BrandMark` interlocking X SVG.
 - **Inbounds**: `/inbounds/new?kind=xray` renders `XrayWizard.tsx`; `/inbounds/:id` renders `XrayInboundEditor.tsx` (presets, combos, SNI probe/scan, key rotation, PROXY check) + shared node/group subforms.
-- **Clients & Templates**: `ClientsPage.tsx` handles `templatesOnly` resellers, `.txt` batch download, bulk action bar (`set_speed`, `set_devices`, `set_sub`, `apply_template`, `move_owner`, etc.); `ClientDetailPage.tsx` shows V2Ray share URIs + QR + rotate keys + speed/reset fields.
+- **Clients & Templates**: `ClientsPage.tsx` handles `templatesOnly` resellers, `.txt` batch download, bulk action bar (`set_speed`, `set_devices`, `set_sub`, `apply_template`, `move_owner`, etc.); `ClientDetailPage.tsx` renders WireGuard device card, Plan (`Lamps` + all-time traffic), Usage (`24h`/`7d`/`30d`/`90d` `TrafficChart`), live/recent connections, masked Xray links + QR + `ON`/`PAUSED` badge, Certificate Details, Extend modal, and `More` `ActionMenu`.
 - **Settings (`SettingsPage.tsx`)**: Delegates heavy tabs to `SettingsWebhooksTab.tsx`, `SettingsBackupDestinations.tsx`, `SettingsSubDomainsAndApps.tsx`, and `SettingsSecurityAndNotifications.tsx`.
 - **I18n**: Update BOTH `web/src/i18n/en.ts` and `web/src/i18n/fa.ts`; put `dir="ltr"` on URLs, CIDRs, tokens, hostnames, ports, and code snippets.
 

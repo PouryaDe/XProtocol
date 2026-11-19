@@ -43,6 +43,8 @@ export interface ClientItem {
   trafficUsedBytes: number;
   uploadBytes?: number;
   downloadBytes?: number;
+  totalUploadBytes?: number;
+  totalDownloadBytes?: number;
   expiresAt: string | null;
   firstConnectDays: number | null;
   firstConnectedAt?: string | null;
@@ -62,6 +64,8 @@ export interface ClientItem {
   note: string;
   contact: string;
   subToken: string;
+  certSerial?: string;
+  certExpiresAt?: string | null;
   groups: { id: number; name: string }[];
   inboundIds: number[];
   createdAt: string;

@@ -11,7 +11,12 @@ type EffectiveLimits = ReturnType<typeof getEffectiveLimits>;
 import { generateClientProfile } from '../generators/profiles.js';
 import type { InboundRow } from '../generators/configs.js';
 import { buildClientXrayServerViews, writeUnifiedXrayConfigFile } from '../drivers/xrayEngine.js';
-import { ensureClientCertificate, ensureOpenVpnPki } from '../drivers/pki.js';
+import {
+  ensureClientCertificate,
+  ensureOpenVpnPki,
+  getClientCertDetails,
+  replaceClientCertificate,
+} from '../drivers/pki.js';
 import { parseOptionalMbps } from '../services/peerResolver.js';
 import { kickClientConnections, scheduleSyncRunningInbounds, syncRunningInbounds } from '../services/syncService.js';
 
@@ -153,6 +158,144 @@ function filterAllowedIds(acc: AuthedAccount, requested: number[], allowed: numb
   return requested.filter((id) => allowed.includes(id));
 }
 
+/** Parse a positive integer route parameter, returning null when malformed. */
+function parsePositiveId(raw: string | string[] | undefined): number | null {
+  const val = Array.isArray(raw) ? raw[0] : raw;
+  const n = Number(val);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+/** Load a client row after verifying view RBAC (`all` or `own`), sending 400/403/404 on failure. */
+function findClientForView(
+  req: AuthedRequest,
+  res: import('express').Response,
+  sqlSelect = 'SELECT * FROM clients WHERE id = ?',
+): Record<string, unknown> | null {
+  const id = parsePositiveId(req.params.id);
+  if (!id) {
+    res.status(404).json({ error: 'Client not found' });
+    return null;
+  }
+  const acc = req.auth!.account;
+  if (acc.permissions.clients.view === 'none') {
+    res.status(403).json({ error: 'No permission to view clients' });
+    return null;
+  }
+  const row = getDb().prepare(sqlSelect).get(id) as Record<string, unknown> | undefined;
+  if (!row) {
+    res.status(404).json({ error: 'Client not found' });
+    return null;
+  }
+  if (!acc.isOwner && acc.permissions.clients.view === 'own' && Number(row.owner_id) !== acc.id) {
+    res.status(403).json({ error: 'No permission to view this client' });
+    return null;
+  }
+  return row;
+}
+
+/** Load a client row after verifying mutation RBAC (`edit`, `delete`, or `resetTraffic`). */
+function findClientForMutation(
+  req: AuthedRequest,
+  res: import('express').Response,
+  perm: 'edit' | 'delete' | 'resetTraffic',
+): Record<string, unknown> | null {
+  const id = parsePositiveId(req.params.id);
+  if (!id) {
+    res.status(404).json({ error: 'Client not found' });
+    return null;
+  }
+  const row = getDb().prepare('SELECT * FROM clients WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+  if (!row) {
+    res.status(404).json({ error: 'Client not found' });
+    return null;
+  }
+  if (!canMutateClient(req.auth!.account, Number(row.owner_id), perm)) {
+    res.status(403).json({ error: 'No permission' });
+    return null;
+  }
+  return row;
+}
+
+/** Resolve the public endpoint hostname for a client profile download. */
+function resolveClientEndpointHost(req: AuthedRequest, inbound: JoinedInboundRow, generalPublicAddr: string): string {
+  const connectAddrs = JSON.parse(inbound.connect_addresses_json || '[]') as string[];
+  const rawHost = connectAddrs[0] || (inbound.node_address !== '127.0.0.1' ? inbound.node_address : generalPublicAddr);
+  const reqHost = req.hostname && req.hostname !== 'localhost' && req.hostname !== '127.0.0.1' ? req.hostname : '';
+  return !rawHost || rawHost === '127.0.0.1' ? reqHost || rawHost || '127.0.0.1' : rawHost;
+}
+
+/** Serialize a raw `clients` SQL row plus live session count and grants into the API DTO. */
+function serializeClientRow(
+  r: Record<string, unknown>,
+  onlineCount: number,
+  groups: { id: number; name: string }[],
+  inboundIds: number[],
+) {
+  const id = Number(r.id);
+  const st = computeClientState(
+    {
+      enabled: Number(r.enabled),
+      traffic_limit_bytes: r.traffic_limit_bytes === null ? null : Number(r.traffic_limit_bytes),
+      traffic_used_bytes: Number(r.traffic_used_bytes),
+      expires_at: r.expires_at ? String(r.expires_at) : null,
+      first_connect_days: r.first_connect_days === null ? null : Number(r.first_connect_days),
+      first_connected_at: r.first_connected_at ? String(r.first_connected_at) : null,
+    },
+    onlineCount,
+  );
+  const cert = getClientCertDetails(
+    String(r.name),
+    r.cert_serial ? String(r.cert_serial) : null,
+    r.cert_expires_at ? String(r.cert_expires_at) : null,
+    r.created_at ? String(r.created_at) : null,
+  );
+  const uploadBytes = Number(r.upload_bytes || 0);
+  const downloadBytes = Number(r.download_bytes || 0);
+  const totalUploadBytes = Math.max(Number(r.total_upload_bytes || 0), uploadBytes);
+  const totalDownloadBytes = Math.max(Number(r.total_download_bytes || 0), downloadBytes);
+  return {
+    id,
+    name: String(r.name),
+    ownerId: Number(r.owner_id),
+    ownerUsername: String(r.owner_username || ''),
+    status: st.status,
+    runningOutReason: st.runningOutReason,
+    trafficLimitBytes: r.traffic_limit_bytes === null ? null : Number(r.traffic_limit_bytes),
+    trafficUsedBytes: Number(r.traffic_used_bytes),
+    uploadBytes,
+    downloadBytes,
+    totalUploadBytes,
+    totalDownloadBytes,
+    expiresAt: r.expires_at ? String(r.expires_at) : null,
+    firstConnectDays: r.first_connect_days === null ? null : Number(r.first_connect_days),
+    firstConnectedAt: r.first_connected_at ? String(r.first_connected_at) : null,
+    deviceLimit: r.device_limit === null ? null : Number(r.device_limit),
+    downloadMbps: r.download_mbps === null || r.download_mbps === undefined ? null : Number(r.download_mbps),
+    uploadMbps: r.upload_mbps === null || r.upload_mbps === undefined ? null : Number(r.upload_mbps),
+    onlineCount,
+    resetPeriod: String(r.reset_period),
+    resetEveryDays: Number(r.reset_every_days || 0),
+    resetAnchor: Number(r.reset_anchor || 0),
+    nextResetAt: r.next_reset_at ? String(r.next_reset_at) : null,
+    templateId: Number(r.template_id || 0),
+    subUpdateHours: Number(r.sub_update_hours || 0),
+    subAnnounce: String(r.sub_announce || ''),
+    fixedIp: String(r.fixed_ip || ''),
+    enabled: Boolean(r.enabled),
+    note: String(r.note || ''),
+    contact: String(r.contact || ''),
+    subToken: String(r.sub_token),
+    certSerial: cert.serial,
+    certExpiresAt: cert.expiresAt,
+    groups,
+    inboundIds,
+    createdAt: String(r.created_at),
+    lastOnlineAt: r.last_online_at ? String(r.last_online_at) : null,
+    vpnPassword: String(r.vpn_password || ''),
+    xrayUuid: String(r.xray_uuid || ''),
+  };
+}
+
 export function createClientRouter(): Router {
   const router = Router();
 
@@ -212,58 +355,34 @@ export function createClientRouter(): Router {
 
     const list = rows.map((r) => {
       const id = Number(r.id);
-      const onlineCount = onlineMap.get(id) || 0;
-      const st = computeClientState(
-        {
-          enabled: Number(r.enabled),
-          traffic_limit_bytes: r.traffic_limit_bytes === null ? null : Number(r.traffic_limit_bytes),
-          traffic_used_bytes: Number(r.traffic_used_bytes),
-          expires_at: r.expires_at ? String(r.expires_at) : null,
-          first_connect_days: r.first_connect_days === null ? null : Number(r.first_connect_days),
-          first_connected_at: r.first_connected_at ? String(r.first_connected_at) : null,
-        },
-        onlineCount,
-      );
-      return {
-        id,
-        name: String(r.name),
-        ownerId: Number(r.owner_id),
-        ownerUsername: String(r.owner_username),
-        status: st.status,
-        runningOutReason: st.runningOutReason,
-        trafficLimitBytes: r.traffic_limit_bytes === null ? null : Number(r.traffic_limit_bytes),
-        trafficUsedBytes: Number(r.traffic_used_bytes),
-        uploadBytes: Number(r.upload_bytes),
-        downloadBytes: Number(r.download_bytes),
-        expiresAt: r.expires_at ? String(r.expires_at) : null,
-        firstConnectDays: r.first_connect_days === null ? null : Number(r.first_connect_days),
-        firstConnectedAt: r.first_connected_at ? String(r.first_connected_at) : null,
-        deviceLimit: r.device_limit === null ? null : Number(r.device_limit),
-        downloadMbps: r.download_mbps === null || r.download_mbps === undefined ? null : Number(r.download_mbps),
-        uploadMbps: r.upload_mbps === null || r.upload_mbps === undefined ? null : Number(r.upload_mbps),
-        onlineCount,
-        resetPeriod: String(r.reset_period),
-        resetEveryDays: Number(r.reset_every_days || 0),
-        resetAnchor: Number(r.reset_anchor || 0),
-        nextResetAt: r.next_reset_at ? String(r.next_reset_at) : null,
-        templateId: Number(r.template_id || 0),
-        subUpdateHours: Number(r.sub_update_hours || 0),
-        subAnnounce: String(r.sub_announce || ''),
-        fixedIp: String(r.fixed_ip || ''),
-        enabled: Boolean(r.enabled),
-        note: String(r.note || ''),
-        contact: String(r.contact || ''),
-        subToken: String(r.sub_token),
-        groups: groupMap.get(id) || [],
-        inboundIds: ciMap.get(id) || [],
-        createdAt: String(r.created_at),
-        lastOnlineAt: r.last_online_at ? String(r.last_online_at) : null,
-        vpnPassword: String(r.vpn_password || ''),
-        xrayUuid: String(r.xray_uuid || ''),
-      };
+      return serializeClientRow(r, onlineMap.get(id) || 0, groupMap.get(id) || [], ciMap.get(id) || []);
     });
 
     res.json({ clients: list });
+  });
+
+  router.get('/:id', (req: AuthedRequest, res) => {
+    const row = findClientForView(
+      req,
+      res,
+      `SELECT c.*, a.username as owner_username
+       FROM clients c JOIN accounts a ON a.id = c.owner_id
+       WHERE c.id = ?`,
+    );
+    if (!row) return;
+    const id = Number(row.id);
+    const db = getDb();
+    const onlineRow = db
+      .prepare('SELECT COUNT(*) as cnt FROM connections_live WHERE client_id = ?')
+      .get(id) as { cnt: number };
+    const groups = db
+      .prepare('SELECT g.id, g.name FROM client_groups cg JOIN groups g ON g.id = cg.group_id WHERE cg.client_id = ?')
+      .all(id) as { id: number; name: string }[];
+    const inboundIds = (
+      db.prepare('SELECT inbound_id FROM client_inbounds WHERE client_id = ?').all(id) as { inbound_id: number }[]
+    ).map((r) => r.inbound_id);
+
+    res.json({ client: serializeClientRow(row, onlineRow?.cnt || 0, groups, inboundIds) });
   });
 
   router.post('/', async (req: AuthedRequest, res) => {
@@ -427,9 +546,10 @@ export function createClientRouter(): Router {
     const createdIds: number[] = [];
     const createdItems: Array<{ id: number; name: string; subToken: string }> = [];
     const now = new Date().toISOString();
+    const certExpiresAt = new Date(Date.now() + 3650 * 86400_000).toISOString();
     const insert = db.prepare(
-      `INSERT INTO clients (name, owner_id, traffic_limit_bytes, expires_at, first_connect_days, device_limit, reset_period, reset_every_days, reset_anchor, next_reset_at, template_id, sub_update_hours, sub_announce, fixed_ip, enabled, note, contact, sub_token, wg_private_key, wg_public_key, vpn_password, xray_uuid, ss_password, download_mbps, upload_mbps, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO clients (name, owner_id, traffic_limit_bytes, expires_at, first_connect_days, device_limit, reset_period, reset_every_days, reset_anchor, next_reset_at, template_id, sub_update_hours, sub_announce, fixed_ip, enabled, note, contact, sub_token, wg_private_key, wg_public_key, vpn_password, xray_uuid, ss_password, download_mbps, upload_mbps, cert_serial, cert_expires_at, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
 
     const subUpdateHours = useTemplateValues && tplSettings
@@ -448,6 +568,7 @@ export function createClientRouter(): Router {
         const keys = generateWireGuardKeypair();
         const vpnPass = !isBulk && body.vpnPassword?.trim() ? body.vpnPassword.trim() : randomToken(12);
         const subTok = randomToken(18);
+        const certSerial = crypto.randomBytes(16).toString('hex').toUpperCase();
         const info = insert.run(
           name,
           acc.id,
@@ -474,6 +595,8 @@ export function createClientRouter(): Router {
           generateSs2022Key('2022-blake3-aes-128-gcm'),
           effDlMbps,
           effUlMbps,
+          certSerial,
+          certExpiresAt,
           now,
         );
         const cid = Number(info.lastInsertRowid);
@@ -702,7 +825,7 @@ export function createClientRouter(): Router {
     res.json({ ok: true });
   });
 
-  router.post('/:id/reset-traffic', async (req: AuthedRequest, res) => {
+  const handleResetTraffic = async (req: AuthedRequest, res: import('express').Response) => {
     const id = Number(req.params.id);
     const acc = req.auth!.account;
     const db = getDb();
@@ -727,7 +850,325 @@ export function createClientRouter(): Router {
     recordAudit({ accountId: acc.id, username: acc.username, action: 'client.update', target: existing.name, details: 'reset traffic', ip: req.clientIp });
     await syncAfterClientChange();
     res.json({ ok: true });
+  };
+
+  router.post('/:id/reset-traffic', handleResetTraffic);
+  router.post('/:id/reset', handleResetTraffic);
+
+  const handleSetEnabled = (targetEnabled: boolean) => async (req: AuthedRequest, res: import('express').Response) => {
+    const existing = findClientForMutation(req, res, 'edit');
+    if (!existing) return;
+    const id = Number(existing.id);
+    const acc = req.auth!.account;
+    getDb().prepare('UPDATE clients SET enabled = ? WHERE id = ?').run(targetEnabled ? 1 : 0, id);
+    if (!targetEnabled) {
+      await kickClientConnections(id, 'client_disabled').catch(() => 0);
+    }
+    recordAudit({
+      accountId: acc.id,
+      username: acc.username,
+      action: 'client.update',
+      target: String(existing.name),
+      details: targetEnabled ? 'enabled' : 'disabled',
+      ip: req.clientIp,
+    });
+    await syncAfterClientChange();
+    res.json({ ok: true, enabled: targetEnabled });
+  };
+
+  router.post('/:id/enable', handleSetEnabled(true));
+  router.post('/:id/disable', handleSetEnabled(false));
+
+  router.post('/:id/extend', async (req: AuthedRequest, res) => {
+    const existing = findClientForMutation(req, res, 'edit');
+    if (!existing) return;
+    const id = Number(existing.id);
+    const acc = req.auth!.account;
+    const limits = getEffectiveLimits(acc);
+    if (!acc.isOwner && limits.templatesOnly) {
+      res.status(403).json({ error: 'Your role may only extend plans via approved templates' });
+      return;
+    }
+
+    const body = req.body as {
+      addDays?: number;
+      addTrafficGb?: number;
+      resetUsedTraffic?: boolean;
+    };
+    const rawDays = body.addDays === undefined || body.addDays === null ? 0 : Number(body.addDays);
+    const rawGb = body.addTrafficGb === undefined || body.addTrafficGb === null ? 0 : Number(body.addTrafficGb);
+    if (!Number.isFinite(rawDays) || rawDays < 0 || rawDays > 36500) {
+      res.status(400).json({ error: 'Invalid addDays value' });
+      return;
+    }
+    if (!Number.isFinite(rawGb) || rawGb < 0 || rawGb > 1_000_000) {
+      res.status(400).json({ error: 'Invalid addTrafficGb value' });
+      return;
+    }
+    const addDays = Math.trunc(rawDays);
+    const addTrafficGb = rawGb;
+    const resetUsed = Boolean(body.resetUsedTraffic);
+
+    const curExpMs = existing.expires_at ? Date.parse(String(existing.expires_at)) : 0;
+    const nextExp =
+      addDays > 0
+        ? new Date((curExpMs > Date.now() ? curExpMs : Date.now()) + addDays * 86400_000).toISOString()
+        : (existing.expires_at as string | null);
+    const nextFirstConnectDays = addDays > 0 ? null : ((existing.first_connect_days as number | null) ?? null);
+
+    // Keep unlimited plans unlimited (`null`) when extending so default form values never silently cap them.
+    const curLimit = existing.traffic_limit_bytes === null ? null : Number(existing.traffic_limit_bytes);
+    const addBytes = addTrafficGb > 0 ? Math.round(addTrafficGb * GB) : 0;
+    const nextLimit = addBytes > 0 && curLimit !== null ? curLimit + addBytes : curLimit;
+
+    if (!acc.isOwner) {
+      const boundErr = validateRoleQuotaBounds(limits, {
+        trafficLimitBytes: nextLimit,
+        deviceLimit: existing.device_limit === null ? null : Number(existing.device_limit),
+        expiresAt: nextExp,
+      });
+      if (boundErr) {
+        res.status(400).json({ error: boundErr });
+        return;
+      }
+    }
+
+    const db = getDb();
+    if (resetUsed) {
+      db.prepare(
+        `UPDATE clients
+         SET expires_at = ?, first_connect_days = ?, traffic_limit_bytes = ?,
+             traffic_used_bytes = 0, upload_bytes = 0, download_bytes = 0
+         WHERE id = ?`,
+      ).run(nextExp, nextFirstConnectDays, nextLimit, id);
+    } else {
+      db.prepare(
+        `UPDATE clients
+         SET expires_at = ?, first_connect_days = ?, traffic_limit_bytes = ?
+         WHERE id = ?`,
+      ).run(nextExp, nextFirstConnectDays, nextLimit, id);
+    }
+
+    recordAudit({
+      accountId: acc.id,
+      username: acc.username,
+      action: 'client.extend',
+      target: String(existing.name),
+      details: `+${addDays}d +${addTrafficGb}GB${resetUsed ? ' +reset' : ''}`,
+      ip: req.clientIp,
+    });
+    await syncAfterClientChange();
+    res.json({ ok: true });
   });
+
+  router.post('/:id/replace-certificate', async (req: AuthedRequest, res) => {
+    const existing = findClientForMutation(req, res, 'edit');
+    if (!existing) return;
+    const id = Number(existing.id);
+    const acc = req.auth!.account;
+    const clientName = String(existing.name);
+    const cert = await replaceClientCertificate(clientName);
+    getDb().prepare('UPDATE clients SET cert_serial = ?, cert_expires_at = ? WHERE id = ?').run(
+      cert.serial,
+      cert.expiresAt,
+      id,
+    );
+    await kickClientConnections(id, 'certificate_replaced').catch(() => 0);
+    await syncAfterClientChange();
+    recordAudit({
+      accountId: acc.id,
+      username: acc.username,
+      action: 'client.cert.replace',
+      target: clientName,
+      ip: req.clientIp,
+    });
+    res.json({ ok: true, certSerial: cert.serial, certExpiresAt: cert.expiresAt });
+  });
+
+  router.get('/:id/usage', (req: AuthedRequest, res) => {
+    const client = findClientForView(req, res, 'SELECT id, owner_id FROM clients WHERE id = ?');
+    if (!client) return;
+    const id = Number(client.id);
+    const db = getDb();
+
+    const rawRange = String(req.query.range || '30d');
+    const range = rawRange === '24h' || rawRange === '7d' || rawRange === '90d' ? rawRange : '30d';
+    const now = new Date();
+    const points: Array<{ ts: string; download_bytes: number; upload_bytes: number }> = [];
+
+    if (range === '24h') {
+      const rows = db
+        .prepare(
+          "SELECT ts, download_bytes, upload_bytes FROM client_traffic_samples WHERE client_id = ? AND granularity = 'hour' ORDER BY ts DESC LIMIT 48",
+        )
+        .all(id) as Array<{ ts: string; download_bytes: number; upload_bytes: number }>;
+      // Index by YYYY-MM-DDTHH prefix so collector.ts ISO keys (`...THH:00:00.000Z`) match cleanly.
+      const map = new Map(rows.map((r) => [r.ts.slice(0, 13), r]));
+      const cur = new Date(now);
+      cur.setUTCMinutes(0, 0, 0);
+      for (let i = 23; i >= 0; i--) {
+        const d = new Date(cur.getTime() - i * 3600_000);
+        const hourPrefix = d.toISOString().slice(0, 13);
+        const hit = map.get(hourPrefix);
+        points.push({
+          ts: d.toISOString(),
+          download_bytes: hit ? Number(hit.download_bytes || 0) : 0,
+          upload_bytes: hit ? Number(hit.upload_bytes || 0) : 0,
+        });
+      }
+      res.json({ range, bucket: 'hour', points });
+      return;
+    }
+
+    const days = range === '7d' ? 7 : range === '90d' ? 90 : 30;
+    const rows = db
+      .prepare(
+        "SELECT ts, download_bytes, upload_bytes FROM client_traffic_samples WHERE client_id = ? AND granularity = 'day' ORDER BY ts DESC LIMIT ?",
+      )
+      .all(id, days + 2) as Array<{ ts: string; download_bytes: number; upload_bytes: number }>;
+    const map = new Map(rows.map((r) => [r.ts.slice(0, 10), r]));
+    const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    for (let i = days - 1; i >= 0; i--) {
+      const key = new Date(todayUtc - i * 86400_000).toISOString().slice(0, 10);
+      const hit = map.get(key);
+      points.push({
+        ts: key,
+        download_bytes: hit ? Number(hit.download_bytes || 0) : 0,
+        upload_bytes: hit ? Number(hit.upload_bytes || 0) : 0,
+      });
+    }
+    res.json({ range, bucket: 'day', points });
+  });
+
+  router.get('/:id/wireguard', (req: AuthedRequest, res) => {
+    const client = findClientForView(req, res);
+    if (!client) return;
+    const id = Number(client.id);
+
+    const wgInbounds = resolveClientInbounds(id).filter(
+      (i) => i.protocol === 'wireguard' || i.protocol === 'amneziawg',
+    );
+    if (wgInbounds.length === 0) {
+      res.json({ devices: [] });
+      return;
+    }
+
+    const general = getSetting('general', DEFAULT_GENERAL_SETTINGS);
+    const wgLive = getDb()
+      .prepare(
+        `SELECT cl.inbound_id, cl.bytes_in, cl.bytes_out, cl.connected_at
+         FROM connections_live cl
+         JOIN inbounds i ON i.id = cl.inbound_id
+         WHERE cl.client_id = ? AND i.protocol IN ('wireguard', 'amneziawg')`,
+      )
+      .all(id) as Array<{ inbound_id: number; bytes_in: number; bytes_out: number; connected_at: string }>;
+
+    const privKey = String(client.wg_private_key || '');
+    const slotInbounds = wgInbounds.map((ib) => {
+      const endpointHost = resolveClientEndpointHost(req, ib, general.publicAddress);
+      const prof = generateClientProfile({
+        clientName: String(client.name),
+        vpnPassword: String(client.vpn_password || ''),
+        wgPrivateKey: privKey,
+        fixedIp: String(client.fixed_ip || ''),
+        clientIndex: id,
+        inbound: ib,
+        endpointHost,
+        nodeName: ib.node_name,
+      });
+      return {
+        id: ib.id,
+        name: ib.name,
+        port: ib.port,
+        protocol: ib.protocol,
+        configText: prof.content,
+        filename: prof.filename,
+      };
+    });
+
+    const totalUp = wgLive.reduce((acc, s) => acc + Number(s.bytes_in || 0), 0);
+    const totalDown = wgLive.reduce((acc, s) => acc + Number(s.bytes_out || 0), 0);
+    res.json({
+      devices: [
+        {
+          slot: 1,
+          online: wgLive.length > 0,
+          lastHandshakeAt: wgLive[0]?.connected_at || (client.last_online_at ? String(client.last_online_at) : null),
+          uploadBytes: totalUp,
+          downloadBytes: totalDown,
+          inbounds: slotInbounds,
+        },
+      ],
+    });
+  });
+
+  router.get('/:id/wireguard/:slot/:inboundId/config.conf', (req: AuthedRequest, res) => {
+    const client = findClientForView(req, res);
+    if (!client) return;
+    const id = Number(client.id);
+    const slot = parsePositiveId(req.params.slot);
+    if (slot !== 1) {
+      res.status(400).json({ error: 'Only WireGuard device slot 1 is supported (single keypair per client)' });
+      return;
+    }
+    const inboundId = parsePositiveId(req.params.inboundId);
+    const wgInbounds = resolveClientInbounds(id).filter(
+      (i) => i.protocol === 'wireguard' || i.protocol === 'amneziawg',
+    );
+    const inbound = (inboundId ? wgInbounds.find((i) => i.id === inboundId) : undefined) || wgInbounds[0];
+    if (!inbound) {
+      res.status(404).json({ error: 'WireGuard inbound not assigned' });
+      return;
+    }
+
+    const general = getSetting('general', DEFAULT_GENERAL_SETTINGS);
+    const endpointHost = resolveClientEndpointHost(req, inbound, general.publicAddress);
+    const prof = generateClientProfile({
+      clientName: String(client.name),
+      vpnPassword: String(client.vpn_password || ''),
+      wgPrivateKey: String(client.wg_private_key || ''),
+      fixedIp: String(client.fixed_ip || ''),
+      clientIndex: id,
+      inbound,
+      endpointHost,
+      nodeName: inbound.node_name,
+    });
+    res.setHeader('Content-Type', prof.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${prof.filename}"`);
+    res.send(prof.content);
+  });
+
+  const handleResetWireguardSlot = async (req: AuthedRequest, res: import('express').Response) => {
+    const existing = findClientForMutation(req, res, 'edit');
+    if (!existing) return;
+    const id = Number(existing.id);
+    const slot = parsePositiveId(req.params.slot);
+    if (slot !== 1) {
+      res.status(400).json({ error: 'Only WireGuard device slot 1 is supported (single keypair per client)' });
+      return;
+    }
+    const acc = req.auth!.account;
+    const keys = generateWireGuardKeypair();
+    getDb().prepare('UPDATE clients SET wg_private_key = ?, wg_public_key = ? WHERE id = ?').run(
+      keys.privateKey,
+      keys.publicKey,
+      id,
+    );
+    await kickClientConnections(id, 'wg_keys_rotated').catch(() => 0);
+    await syncAfterClientChange();
+    recordAudit({
+      accountId: acc.id,
+      username: acc.username,
+      action: 'client.wg.reset',
+      target: String(existing.name),
+      details: `slot ${slot}`,
+      ip: req.clientIp,
+    });
+    res.json({ ok: true, slot });
+  };
+
+  router.post('/:id/wireguard/:slot/reset', handleResetWireguardSlot);
+  router.post('/:id/wireguard/:slot/:inboundId/reset', handleResetWireguardSlot);
 
   router.post('/:id/regenerate-sub', (req: AuthedRequest, res) => {
     const id = Number(req.params.id);

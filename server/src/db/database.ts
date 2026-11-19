@@ -648,6 +648,10 @@ export function initDatabase(): { initialPasswordGenerated?: string } {
   ensureCol('clients', 'template_id', 'INTEGER NOT NULL DEFAULT 0');
   ensureCol('clients', 'sub_update_hours', 'INTEGER NOT NULL DEFAULT 0');
   ensureCol('clients', 'sub_announce', "TEXT NOT NULL DEFAULT ''");
+  ensureCol('clients', 'total_upload_bytes', 'INTEGER NOT NULL DEFAULT 0');
+  ensureCol('clients', 'total_download_bytes', 'INTEGER NOT NULL DEFAULT 0');
+  ensureCol('clients', 'cert_serial', "TEXT NOT NULL DEFAULT ''");
+  ensureCol('clients', 'cert_expires_at', 'TEXT');
   ensureCol('routing_policies', 'inbound_routes_json', "TEXT NOT NULL DEFAULT '[]'");
   ensureCol('accounts', 'override_allowed_templates_json', "TEXT NOT NULL DEFAULT '[]'");
   ensureCol('accounts', 'override_templates_only', 'INTEGER');
@@ -678,6 +682,12 @@ export function initDatabase(): { initialPasswordGenerated?: string } {
       );
     }
   }
+
+  db.exec(
+    `UPDATE clients
+     SET total_upload_bytes = upload_bytes, total_download_bytes = download_bytes
+     WHERE total_upload_bytes = 0 AND total_download_bytes = 0 AND (upload_bytes > 0 OR download_bytes > 0)`,
+  );
 
   const now = new Date().toISOString();
 
