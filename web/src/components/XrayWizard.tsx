@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Loader2, Plus } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { navigate } from '../lib/router';
@@ -106,6 +106,7 @@ export function XrayWizard({ onBackOtherProtocols }: { onBackOtherProtocols: () 
   const [loadingDefaults, setLoadingDefaults] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const baselineSettingsRef = useRef<Record<string, unknown>>({});
 
   useEffect(() => {
     Promise.all([
@@ -145,6 +146,7 @@ export function XrayWizard({ onBackOtherProtocols }: { onBackOtherProtocols: () 
         };
       }
       setSettings(loaded);
+      baselineSettingsRef.current = res.settings ? { ...res.settings } : {};
       setSniGrade(res.sniGrade || '');
       setSniMillis(res.sniMillis ?? null);
       setDirty(false);
@@ -215,6 +217,30 @@ export function XrayWizard({ onBackOtherProtocols }: { onBackOtherProtocols: () 
     setSubmitting(true);
     setError('');
     try {
+      const mergedSettings: Record<string, unknown> =
+        preset === 'cdn' && cdnDomain.trim()
+          ? {
+              ...settings,
+              cdnDomain: cdnDomain.trim(),
+              behindCdn: true,
+              host: String(settings.host || cdnDomain.trim()),
+            }
+          : settings;
+
+      // Only send keys that differ from preset defaults (plus generated Reality keys if present)
+      // so POST stays tiny and fits in a single TCP segment on low-MTU / PPPoE links.
+      const base = baselineSettingsRef.current;
+      const compactSettings: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(mergedSettings)) {
+        if (JSON.stringify(v) !== JSON.stringify(base[k])) {
+          compactSettings[k] = v;
+        }
+      }
+      if (String(mergedSettings.security || '') === 'reality') {
+        if (mergedSettings.realityPublicKey) compactSettings.realityPublicKey = mergedSettings.realityPublicKey;
+        if (mergedSettings._realityPrivateKey) compactSettings._realityPrivateKey = mergedSettings._realityPrivateKey;
+      }
+
       const res = await apiFetch<{ id?: number; ids?: number[] }>('/inbounds', {
         method: 'POST',
         timeoutMs: 20_000,
@@ -224,15 +250,7 @@ export function XrayWizard({ onBackOtherProtocols }: { onBackOtherProtocols: () 
           nodeId: Number(selectedNodeId),
           port,
           displayName: displayName.trim() || undefined,
-          settings:
-            preset === 'cdn' && cdnDomain.trim()
-              ? {
-                  ...settings,
-                  cdnDomain: cdnDomain.trim(),
-                  behindCdn: true,
-                  host: String(settings.host || cdnDomain.trim()),
-                }
-              : settings,
+          settings: compactSettings,
         }),
       });
       const createdId = res.id ?? res.ids?.[0];
