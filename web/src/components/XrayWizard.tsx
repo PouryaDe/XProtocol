@@ -215,7 +215,7 @@ export function XrayWizard({ onBackOtherProtocols }: { onBackOtherProtocols: () 
     setSubmitting(true);
     setError('');
     try {
-      const res = await apiFetch<{ id: number; ids?: number[] }>('/inbounds', {
+      const res = await apiFetch<{ id?: number; ids?: number[] }>('/inbounds', {
         method: 'POST',
         body: JSON.stringify({
           kind: 'xray',
@@ -234,7 +234,11 @@ export function XrayWizard({ onBackOtherProtocols }: { onBackOtherProtocols: () 
               : settings,
         }),
       });
-      navigate(`/inbounds/${res.id}`);
+      const createdId = res.id ?? res.ids?.[0];
+      if (!createdId) {
+        throw new Error(L('Server did not return an inbound ID.', 'سرور شناسه اینباند را برنگرداند.'));
+      }
+      navigate(`/inbounds/${createdId}`);
     } catch (err) {
       setError((err as Error).message);
       setSubmitting(false);
@@ -422,6 +426,12 @@ export function XrayWizard({ onBackOtherProtocols }: { onBackOtherProtocols: () 
               sniGrade={sniGrade}
               sniMillis={sniMillis}
             />
+          )}
+
+          {error && (
+            <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2.5 text-xs text-red-400">
+              {error}
+            </div>
           )}
 
           <div className="pt-1">

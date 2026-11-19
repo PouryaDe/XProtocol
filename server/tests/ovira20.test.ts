@@ -562,6 +562,16 @@ test('Ovira 2.0 end-to-end API: templates, bulk actions, proxy app sub, events, 
     assert.equal(unifiedAfterStart.configJson.includes('geoip:private'), false);
     assert.ok(unifiedAfterStart.configJson.includes((db.prepare('SELECT name FROM inbounds WHERE id = ?').get(xrRemJson.id) as { name: string }).name));
 
+    // Verify default SNI is www.microsoft.com and /xray/sni/test job completes cleanly
+    const xrDefRes = await fetch(`${baseUrl}/api/inbounds/defaults?kind=xray&preset=direct&node=1`, { headers: { Cookie: cookie } }).then((r) => r.json());
+    assert.equal(xrDefRes.settings?.reality?.serverNames?.[0], 'www.microsoft.com');
+    const sniTestJob = await fetch(`${baseUrl}/api/xray/sni/test`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ node: 1, domains: ['www.microsoft.com'] }),
+    }).then((r) => r.json());
+    assert.ok(sniTestJob.id);
+
     const clientsList = await fetch(`${baseUrl}/api/clients`, { headers: { Cookie: cookie } }).then((r) => r.json());
     const anyToken = String(clientsList.clients?.[0]?.subToken || '');
     if (anyToken) {

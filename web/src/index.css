@@ -2516,14 +2516,18 @@ h1 .w > span {
   .xr-row-3, .xr-row-2 { grid-template-columns: minmax(0, 1fr); }
 }
 
+.xr-groups {
+  display: grid;
+  gap: 16px;
+}
 .xr-group {
   margin: 0;
   min-inline-size: 0;
-  padding: 16px 20px 20px;
+  padding: 14px 18px 18px;
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 .xr-group > legend {
   padding-inline: 8px;
@@ -2537,6 +2541,32 @@ h1 .w > span {
   align-items: center;
   gap: 10px;
   font-size: var(--t-sm);
+}
+.xr-grade-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: var(--t-xs);
+  font-weight: 600;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+.xr-grade-pill.good {
+  border: 1px solid color-mix(in srgb, var(--good) 55%, var(--line));
+  background: color-mix(in srgb, var(--good) 12%, transparent);
+  color: var(--good);
+}
+.xr-grade-pill.warn {
+  border: 1px solid color-mix(in srgb, var(--warn) 55%, var(--line));
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  color: var(--warn);
+}
+.xr-grade-pill.bad {
+  border: 1px solid color-mix(in srgb, var(--bad) 55%, var(--line));
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+  color: var(--bad);
 }
 .xr-neighbours-btn {
   display: flex;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   AlertTriangle,
+  CheckCircle2,
   Plus,
   RefreshCw,
   Search,
@@ -19,9 +20,8 @@ export interface XrayComboItem {
   protocol: string;
   transport: string;
   security: string;
-  flowOptions: string[];
-  deprecatedProto: boolean;
-  deprecatedTransport: boolean;
+  flows: string[];
+  deprecated: string[];
 }
 
 export interface XrayCombosResponse {
@@ -81,10 +81,95 @@ function fromLinesText(text: string): string[] {
 
 function gradeTone(grade: string): 'green' | 'amber' | 'red' | 'gray' {
   const g = grade.toLowerCase();
-  if (g === 'good') return 'green';
-  if (g === 'okay') return 'amber';
-  if (g === 'poor') return 'red';
+  if (g === 'good' || g === 'green') return 'green';
+  if (g === 'okay' || g === 'yellow') return 'amber';
+  if (g === 'poor' || g === 'red') return 'red';
   return 'gray';
+}
+
+function formatGradeMeta(grade: string): { label: string; cls: 'good' | 'warn' | 'bad' } {
+  const g = grade.toLowerCase();
+  if (g === 'good' || g === 'green') return { label: 'Good', cls: 'good' };
+  if (g === 'okay' || g === 'yellow') return { label: 'Okay', cls: 'warn' };
+  return { label: 'Poor', cls: 'bad' };
+}
+
+interface RawBackendSniResult {
+  domain: string;
+  grade: string;
+  tlsMs?: number;
+  tcpMs?: number;
+  reasons?: string[];
+  tag?: string;
+}
+
+interface RawSniListResponse {
+  curated?: Array<{ domain: string; tag?: string; last?: RawBackendSniResult | null }>;
+  neighbours?: Array<{ domain: string; tag?: string; grade?: string; tlsMs?: number; last?: RawBackendSniResult | null }>;
+  items?: SniCandidate[];
+}
+
+function mapRawSniResult(r: RawBackendSniResult): SniCandidate {
+  const meta = formatGradeMeta(r.grade);
+  return {
+    domain: r.domain,
+    grade: meta.label,
+    millis: r.tlsMs ?? r.tcpMs ?? 0,
+    source: r.tag,
+    error: r.reasons && r.reasons.length > 0 && meta.cls === 'bad' ? r.reasons.join(', ') : undefined,
+  };
+}
+
+function parseSniListResponse(res: RawSniListResponse): SniCandidate[] {
+  if (Array.isArray(res.items) && res.items.length > 0) return res.items;
+  const out: SniCandidate[] = [];
+  const seen = new Set<string>();
+  for (const c of res.curated || []) {
+    if (!c.domain || seen.has(c.domain)) continue;
+    seen.add(c.domain);
+    out.push({
+      domain: c.domain,
+      grade: c.last ? formatGradeMeta(c.last.grade).label : 'Good',
+      millis: c.last?.tlsMs ?? 0,
+      source: c.tag,
+    });
+  }
+  for (const n of res.neighbours || []) {
+    if (!n.domain || seen.has(n.domain)) continue;
+    seen.add(n.domain);
+    out.push({
+      domain: n.domain,
+      grade: n.last ? formatGradeMeta(n.last.grade).label : formatGradeMeta(n.grade || 'green').label,
+      millis: n.last?.tlsMs ?? n.tlsMs ?? 0,
+      source: n.tag || 'neighbour',
+    });
+  }
+  return out;
+}
+
+async function pollSniJob(
+  endpoint: '/xray/sni/test' | '/xray/sni/scan',
+  payload: Record<string, unknown>,
+  onProgress?: (results: SniCandidate[]) => void,
+): Promise<SniCandidate[]> {
+  const job = await apiFetch<{ id: string; state: string; results?: RawBackendSniResult[] }>(endpoint, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  let latest = (job.results || []).map(mapRawSniResult);
+  if (latest.length > 0) onProgress?.(latest);
+  if (job.state !== 'running') return latest;
+
+  for (let i = 0; i < 30; i++) {
+    await new Promise((r) => setTimeout(r, 350));
+    const st = await apiFetch<{ state: string; results?: RawBackendSniResult[] }>(`/xray/sni/jobs/${job.id}`);
+    if (st.results && st.results.length > 0) {
+      latest = st.results.map(mapRawSniResult);
+      onProgress?.(latest);
+    }
+    if (st.state !== 'running') break;
+  }
+  return latest;
 }
 
 export function XraySniPickerModal({
@@ -114,8 +199,8 @@ export function XraySniPickerModal({
     if (!open) return;
     setCustomInput(currentSni);
     setError('');
-    apiFetch<{ items: SniCandidate[] }>(`/xray/sni?node=${nodeId || 0}`)
-      .then((res) => setCandidates(res.items || []))
+    apiFetch<RawSniListResponse>(`/xray/sni?node=${nodeId || 0}`)
+      .then((res) => setCandidates(parseSniListResponse(res)))
       .catch(() => {});
   }, [open, nodeId, currentSni]);
 
@@ -125,11 +210,8 @@ export function XraySniPickerModal({
     setTesting(true);
     setError('');
     try {
-      const res = await apiFetch<{ results: SniCandidate[] }>('/xray/sni/test', {
-        method: 'POST',
-        body: JSON.stringify({ node: nodeId || 0, domains: [clean] }),
-      });
-      const r = res.results?.[0];
+      const results = await pollSniJob('/xray/sni/test', { node: nodeId || 0, domains: [clean] });
+      const r = results[0];
       if (r) {
         setCandidates((prev) => [r, ...prev.filter((x) => x.domain !== r.domain)]);
       }
@@ -145,23 +227,11 @@ export function XraySniPickerModal({
     setError('');
     setJobProgress(L('Scanning neighbouring IPs...', 'در حال اسکن آی‌پی‌های همسایه...'));
     try {
-      const res = await apiFetch<{ jobId: string; status: string }>('/xray/sni/scan', {
-        method: 'POST',
-        body: JSON.stringify({ node: nodeId || 0, force: true }),
+      await pollSniJob('/xray/sni/scan', { node: nodeId || 0, force: true }, (partial) => {
+        if (partial.length > 0) setCandidates(partial);
       });
-      for (let i = 0; i < 30; i++) {
-        await new Promise((r) => setTimeout(r, 1200));
-        const st = await apiFetch<{
-          status: string;
-          progress?: string;
-          results?: SniCandidate[];
-        }>(`/xray/sni/jobs/${res.jobId}`);
-        if (st.progress) setJobProgress(st.progress);
-        if (st.results && st.results.length > 0) setCandidates(st.results);
-        if (st.status === 'done' || st.status === 'error') break;
-      }
-      const latest = await apiFetch<{ items: SniCandidate[] }>(`/xray/sni?node=${nodeId || 0}`);
-      setCandidates(latest.items || []);
+      const latest = await apiFetch<RawSniListResponse>(`/xray/sni?node=${nodeId || 0}`);
+      setCandidates(parseSniListResponse(latest));
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -194,7 +264,7 @@ export function XraySniPickerModal({
             dir="ltr"
             value={customInput}
             onChange={(e) => setCustomInput(e.target.value)}
-            placeholder="www.amd.com"
+            placeholder="www.microsoft.com"
             className="input h-9! min-w-50 flex-1 font-mono text-xs"
           />
           <Button size="sm" variant="secondary" onClick={handleTestCustom} disabled={testing}>
@@ -367,7 +437,7 @@ export function XrayAdvancedSection({
     const flowOpts =
       items.find(
         (c) => c.protocol === nextProto && c.transport === chosenTransport && c.security === chosenSecurity,
-      )?.flowOptions || [];
+      )?.flows || [];
     patch({
       protocol: nextProto,
       transport: chosenTransport,
@@ -403,12 +473,10 @@ export function XrayAdvancedSection({
   }, [nodeId]);
 
   useEffect(() => {
-    if (neighboursOpen && neighbourList.length === 0) {
-      apiFetch<{ items: SniCandidate[] }>(`/xray/sni?node=${nodeId || 0}`)
-        .then((res) => setNeighbourList(res.items || []))
-        .catch(() => {});
-    }
-  }, [neighboursOpen, nodeId, neighbourList.length]);
+    apiFetch<RawSniListResponse>(`/xray/sni?node=${nodeId || 0}`)
+      .then((res) => setNeighbourList(parseSniListResponse(res)))
+      .catch(() => {});
+  }, [nodeId]);
 
   const handleInlineTestSni = async () => {
     const clean = realitySni.trim();
@@ -416,12 +484,9 @@ export function XrayAdvancedSection({
     setTestingSni(true);
     setActionError('');
     try {
-      const res = await apiFetch<{ results: SniCandidate[] }>('/xray/sni/test', {
-        method: 'POST',
-        body: JSON.stringify({ node: nodeId || 0, domains: [clean] }),
-      });
-      if (res.results?.[0]) {
-        setTestedSniResult(res.results[0]);
+      const results = await pollSniJob('/xray/sni/test', { node: nodeId || 0, domains: [clean] });
+      if (results[0]) {
+        setTestedSniResult(results[0]);
       }
     } catch (err) {
       setActionError((err as Error).message);
@@ -435,21 +500,11 @@ export function XrayAdvancedSection({
     setActionError('');
     setScanMessage(L('Scanning neighbouring IPs...', 'در حال اسکن سایت‌های همسایه...'));
     try {
-      const res = await apiFetch<{ jobId: string }>('/xray/sni/scan', {
-        method: 'POST',
-        body: JSON.stringify({ node: nodeId || 0, force: true }),
+      await pollSniJob('/xray/sni/scan', { node: nodeId || 0, force: true }, (partial) => {
+        if (partial.length > 0) setNeighbourList(partial);
       });
-      for (let i = 0; i < 25; i++) {
-        await new Promise((r) => setTimeout(r, 1000));
-        const st = await apiFetch<{ status: string; progress?: string; results?: SniCandidate[] }>(
-          `/xray/sni/jobs/${res.jobId}`,
-        );
-        if (st.progress) setScanMessage(st.progress);
-        if (st.results && st.results.length > 0) setNeighbourList(st.results);
-        if (st.status === 'done' || st.status === 'error') break;
-      }
-      const latest = await apiFetch<{ items: SniCandidate[] }>(`/xray/sni?node=${nodeId || 0}`);
-      setNeighbourList(latest.items || []);
+      const latest = await apiFetch<RawSniListResponse>(`/xray/sni?node=${nodeId || 0}`);
+      setNeighbourList(parseSniListResponse(latest));
     } catch (err) {
       setActionError((err as Error).message);
     } finally {
@@ -518,9 +573,10 @@ export function XrayAdvancedSection({
 
   const effectiveSniGrade = testedSniResult?.grade || sniGrade || '';
   const effectiveSniMillis = testedSniResult?.millis ?? sniMillis ?? null;
+  const effectiveGradeMeta = effectiveSniGrade ? formatGradeMeta(effectiveSniGrade) : null;
 
   return (
-    <div className="space-y-4 text-sm">
+    <div className="xr-groups text-sm">
       {actionError && (
         <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-400">
           {actionError}
@@ -533,11 +589,12 @@ export function XrayAdvancedSection({
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="text-(--text-muted)">{L('Camouflage site', 'سایت استتار')}</span>
             <span className="font-mono font-semibold text-(--text-primary)">{realitySni}</span>
-            {effectiveSniGrade && (
-              <StatusPill
-                tone={gradeTone(effectiveSniGrade)}
-                label={`${effectiveSniGrade}${typeof effectiveSniMillis === 'number' && effectiveSniMillis > 0 ? ` ${effectiveSniMillis} ms` : ''}`}
-              />
+            {effectiveGradeMeta && (
+              <span className={`xr-grade-pill ${effectiveGradeMeta.cls}`}>
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {effectiveGradeMeta.label}
+                {typeof effectiveSniMillis === 'number' && effectiveSniMillis > 0 ? ` ${effectiveSniMillis} ms` : ''}
+              </span>
             )}
           </div>
           {inboundId && (
@@ -685,7 +742,7 @@ export function XrayAdvancedSection({
           </label>
         )}
 
-        {(activeCombo?.deprecatedProto || ['vmess', 'trojan', 'shadowsocks'].includes(proto)) && (
+        {(activeCombo?.deprecated?.includes(proto) || ['vmess', 'trojan', 'shadowsocks'].includes(proto)) && (
           <p className="banner quiet flex items-center gap-2">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-300" />
             <span>
@@ -697,7 +754,7 @@ export function XrayAdvancedSection({
           </p>
         )}
 
-        {(activeCombo?.deprecatedTransport || ['ws', 'httpupgrade', 'grpc'].includes(transport)) && (
+        {(activeCombo?.deprecated?.includes(transport) || ['ws', 'httpupgrade', 'grpc'].includes(transport)) && (
           <p className="banner quiet">
             {L(
               `Xray marks this as old (${transport}). It still works in the bundled version and may be removed later.`,
@@ -1093,7 +1150,7 @@ export function XrayAdvancedSection({
                       },
                     });
                   }}
-                  placeholder="www.amd.com"
+                  placeholder="www.microsoft.com"
                   className="input pl-9! font-mono text-sm"
                 />
                 <datalist id={`sni-datalist-${nodeId}`}>
@@ -1112,13 +1169,14 @@ export function XrayAdvancedSection({
                 'پروتکل Reality سرور را شبیه بازدید از این سایت نشان می‌دهد. از فهرست انتخاب کنید یا تایپ نمایید.',
               )}
             </span>
-            {(testedSniResult || (sniGrade && realitySni)) && (
-              <div className="flex flex-wrap items-center gap-2 pt-0.5 text-xs">
-                {effectiveSniGrade && (
-                  <StatusPill
-                    tone={gradeTone(effectiveSniGrade)}
-                    label={`${effectiveSniGrade}${typeof effectiveSniMillis === 'number' && effectiveSniMillis > 0 ? ` ${effectiveSniMillis} ms` : ''}`}
-                  />
+            {(testedSniResult || (effectiveGradeMeta && realitySni)) && (
+              <div className="flex flex-wrap items-center gap-2.5 pt-0.5 text-xs">
+                {effectiveGradeMeta && (
+                  <span className={`xr-grade-pill ${effectiveGradeMeta.cls}`}>
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    {effectiveGradeMeta.label}
+                    {typeof effectiveSniMillis === 'number' && effectiveSniMillis > 0 ? ` ${effectiveSniMillis} ms` : ''}
+                  </span>
                 )}
                 <span className="text-(--text-muted)">
                   {testedSniResult?.error
@@ -1227,7 +1285,7 @@ export function XrayAdvancedSection({
                 dir="ltr"
                 value={String(reality.dest || (realitySni ? `${realitySni}:443` : ''))}
                 onChange={(e) => patchNested('reality', { dest: e.target.value })}
-                placeholder="www.amd.com:443"
+                placeholder="www.microsoft.com:443"
                 className="input font-mono text-sm"
               />
               <span className="block text-xs text-(--text-muted)">
@@ -1953,7 +2011,7 @@ export function XrayAdvancedSection({
             dir="ltr"
             value={replaceSniTarget}
             onChange={(e) => setReplaceSniTarget(e.target.value)}
-            placeholder="www.amd.com"
+            placeholder="www.microsoft.com"
             className="input font-mono text-sm"
           />
           <div className="flex justify-end gap-2">

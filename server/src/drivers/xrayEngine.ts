@@ -188,8 +188,8 @@ export const XRAY_COMBOS: XrayCombo[] = [
 ];
 
 export const CURATED_SNI_DOMAINS: Array<{ domain: string; tag: string }> = [
-  { domain: 'www.amd.com', tag: 'general' },
   { domain: 'www.microsoft.com', tag: 'azure' },
+  { domain: 'www.amd.com', tag: 'general' },
   { domain: 'www.apple.com', tag: 'general' },
   { domain: 'www.nvidia.com', tag: 'general' },
   { domain: 'www.cloudflare.com', tag: 'general' },
@@ -480,6 +480,7 @@ export function buildXrayPresetDefaults(preset: XrayPresetId, nodeId = 0) {
   const shortId = generateShortId(4);
   const sniList = getSniListForNode(nodeId);
   const bestGreen =
+    sniList.curated.find((c) => c.domain === 'www.microsoft.com' && c.last?.grade !== 'red')?.domain ||
     sniList.curated.find((c) => c.last?.grade === 'green')?.domain ||
     CURATED_SNI_DOMAINS[0].domain;
   const cachedBest = sniList.curated.find((c) => c.domain === bestGreen)?.last;
@@ -770,7 +771,7 @@ export function renderXrayInboundObject(inbound: InboundRow, peers: PeerEntry[])
   if (security === 'reality') {
     const r = (settings.reality && typeof settings.reality === 'object' ? settings.reality : {}) as Record<string, unknown>;
     const rawNames = Array.isArray(r.serverNames) ? r.serverNames.map(String).map((x) => x.trim()).filter(Boolean) : [];
-    const fallbackName = String(settings.realitySni || '').trim() || 'www.amd.com';
+    const fallbackName = String(settings.realitySni || '').trim() || 'www.microsoft.com';
     const serverNames = rawNames.length > 0 ? rawNames : [fallbackName];
     const dest = String(r.dest || r.target || '').trim() || `${serverNames[0]}:443`;
     const rawShortIds = Array.isArray(r.shortIds) ? r.shortIds.map(String).map((x) => x.trim()).filter(Boolean) : [];
@@ -1275,7 +1276,7 @@ export function buildClientXrayServerViews(
       s.linkSni ||
         s.sniOverride ||
         (security === 'reality'
-          ? (Array.isArray(r.serverNames) ? r.serverNames[0] : '') || s.realitySni || 'www.amd.com'
+          ? (Array.isArray(r.serverNames) ? r.serverNames[0] : '') || s.realitySni || 'www.microsoft.com'
           : t.sni || t.serverName || t.certHost || s.cdnDomain || s.cdnHost || s.tlsHost || primaryHost),
     );
     const pbk = String(s.realityPublicKey || ib.server_public_key || '');
