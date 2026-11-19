@@ -656,6 +656,39 @@ test('Ovira 2.0 end-to-end API: templates, bulk actions, proxy app sub, events, 
     assert.equal(dupEditRes.status, 409);
     const dupEditJson = (await dupEditRes.json()) as { error?: string };
     assert.ok(String(dupEditJson.error || '').includes('29443'));
+
+    // 12. Chunked request dispatcher (/api/_chunk) handles multi-chunk Unicode PATCH payloads transparently
+    const bigPayload = JSON.stringify({
+      displayName: 'رئالیتی تست',
+      description: 'X'.repeat(900),
+      port: 29445,
+    });
+    const b64 = Buffer.from(bigPayload, 'utf8').toString('base64');
+    const chunkSize = 360;
+    const totalChunks = Math.ceil(b64.length / chunkSize);
+    assert.ok(totalChunks >= 3);
+    let chunkFinalStatus = 0;
+    for (let idx = 0; idx < totalChunks; idx++) {
+      const part = b64.slice(idx * chunkSize, (idx + 1) * chunkSize);
+      const chunkRes = await fetch(`${baseUrl}/api/_chunk`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(
+          idx === 0
+            ? { id: 'testchunk1', i: idx, n: totalChunks, m: 'PATCH', p: `/inbounds/${freeCreated.id}`, d: part }
+            : { id: 'testchunk1', i: idx, n: totalChunks, d: part },
+        ),
+      });
+      chunkFinalStatus = chunkRes.status;
+      if (idx < totalChunks - 1) assert.equal(chunkRes.status, 202);
+    }
+    assert.equal(chunkFinalStatus, 200);
+    const afterChunkList = await fetch(`${baseUrl}/api/inbounds`, { headers: { Cookie: cookie } }).then((r) => r.json());
+    const chunkUpdated = (afterChunkList.inbounds as Array<{ id: number; port: number; displayName: string }>).find(
+      (x) => x.id === freeCreated.id,
+    );
+    assert.equal(chunkUpdated?.port, 29445);
+    assert.equal(chunkUpdated?.displayName, 'رئالیتی تست');
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }

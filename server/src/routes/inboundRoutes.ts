@@ -704,11 +704,11 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
     if (updated.node_id) {
       if (!updated.enabled && updated.running) {
         db.prepare('UPDATE inbounds SET running = 0 WHERE id = ?').run(id);
-        await applyRuntimeBounded(driverMode, { ...updated, running: 0 }, [], 'stop');
+        await applyRuntimeBounded(driverMode, { ...updated, running: 0 }, [], 'stop', 0);
       } else if (updated.enabled && (!updated.running || body.enabled === true || updated.running)) {
         const action: 'start' | 'restart' = updated.running ? 'restart' : 'start';
         db.prepare('UPDATE inbounds SET running = 1 WHERE id = ?').run(id);
-        await applyRuntimeBounded(driverMode, { ...updated, running: 1 }, getInboundPeers(id, updated.subnet), action);
+        await applyRuntimeBounded(driverMode, { ...updated, running: 1 }, getInboundPeers(id, updated.subnet), action, 0);
       }
     }
     recordAudit({ accountId: acc.id, username: acc.username, action: 'instance.update', target: existing.name, ip: req.clientIp });

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, Copy, Loader2, RefreshCw } from 'lucide-react';
 import { useUi } from '../i18n/context';
 import { apiFetch } from '../lib/api';
@@ -176,6 +176,7 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const baselineSettingsRef = useRef<Record<string, unknown>>({});
 
   const activeCardMeta = useMemo(
     () => PROTOCOL_CARDS.find((c) => c.kind === kind) || PROTOCOL_CARDS[0],
@@ -204,6 +205,7 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
       merged.obfuscation = 'amnezia';
     }
     setSettings(merged);
+    baselineSettingsRef.current = { ...(merged as Record<string, unknown>) };
     setRemotes(normalizeRemotes(merged.remotes));
   }, []);
 
@@ -411,6 +413,14 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
     setSaving(true);
     try {
       const isXray = inbound.protocol.toLowerCase() === 'xray';
+      const fullSettings = buildPayloadSettings() as Record<string, unknown>;
+      const base = baselineSettingsRef.current;
+      const diffSettings: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(fullSettings)) {
+        if (JSON.stringify(v) !== JSON.stringify(base[k])) {
+          diffSettings[k] = v;
+        }
+      }
       await apiFetch(`/inbounds/${inbound.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
@@ -427,7 +437,7 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
           authMode: settings.authMode || inbound.authMode,
           description: description.trim(),
           enabled,
-          settings: buildPayloadSettings(),
+          ...(Object.keys(diffSettings).length > 0 ? { settings: diffSettings } : {}),
         }),
       });
       setSaveMsg(L(lang, 'Settings saved.', 'تنظیمات ذخیره شد.'));

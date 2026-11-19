@@ -164,6 +164,9 @@ export interface CidrInfo {
 
 export function formatInboundApiError(msg: string, lang: 'en' | 'fa'): string {
   if (lang !== 'fa') return msg;
+  if (/timed out/i.test(msg)) {
+    return 'زمان درخواست به پایان رسید. لطفاً دوباره تلاش کنید.';
+  }
   const byInbound = /^Port (\d+) is already in use by inbound "([^"]+)"/i.exec(msg);
   if (byInbound) {
     return `پورت ${byInbound[1]} هم‌اکنون توسط اینباند «${byInbound[2]}» در حال استفاده است. لطفاً پورت دیگری انتخاب کنید.`;

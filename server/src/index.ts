@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { loadRuntimeConfig, getDbPath, type RuntimeConfig } from './config.js';
 import { initDatabase, getDb, getSetting, setSetting, DEFAULT_GENERAL_SETTINGS } from './db/database.js';
 import { detectDriverMode } from './drivers/runtime.js';
-import { requireAuth } from './routes/context.js';
+import { requireAuth, type AuthedRequest } from './routes/context.js';
 import { createAuthRouter } from './routes/authRoutes.js';
 import { createDashboardRouter } from './routes/dashboardRoutes.js';
 import { createClientRouter } from './routes/clientRoutes.js';
@@ -119,6 +119,97 @@ export function createApp(initialConfig: RuntimeConfig) {
 
   // API routes
   const api = express.Router();
+  interface PendingChunkUpload {
+    method: 'POST' | 'PUT' | 'PATCH';
+    path: string;
+    total: number;
+    parts: Array<string | undefined>;
+    createdAt: number;
+  }
+  const chunkUploads = new Map<string, PendingChunkUpload>();
+
+  api.post('/_chunk', authMiddleware, (req: AuthedRequest, res, next) => {
+    const now = Date.now();
+    for (const [k, v] of chunkUploads) {
+      if (now - v.createdAt > 60_000) chunkUploads.delete(k);
+    }
+    const { id, i, n, m, p, d } = (req.body || {}) as {
+      id?: string;
+      i?: number;
+      n?: number;
+      m?: string;
+      p?: string;
+      d?: string;
+    };
+    if (
+      typeof id !== 'string' ||
+      !/^[a-zA-Z0-9_-]{4,40}$/.test(id) ||
+      typeof i !== 'number' ||
+      typeof n !== 'number' ||
+      !Number.isInteger(i) ||
+      !Number.isInteger(n) ||
+      n < 1 ||
+      n > 2048 ||
+      i < 0 ||
+      i >= n ||
+      typeof d !== 'string' ||
+      d.length > 4096
+    ) {
+      res.status(400).json({ error: 'Invalid chunk envelope' });
+      return;
+    }
+
+    const ownerKey = `${req.auth!.account.id}:${req.auth!.sessionId || 'api'}:${id}`;
+    let entry = chunkUploads.get(ownerKey);
+    if (i === 0) {
+      const upperM = String(m || '').toUpperCase();
+      const targetPath = String(p || '');
+      if (
+        (upperM !== 'POST' && upperM !== 'PUT' && upperM !== 'PATCH') ||
+        !targetPath.startsWith('/') ||
+        targetPath.startsWith('/_chunk') ||
+        targetPath.includes('..') ||
+        targetPath.includes('://')
+      ) {
+        res.status(400).json({ error: 'Invalid chunk target' });
+        return;
+      }
+      entry = {
+        method: upperM,
+        path: targetPath,
+        total: n,
+        parts: new Array(n).fill(undefined),
+        createdAt: now,
+      };
+      chunkUploads.set(ownerKey, entry);
+    } else if (!entry || entry.total !== n) {
+      res.status(400).json({ error: 'Chunk session missing or expired' });
+      return;
+    }
+
+    entry.parts[i] = d;
+    if (i < n - 1) {
+      res.status(202).json({ ok: true, received: i });
+      return;
+    }
+
+    chunkUploads.delete(ownerKey);
+    if (entry.parts.some((part) => typeof part !== 'string')) {
+      res.status(400).json({ error: 'Incomplete chunk sequence' });
+      return;
+    }
+    try {
+      const rawJson = Buffer.from(entry.parts.join(''), 'base64').toString('utf8');
+      req.body = rawJson ? JSON.parse(rawJson) : {};
+    } catch {
+      res.status(400).json({ error: 'Invalid assembled JSON payload' });
+      return;
+    }
+    req.method = entry.method;
+    req.url = entry.path;
+    api(req, res, next);
+  });
+
   api.get('/health', (_req, res) => res.json({ ok: true, version: '2.0.0-beta.3', driverMode }));
   api.use('/auth', createAuthRouter(authMiddleware, () => runtimeConfig.trustProxy));
   api.use('/dashboard', authMiddleware, createDashboardRouter(driverMode));
