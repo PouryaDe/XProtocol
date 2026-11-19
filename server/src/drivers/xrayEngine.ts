@@ -991,16 +991,24 @@ async function ensureXrayBinary(assetDir: string): Promise<{ bin: string | null;
     if (!res.ok) throw new Error(`HTTP ${res.status} downloading Xray-linux-${arch}.zip`);
     fs.writeFileSync(zipPath, Buffer.from(await res.arrayBuffer()));
 
-    // Prefer unzip, install it if needed, or fall back to python3 zipfile
+    // Prefer existing unzip or python3 zipfile before invoking apt-get (avoids dpkg locks & hangs)
     const hasUnzip = await execFileAsync('which', ['unzip'], { timeout: 2000 }).catch(() => null);
-    if (!hasUnzip?.stdout?.trim()) {
-      await execFileAsync('apt-get', ['install', '-y', '-qq', 'unzip'], { timeout: 15_000 }).catch(() => undefined);
-    }
-    const unzipAfter = await execFileAsync('which', ['unzip'], { timeout: 2000 }).catch(() => null);
-    if (unzipAfter?.stdout?.trim()) {
+    const hasPy3 = await execFileAsync('which', ['python3'], { timeout: 2000 }).catch(() => null);
+    if (hasUnzip?.stdout?.trim()) {
       await execFileAsync('unzip', ['-o', '-q', zipPath, '-d', tmpDir], { timeout: 15_000 });
-    } else {
+    } else if (hasPy3?.stdout?.trim()) {
       await execFileAsync('python3', ['-m', 'zipfile', '-e', zipPath, tmpDir], { timeout: 15_000 });
+    } else {
+      await execFileAsync('apt-get', ['install', '-y', '-qq', 'unzip'], {
+        timeout: 15_000,
+        env: { ...process.env, DEBIAN_FRONTEND: 'noninteractive' },
+      }).catch(() => undefined);
+      const unzipAfter = await execFileAsync('which', ['unzip'], { timeout: 2000 }).catch(() => null);
+      if (unzipAfter?.stdout?.trim()) {
+        await execFileAsync('unzip', ['-o', '-q', zipPath, '-d', tmpDir], { timeout: 15_000 });
+      } else {
+        throw new Error('Neither unzip nor python3 is installed to extract Xray archive');
+      }
     }
 
     const extractedBin = path.join(tmpDir, 'xray');
@@ -1057,12 +1065,25 @@ function ensureXrayAssets(assetDir: string): void {
   }
 }
 
-export async function syncAndApplyXrayEngine(): Promise<{ ok: boolean; statusMessage: string }> {
+export function writeUnifiedXrayConfigFile(): {
+  configJson: string;
+  hasActiveXray: boolean;
+  dir: string;
+  cfgPath: string;
+} {
   const { configJson, hasActiveXray } = buildUnifiedXrayConfig();
   const dir = process.platform === 'linux' ? '/usr/local/lib/xprotocol/xray' : path.join(os.tmpdir(), 'xprotocol-xray');
   fs.mkdirSync(dir, { recursive: true });
   const cfgPath = path.join(dir, 'config.json');
   fs.writeFileSync(cfgPath, configJson, { mode: 0o600 });
+  return { configJson, hasActiveXray, dir, cfgPath };
+}
+
+let xraySyncInFlight: Promise<{ ok: boolean; statusMessage: string }> | null = null;
+let xraySyncPending = false;
+
+async function syncAndApplyXrayEngineOnce(): Promise<{ ok: boolean; statusMessage: string }> {
+  const { hasActiveXray, dir, cfgPath } = writeUnifiedXrayConfigFile();
 
   if (process.platform !== 'linux') {
     return {
@@ -1139,6 +1160,35 @@ WantedBy=multi-user.target
   } catch (err: unknown) {
     const e = err as { stderr?: string; message?: string };
     return { ok: false, statusMessage: (e.stderr || e.message || String(err)).trim() };
+  }
+}
+
+export async function syncAndApplyXrayEngine(): Promise<{ ok: boolean; statusMessage: string }> {
+  if (xraySyncInFlight) {
+    xraySyncPending = true;
+    const prev = await xraySyncInFlight;
+    if (xraySyncPending && !xraySyncInFlight) {
+      return syncAndApplyXrayEngine();
+    }
+    return prev;
+  }
+
+  const runner = (async () => {
+    let lastResult: { ok: boolean; statusMessage: string } = { ok: true, statusMessage: 'Idle' };
+    do {
+      xraySyncPending = false;
+      lastResult = await syncAndApplyXrayEngineOnce();
+    } while (xraySyncPending);
+    return lastResult;
+  })();
+
+  xraySyncInFlight = runner;
+  try {
+    return await runner;
+  } finally {
+    if (xraySyncInFlight === runner) {
+      xraySyncInFlight = null;
+    }
   }
 }
 

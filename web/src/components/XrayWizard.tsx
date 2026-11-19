@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { navigate } from '../lib/router';
 import { useUi } from '../i18n/context';
@@ -436,7 +436,7 @@ export function XrayWizard({ onBackOtherProtocols }: { onBackOtherProtocols: () 
 
           <div className="pt-1">
             <Button variant="primary" onClick={handleCreate} disabled={!canSubmit}>
-              <Plus className="h-4 w-4" />
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Plus className="h-4 w-4" aria-hidden="true" />}
               {submitting ? L('Creating…', 'در حال ساخت…') : L('Create', 'ایجاد')}
             </Button>
           </div>

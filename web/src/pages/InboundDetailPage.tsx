@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, Copy, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Check, Copy, Loader2, RefreshCw } from 'lucide-react';
 import { useUi } from '../i18n/context';
 import { apiFetch } from '../lib/api';
 import { navigate, useLocationState } from '../lib/router';
@@ -263,6 +263,20 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inboundId]);
+
+  useEffect(() => {
+    if (isNew || !inbound?.id || !logsText.includes('in background')) return;
+    const timer = setInterval(() => {
+      void loadConfigAndLogs(inbound.id);
+      apiFetch<{ inbounds: InboundItem[] }>('/inbounds')
+        .then((res) => {
+          const found = res.inbounds?.find((x) => x.id === inbound.id);
+          if (found) setInbound(found);
+        })
+        .catch(() => undefined);
+    }, 2500);
+    return () => clearInterval(timer);
+  }, [isNew, inbound?.id, logsText, loadConfigAndLogs]);
 
   const patchSettings = useCallback((patch: Partial<InboundSettings>) => {
     setSettings((prev) => ({ ...prev, ...patch }));
@@ -1310,6 +1324,7 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
                       {L(lang, 'Back', 'مرحله قبل')}
                     </Button>
                     <Button variant="primary" disabled={saving || !cidrValid} onClick={() => void handleCreateSubmit()}>
+                      {saving && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
                       {saving
                         ? L(lang, 'Setting up…', 'در حال راه‌اندازی…')
                         : selectedNodeIds.length > 0
@@ -1366,6 +1381,7 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
                 <div className="savebar justify-end">
                   <div className="inb-save-actions">
                     <Button variant="primary" disabled={saving || !cidrValid} onClick={() => void handleSaveEdit()}>
+                      {saving && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
                       {saving ? L(lang, 'Saving…', 'در حال ذخیره…') : L(lang, 'Save', 'ذخیره')}
                     </Button>
                   </div>

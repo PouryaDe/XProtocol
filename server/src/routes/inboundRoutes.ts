@@ -12,6 +12,7 @@ import {
   saveSniResult,
   syncAndApplyXrayEngine,
   validateXraySettings,
+  writeUnifiedXrayConfigFile,
   type XrayPresetId,
 } from '../drivers/xrayEngine.js';
 import { renderInboundServerConfig, type InboundRow, type PeerEntry } from '../generators/configs.js';
@@ -25,6 +26,60 @@ function recordInboundLogs(inboundId: number, entries: string[]) {
   if (!entries.length) return;
   const prev = runtimeLogsByInbound.get(inboundId) ?? [];
   runtimeLogsByInbound.set(inboundId, [...prev, ...entries].slice(-40));
+}
+
+async function applyRuntimeBounded(
+  driverMode: 'linux' | 'mock',
+  row: InboundRow,
+  peers: PeerEntry[],
+  action: 'start' | 'stop' | 'restart',
+  inlineTimeoutMs = 1500,
+): Promise<{ completed: boolean; ok: boolean; logs: string[] }> {
+  if (row.protocol === 'xray') {
+    try {
+      writeUnifiedXrayConfigFile();
+    } catch {
+      // ignore pre-write error; runtime engine handles full error reporting
+    }
+  }
+
+  const runPromise = applyInboundRuntime(driverMode, row, peers, action)
+    .then((rt) => {
+      recordInboundLogs(row.id, rt.logs);
+      const dbNow = getDb();
+      if (action === 'stop' || !rt.ok) {
+        dbNow.prepare('UPDATE inbounds SET running = 0 WHERE id = ?').run(row.id);
+      }
+      return { completed: true, ok: rt.ok, logs: rt.logs };
+    })
+    .catch((err) => {
+      const msg = `[${new Date().toISOString()}] Runtime ${action} error: ${err instanceof Error ? err.message : String(err)}`;
+      recordInboundLogs(row.id, [msg]);
+      getDb().prepare('UPDATE inbounds SET running = 0 WHERE id = ?').run(row.id);
+      return { completed: true, ok: false, logs: [msg] };
+    });
+
+  if (process.platform !== 'linux' || driverMode === 'mock') {
+    return await runPromise;
+  }
+
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    const res = await Promise.race([
+      runPromise,
+      new Promise<{ completed: false; ok: true; logs: string[] }>((resolve) => {
+        timer = setTimeout(() => resolve({ completed: false, ok: true, logs: [] }), inlineTimeoutMs);
+      }),
+    ]);
+    if (!res.completed) {
+      const bgLog = `[${new Date().toISOString()}] Provisioning ${row.name} (${action}) in background...`;
+      recordInboundLogs(row.id, [bgLog]);
+      return { completed: false, ok: true, logs: [bgLog] };
+    }
+    return res;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 function getInboundPeers(inboundId: number, subnet: string): PeerEntry[] {
@@ -398,11 +453,7 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
         }
         if (shouldRun) {
           const row = db.prepare('SELECT * FROM inbounds WHERE id = ?').get(id) as unknown as InboundRow;
-          const rt = await applyInboundRuntime(driverMode, row, getInboundPeers(id, row.subnet), 'start');
-          recordInboundLogs(id, rt.logs);
-          if (!rt.ok) {
-            db.prepare('UPDATE inbounds SET running = 0 WHERE id = ?').run(id);
-          }
+          await applyRuntimeBounded(driverMode, row, getInboundPeers(id, row.subnet), 'start');
         }
       }
       recordAudit({ accountId: acc.id, username: acc.username, action: 'instance.create', target: name, ip: req.clientIp });
@@ -487,16 +538,11 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
     if (updated.node_id) {
       if (!updated.enabled && updated.running) {
         db.prepare('UPDATE inbounds SET running = 0 WHERE id = ?').run(id);
-        const rt = await applyInboundRuntime(driverMode, { ...updated, running: 0 }, [], 'stop');
-        recordInboundLogs(id, rt.logs);
+        await applyRuntimeBounded(driverMode, { ...updated, running: 0 }, [], 'stop');
       } else if (updated.enabled && (!updated.running || body.enabled === true || updated.running)) {
         const action: 'start' | 'restart' = updated.running ? 'restart' : 'start';
         db.prepare('UPDATE inbounds SET running = 1 WHERE id = ?').run(id);
-        const rt = await applyInboundRuntime(driverMode, { ...updated, running: 1 }, getInboundPeers(id, updated.subnet), action);
-        recordInboundLogs(id, rt.logs);
-        if (!rt.ok) {
-          db.prepare('UPDATE inbounds SET running = 0 WHERE id = ?').run(id);
-        }
+        await applyRuntimeBounded(driverMode, { ...updated, running: 1 }, getInboundPeers(id, updated.subnet), action);
       }
     }
     recordAudit({ accountId: acc.id, username: acc.username, action: 'instance.update', target: existing.name, ip: req.clientIp });
@@ -538,11 +584,7 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       );
       const row = db.prepare('SELECT * FROM inbounds WHERE id = ?').get(id) as unknown as InboundRow;
       if (shouldRun) {
-        const rt = await applyInboundRuntime(driverMode, row, getInboundPeers(id, row.subnet), 'start');
-        recordInboundLogs(id, rt.logs);
-        if (!rt.ok) {
-          db.prepare('UPDATE inbounds SET running = 0 WHERE id = ?').run(id);
-        }
+        await applyRuntimeBounded(driverMode, row, getInboundPeers(id, row.subnet), 'start');
       }
     } else if (existing.node_id !== firstNode) {
       restNodes.unshift(firstNode);
@@ -578,11 +620,7 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       const newId = Number(info.lastInsertRowid);
       if (shouldRun) {
         const row = db.prepare('SELECT * FROM inbounds WHERE id = ?').get(newId) as unknown as InboundRow;
-        const rt = await applyInboundRuntime(driverMode, row, getInboundPeers(newId, row.subnet), 'start');
-        recordInboundLogs(newId, rt.logs);
-        if (!rt.ok) {
-          db.prepare('UPDATE inbounds SET running = 0 WHERE id = ?').run(newId);
-        }
+        await applyRuntimeBounded(driverMode, row, getInboundPeers(newId, row.subnet), 'start');
       }
     }
 
@@ -655,8 +693,7 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       return;
     }
     db.prepare('UPDATE inbounds SET running = ? WHERE id = ?').run(action === 'stop' ? 0 : 1, id);
-    const result = await applyInboundRuntime(driverMode, { ...row, running: action === 'stop' ? 0 : 1 }, getInboundPeers(id, row.subnet), action);
-    recordInboundLogs(id, result.logs);
+    const result = await applyRuntimeBounded(driverMode, { ...row, running: action === 'stop' ? 0 : 1 }, getInboundPeers(id, row.subnet), action);
     const nextRunning = action === 'stop' ? 0 : result.ok ? 1 : 0;
     db.prepare('UPDATE inbounds SET running = ? WHERE id = ?').run(nextRunning, id);
     res.json({ ok: result.ok, running: Boolean(nextRunning), logs: result.logs });
@@ -676,11 +713,20 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       return;
     }
     if (row.running) {
-      await applyInboundRuntime(driverMode, row, [], 'stop');
+      await applyRuntimeBounded(driverMode, row, [], 'stop');
     }
     db.prepare('DELETE FROM inbounds WHERE id = ?').run(id);
     if (row.protocol === 'xray' && row.running) {
-      await syncAndApplyXrayEngine().catch(() => undefined);
+      try {
+        writeUnifiedXrayConfigFile();
+      } catch {
+        // ignore
+      }
+      if (process.platform !== 'linux' || driverMode === 'mock') {
+        await syncAndApplyXrayEngine().catch(() => undefined);
+      } else {
+        void syncAndApplyXrayEngine().catch(() => undefined);
+      }
     }
     recordAudit({ accountId: acc.id, username: acc.username, action: 'instance.delete', target: row.name, ip: req.clientIp });
     res.json({ ok: true });
