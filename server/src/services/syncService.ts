@@ -1,5 +1,5 @@
 import { getDb } from '../db/database.js';
-import { applyLinuxInbound, disconnectLinuxPeer, syncL2tpSecrets, syncLinuxInboundPeers } from '../drivers/linuxEngine.js';
+import { applyLinuxInbound, disableStockProtocolDaemons, disconnectLinuxPeer, syncL2tpSecrets, syncLinuxInboundPeers } from '../drivers/linuxEngine.js';
 import { writeLiveClientCounts } from '../drivers/pki.js';
 import type { InboundRow } from '../generators/configs.js';
 import { getEligiblePeersForInbound } from './peerResolver.js';
@@ -10,6 +10,7 @@ let syncQueued = false;
 /** Reconcile and start all enabled/running local inbounds on panel startup (Ubuntu Linux). */
 export async function reconcileRunningInboundsOnBoot(): Promise<void> {
   if (process.platform !== 'linux') return;
+  await disableStockProtocolDaemons().catch(() => undefined);
   const db = getDb();
   const rows = db
     .prepare(

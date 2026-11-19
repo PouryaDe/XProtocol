@@ -111,6 +111,12 @@ export async function detectInstalledProtocols(): Promise<ProtocolStatus[]> {
   return results;
 }
 
+export async function disableStockProtocolDaemons(): Promise<void> {
+  if (process.platform !== 'linux') return;
+  await runCmd('systemctl', ['stop', 'ocserv.socket', 'ocserv.service', 'xl2tpd.service'], 4000);
+  await runCmd('systemctl', ['disable', 'ocserv.socket', 'ocserv.service', 'xl2tpd.service'], 4000);
+}
+
 export async function installProtocolPackage(protocol: ProtocolName): Promise<{ ok: boolean; log: string }> {
   if (process.platform !== 'linux') {
     return { ok: false, log: 'Protocol installation via apt-get requires Ubuntu 22.04+ Linux.' };
@@ -119,6 +125,9 @@ export async function installProtocolPackage(protocol: ProtocolName): Promise<{ 
   if (!meta) return { ok: false, log: 'Unknown protocol' };
   const update = await runCmd('apt-get', ['update', '-qq'], 120000);
   const inst = await runCmd('apt-get', ['install', '-y', '-qq', ...meta.apt], 180000);
+  if (protocol === 'openconnect' || protocol === 'l2tp') {
+    await disableStockProtocolDaemons();
+  }
   await runCmd('sysctl', ['-w', 'net.ipv4.ip_forward=1'], 5000);
   return {
     ok: inst.ok,

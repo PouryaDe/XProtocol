@@ -101,6 +101,8 @@ cmd_ocserv() {
   require_root "$@"
   DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a NEEDRESTART_SUSPEND=1 apt-get update -qq >/dev/null 2>&1
   DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a NEEDRESTART_SUSPEND=1 apt-get install -y -qq ocserv >/dev/null 2>&1
+  systemctl stop ocserv.socket ocserv.service >/dev/null 2>&1 || true
+  systemctl disable ocserv.socket ocserv.service >/dev/null 2>&1 || true
   ok "OpenConnect (ocserv) installed and ready."
 }
 
