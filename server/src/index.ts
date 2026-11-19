@@ -179,6 +179,14 @@ export function createApp(initialConfig: RuntimeConfig) {
     });
   }
 
+  app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[xprotocol] Unhandled request error:', msg);
+    if (!res.headersSent) {
+      res.status(500).json({ error: msg || 'Internal server error' });
+    }
+  });
+
   return app;
 }
 
@@ -226,6 +234,13 @@ function syncDetectedHostIp(): void {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  process.on('unhandledRejection', (reason) => {
+    console.error('[xprotocol] Unhandled promise rejection:', reason);
+  });
+  process.on('uncaughtException', (err) => {
+    console.error('[xprotocol] Uncaught exception:', err);
+  });
+
   applyPendingRestore();
   const runtimeConfig = loadRuntimeConfig();
   const { initialPasswordGenerated } = initDatabase();
@@ -238,6 +253,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const app = createApp(runtimeConfig);
 
   const server = http.createServer(app);
+  // Keep alive above nginx/Cloudflare 60s timeout to prevent ECONNRESET races
+  server.keepAliveTimeout = 65_000;
+  server.headersTimeout = 66_000;
+  server.requestTimeout = 120_000;
   const host = runtimeConfig.bindAddress || '0.0.0.0';
   server.listen(runtimeConfig.port, host, () => {
     const base = `http://localhost:${runtimeConfig.port}${runtimeConfig.secretPath}/`;

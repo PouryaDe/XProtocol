@@ -105,6 +105,7 @@ interface RawBackendSniResult {
 
 interface RawSniListResponse {
   curated?: Array<{ domain: string; tag?: string; last?: RawBackendSniResult | null }>;
+  found?: Array<{ domain: string; tag?: string; last?: RawBackendSniResult | null }>;
   neighbours?: Array<{ domain: string; tag?: string; grade?: string; tlsMs?: number; last?: RawBackendSniResult | null }>;
   items?: SniCandidate[];
 }
@@ -134,13 +135,15 @@ function parseSniListResponse(res: RawSniListResponse): SniCandidate[] {
       source: c.tag,
     });
   }
-  for (const n of res.neighbours || []) {
+  for (const n of [...(res.found || []), ...(res.neighbours || [])]) {
     if (!n.domain || seen.has(n.domain)) continue;
     seen.add(n.domain);
+    const gradeVal = 'grade' in n && n.grade ? String(n.grade) : undefined;
+    const msVal = 'tlsMs' in n && typeof n.tlsMs === 'number' ? n.tlsMs : undefined;
     out.push({
       domain: n.domain,
-      grade: n.last ? formatGradeMeta(n.last.grade).label : formatGradeMeta(n.grade || 'green').label,
-      millis: n.last?.tlsMs ?? n.tlsMs ?? 0,
+      grade: n.last ? formatGradeMeta(n.last.grade).label : formatGradeMeta(gradeVal || 'green').label,
+      millis: n.last?.tlsMs ?? msVal ?? 0,
       source: n.tag || 'neighbour',
     });
   }

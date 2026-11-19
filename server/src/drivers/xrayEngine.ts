@@ -276,22 +276,40 @@ export async function probeRealitySni(domain: string, tag = 'general'): Promise<
   let tlsMs = 0;
   const start = Date.now();
 
+  let rawSocket: net.Socket | null = null;
   try {
     const tcpStart = Date.now();
     const sock = await new Promise<net.Socket>((resolve, reject) => {
+      let settled = false;
+      const fail = (err: unknown) => {
+        if (settled) return;
+        settled = true;
+        s.destroy();
+        reject(err);
+      };
       const s = net.connect({ host: clean, port: 443 });
       s.setTimeout(3500);
-      s.once('connect', () => resolve(s));
-      s.once('timeout', () => {
-        s.destroy();
-        reject(new Error('timeout'));
+      s.once('connect', () => {
+        if (settled) return;
+        settled = true;
+        resolve(s);
       });
-      s.once('error', reject);
+      s.once('timeout', () => fail(new Error('timeout')));
+      s.on('error', fail);
     });
+    rawSocket = sock;
     tcpMs = Math.max(1, Date.now() - tcpStart);
 
     const tlsStart = Date.now();
     const tlsSock = await new Promise<tls.TLSSocket>((resolve, reject) => {
+      let settled = false;
+      const fail = (err: unknown) => {
+        if (settled) return;
+        settled = true;
+        ts.destroy();
+        sock.destroy();
+        reject(err);
+      };
       const ts = tls.connect({
         socket: sock,
         servername: clean,
@@ -301,15 +319,14 @@ export async function probeRealitySni(domain: string, tag = 'general'): Promise<
         rejectUnauthorized: true,
       });
       ts.setTimeout(4000);
-      ts.once('secureConnect', () => resolve(ts));
-      ts.once('timeout', () => {
-        ts.destroy();
-        reject(new Error('tls_timeout'));
+      sock.on('error', fail);
+      ts.once('secureConnect', () => {
+        if (settled) return;
+        settled = true;
+        resolve(ts);
       });
-      ts.once('error', (err) => {
-        ts.destroy();
-        reject(err);
-      });
+      ts.once('timeout', () => fail(new Error('tls_timeout')));
+      ts.on('error', fail);
     });
     tlsMs = Math.max(1, Date.now() - tlsStart);
 
@@ -322,6 +339,7 @@ export async function probeRealitySni(domain: string, tag = 'general'): Promise<
     }
     if (!tlsSock.authorized) reasons.push('bad_cert');
     tlsSock.destroy();
+    rawSocket.destroy();
 
     if (tlsMs >= 300 && reasons.length === 0) {
       reasons.push('slow');
@@ -969,20 +987,20 @@ async function ensureXrayBinary(assetDir: string): Promise<{ bin: string | null;
   const zipPath = path.join(tmpDir, 'xray.zip');
 
   try {
-    const res = await fetch(zipUrl, { redirect: 'follow', signal: AbortSignal.timeout(45_000) });
+    const res = await fetch(zipUrl, { redirect: 'follow', signal: AbortSignal.timeout(15_000) });
     if (!res.ok) throw new Error(`HTTP ${res.status} downloading Xray-linux-${arch}.zip`);
     fs.writeFileSync(zipPath, Buffer.from(await res.arrayBuffer()));
 
     // Prefer unzip, install it if needed, or fall back to python3 zipfile
     const hasUnzip = await execFileAsync('which', ['unzip'], { timeout: 2000 }).catch(() => null);
     if (!hasUnzip?.stdout?.trim()) {
-      await execFileAsync('apt-get', ['install', '-y', '-qq', 'unzip'], { timeout: 30_000 }).catch(() => undefined);
+      await execFileAsync('apt-get', ['install', '-y', '-qq', 'unzip'], { timeout: 15_000 }).catch(() => undefined);
     }
     const unzipAfter = await execFileAsync('which', ['unzip'], { timeout: 2000 }).catch(() => null);
     if (unzipAfter?.stdout?.trim()) {
-      await execFileAsync('unzip', ['-o', '-q', zipPath, '-d', tmpDir], { timeout: 20_000 });
+      await execFileAsync('unzip', ['-o', '-q', zipPath, '-d', tmpDir], { timeout: 15_000 });
     } else {
-      await execFileAsync('python3', ['-m', 'zipfile', '-e', zipPath, tmpDir], { timeout: 20_000 });
+      await execFileAsync('python3', ['-m', 'zipfile', '-e', zipPath, tmpDir], { timeout: 15_000 });
     }
 
     const extractedBin = path.join(tmpDir, 'xray');
@@ -998,16 +1016,16 @@ async function ensureXrayBinary(assetDir: string): Promise<{ bin: string | null;
     }
     return { bin: '/usr/local/bin/xray' };
   } catch (err) {
-    // Fallback to official XTLS install-release.sh
+    // Fallback to official XTLS install-release.sh (bounded so HTTP proxies never time out)
     try {
       const scriptRes = await fetch('https://github.com/XTLS/Xray-install/raw/main/install-release.sh', {
         redirect: 'follow',
-        signal: AbortSignal.timeout(20_000),
+        signal: AbortSignal.timeout(10_000),
       });
       if (scriptRes.ok) {
         const scriptFile = path.join(tmpDir, 'install-release.sh');
         fs.writeFileSync(scriptFile, await scriptRes.text(), { mode: 0o700 });
-        await execFileAsync('bash', [scriptFile, 'install'], { timeout: 90_000 });
+        await execFileAsync('bash', [scriptFile, 'install'], { timeout: 25_000 });
         const installed = await findXrayBinary();
         if (installed) return { bin: installed };
       }
