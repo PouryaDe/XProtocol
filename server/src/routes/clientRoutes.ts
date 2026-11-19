@@ -10,10 +10,23 @@ type AuthedAccount = NonNullable<AuthedRequest['auth']>['account'];
 type EffectiveLimits = ReturnType<typeof getEffectiveLimits>;
 import { generateClientProfile } from '../generators/profiles.js';
 import type { InboundRow } from '../generators/configs.js';
-import { buildClientXrayServerViews } from '../drivers/xrayEngine.js';
+import { buildClientXrayServerViews, writeUnifiedXrayConfigFile } from '../drivers/xrayEngine.js';
 import { ensureClientCertificate, ensureOpenVpnPki } from '../drivers/pki.js';
 import { parseOptionalMbps } from '../services/peerResolver.js';
-import { kickClientConnections, syncRunningInbounds } from '../services/syncService.js';
+import { kickClientConnections, scheduleSyncRunningInbounds, syncRunningInbounds } from '../services/syncService.js';
+
+async function syncAfterClientChange(): Promise<void> {
+  if (process.platform === 'linux') {
+    try {
+      writeUnifiedXrayConfigFile();
+    } catch {
+      // Non-fatal if Xray config dir isn't writable yet
+    }
+    scheduleSyncRunningInbounds();
+    return;
+  }
+  await syncRunningInbounds().catch(() => undefined);
+}
 import { computeNextResetIso, normalizeResetStrategy } from '../services/resetSchedule.js';
 import { emitEvent } from '../services/events.js';
 import type { TemplateSettings } from './templateRoutes.js';
@@ -486,7 +499,7 @@ export function createClientRouter(): Router {
       ip: req.clientIp,
     });
 
-    await syncRunningInbounds().catch(() => undefined);
+    await syncAfterClientChange();
     res.status(201).json({ ids: createdIds, items: createdItems });
   });
 
@@ -657,7 +670,7 @@ export function createClientRouter(): Router {
     if (body.enabled === false) {
       await kickClientConnections(id, 'client_disabled').catch(() => 0);
     }
-    await syncRunningInbounds().catch(() => undefined);
+    await syncAfterClientChange();
     res.json({ ok: true });
   });
 
@@ -684,7 +697,7 @@ export function createClientRouter(): Router {
       data: { clientId: id, name: existing.name },
     });
     recordAudit({ accountId: acc.id, username: acc.username, action: 'client.update', target: existing.name, details: 'reset traffic', ip: req.clientIp });
-    await syncRunningInbounds().catch(() => undefined);
+    await syncAfterClientChange();
     res.json({ ok: true });
   });
 
@@ -770,7 +783,7 @@ export function createClientRouter(): Router {
       id,
     );
     await kickClientConnections(id, 'credentials_rotated').catch(() => 0);
-    await syncRunningInbounds().catch(() => undefined);
+    await syncAfterClientChange();
     recordAudit({ accountId: acc.id, username: acc.username, action: 'client.xray.rotate', target: existing.name, ip: req.clientIp });
     res.json({ ok: true, xrayUuid: nextUuid });
   });
@@ -1012,7 +1025,7 @@ export function createClientRouter(): Router {
       ip: req.clientIp,
     });
     if (action !== 'disconnect' && action !== 'kick') {
-      await syncRunningInbounds().catch(() => undefined);
+      await syncAfterClientChange();
     }
     res.json({ ok: true, done, failed });
   };
@@ -1043,7 +1056,7 @@ export function createClientRouter(): Router {
       subject: `client:${id}`,
       data: { clientId: id, name: existing.name },
     });
-    await syncRunningInbounds().catch(() => undefined);
+    await syncAfterClientChange();
     recordAudit({ accountId: acc.id, username: acc.username, action: 'client.delete', target: existing.name, ip: req.clientIp });
     res.json({ ok: true });
   });

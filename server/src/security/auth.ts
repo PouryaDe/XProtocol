@@ -35,6 +35,8 @@ export function generateWireGuardKeypair(): { privateKey: string; publicKey: str
   };
 }
 
+const PKCS8_X25519_PREFIX = Buffer.from('302e020100300506032b656e04220420', 'hex');
+
 /** Generate an X25519 keypair in Xray Reality raw base64url format. */
 export function generateRealityKeypair(): { privateKey: string; publicKey: string } {
   const { privateKey, publicKey } = crypto.generateKeyPairSync('x25519');
@@ -44,6 +46,24 @@ export function generateRealityKeypair(): { privateKey: string; publicKey: strin
     privateKey: privDer.subarray(privDer.length - 32).toString('base64url'),
     publicKey: pubDer.subarray(pubDer.length - 32).toString('base64url'),
   };
+}
+
+/** Derive the matching Xray Reality base64url public key from a raw base64url private key. */
+export function deriveRealityPublicKey(privateKeyB64u: string): string {
+  try {
+    const raw = Buffer.from((privateKeyB64u || '').trim(), 'base64url');
+    if (raw.length !== 32) return '';
+    const privObj = crypto.createPrivateKey({
+      key: Buffer.concat([PKCS8_X25519_PREFIX, raw]),
+      format: 'der',
+      type: 'pkcs8',
+    });
+    const pubObj = crypto.createPublicKey(privObj);
+    const spki = pubObj.export({ format: 'der', type: 'spki' });
+    return spki.subarray(spki.length - 32).toString('base64url');
+  } catch {
+    return '';
+  }
 }
 
 export function generateShortId(bytes = 4): string {

@@ -8,7 +8,7 @@ import tls from 'node:tls';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { getDb, getSetting, DEFAULT_GENERAL_SETTINGS } from '../db/database.js';
-import { generateRealityKeypair, generateShortId, generateSs2022Key } from '../security/auth.js';
+import { deriveRealityPublicKey, generateRealityKeypair, generateShortId, generateSs2022Key } from '../security/auth.js';
 import { getEligiblePeersForInbound } from '../services/peerResolver.js';
 import {
   renderXrayRoutingConfig,
@@ -662,6 +662,27 @@ export function sanitizeXraySettingsForClient(settings: Record<string, unknown>)
   return copy;
 }
 
+function uniqueXrayEmail(peer: PeerEntry, usedEmails: Set<string>): string {
+  const base = (peer.name || '').trim().replace(/\s+/g, '_') || `client-${peer.clientId}`;
+  let candidate = base;
+  if (usedEmails.has(candidate.toLowerCase())) {
+    candidate = `${base}-c${peer.clientId}`;
+  }
+  let suffix = 2;
+  while (usedEmails.has(candidate.toLowerCase())) {
+    candidate = `${base}-c${peer.clientId}-${suffix++}`;
+  }
+  usedEmails.add(candidate.toLowerCase());
+  return candidate;
+}
+
+function uniqueXrayUuid(peer: PeerEntry, usedIds: Set<string>): string {
+  const raw = String(peer.xrayUuid || '').trim();
+  const candidate = raw && !usedIds.has(raw) ? raw : crypto.randomUUID();
+  usedIds.add(candidate);
+  return candidate;
+}
+
 export function renderXrayInboundObject(inbound: InboundRow, peers: PeerEntry[]): Record<string, unknown> {
   let settings: Record<string, unknown> = {};
   try {
@@ -675,12 +696,15 @@ export function renderXrayInboundObject(inbound: InboundRow, peers: PeerEntry[])
   const security = String(settings.security || 'reality');
   const flow = String(settings.flow || '');
 
+  const usedEmails = new Set<string>();
+  const usedIds = new Set<string>();
+
   let protoSettings: Record<string, unknown> = {};
   if (protocol === 'vless') {
     protoSettings = {
       clients: peers.map((p) => ({
-        id: p.xrayUuid || crypto.randomUUID(),
-        email: p.name,
+        id: uniqueXrayUuid(p, usedIds),
+        email: uniqueXrayEmail(p, usedEmails),
         ...(flow ? { flow } : {}),
       })),
       decryption: 'none',
@@ -689,15 +713,15 @@ export function renderXrayInboundObject(inbound: InboundRow, peers: PeerEntry[])
   } else if (protocol === 'vmess') {
     protoSettings = {
       clients: peers.map((p) => ({
-        id: p.xrayUuid || crypto.randomUUID(),
-        email: p.name,
+        id: uniqueXrayUuid(p, usedIds),
+        email: uniqueXrayEmail(p, usedEmails),
       })),
     };
   } else if (protocol === 'trojan') {
     protoSettings = {
       clients: peers.map((p) => ({
         password: p.vpnPassword || p.xrayUuid || p.name,
-        email: p.name,
+        email: uniqueXrayEmail(p, usedEmails),
       })),
       ...(Array.isArray(settings.fallbacks) && settings.fallbacks.length > 0 ? { fallbacks: settings.fallbacks } : {}),
     };
@@ -711,7 +735,7 @@ export function renderXrayInboundObject(inbound: InboundRow, peers: PeerEntry[])
         network: ssNet,
         clients: peers.map((p) => ({
           password: p.ssPassword || generateSs2022Key(method),
-          email: p.name,
+          email: uniqueXrayEmail(p, usedEmails),
         })),
       };
     } else {
@@ -720,7 +744,7 @@ export function renderXrayInboundObject(inbound: InboundRow, peers: PeerEntry[])
         network: ssNet,
         clients: peers.map((p) => ({
           password: p.vpnPassword || p.xrayUuid || p.name,
-          email: p.name,
+          email: uniqueXrayEmail(p, usedEmails),
         })),
       };
     }
@@ -853,6 +877,101 @@ export function renderXrayInboundObject(inbound: InboundRow, peers: PeerEntry[])
   };
 }
 
+/**
+ * Render sanitized Ovira-style inbound preview JSON ({ spec, engine, note, combo })
+ * for the Config file tab without exposing Reality private keys, SS keys, or client secrets.
+ */
+export async function renderXrayConfigPreview(inbound: InboundRow): Promise<string> {
+  let settings: Record<string, unknown> = {};
+  try {
+    settings = JSON.parse(inbound.settings_json || '{}');
+  } catch {
+    settings = {};
+  }
+
+  const protocol = String(settings.protocol || 'vless');
+  const transport = String(settings.transport || 'raw');
+  const security = String(settings.security || 'reality');
+  const flow = String(settings.flow || '');
+  const effectiveRawHeader = String(settings.headerType || settings.rawHeader || 'none');
+
+  let tlsSpec: Record<string, unknown> = {};
+  if (security === 'tls') {
+    const t = (settings.tls && typeof settings.tls === 'object' ? settings.tls : {}) as Record<string, unknown>;
+    const host = String(t.sni || t.serverName || t.certHost || settings.tlsHost || '').trim();
+    tlsSpec = {
+      ...(host ? { serverName: host } : {}),
+      alpn: Array.isArray(t.alpn) && t.alpn.length > 0 ? t.alpn : ['h2', 'http/1.1'],
+      ...(t.minVersion ? { minVersion: String(t.minVersion) } : {}),
+      ...(t.maxVersion ? { maxVersion: String(t.maxVersion) } : {}),
+      ...(t.rejectUnknownSni ? { rejectUnknownSni: true } : {}),
+    };
+  }
+
+  let realitySpec: Record<string, unknown> = {};
+  if (security === 'reality') {
+    const r = (settings.reality && typeof settings.reality === 'object' ? settings.reality : {}) as Record<string, unknown>;
+    const rawNames = Array.isArray(r.serverNames) ? r.serverNames.map(String).map((x) => x.trim()).filter(Boolean) : [];
+    const fallbackName = String(settings.realitySni || '').trim() || 'www.microsoft.com';
+    const serverNames = rawNames.length > 0 ? rawNames : [fallbackName];
+    const dest = String(r.dest || r.target || '').trim() || `${serverNames[0]}:443`;
+    const target = dest.includes(':') ? dest : `${dest}:443`;
+    const rawShortIds = Array.isArray(r.shortIds) ? r.shortIds.map(String).map((x) => x.trim()).filter(Boolean) : [];
+    realitySpec = {
+      target,
+      serverNames,
+      shortIds: rawShortIds.length > 0 ? rawShortIds : [''],
+      ...(Number(r.xver) > 0 ? { xver: Number(r.xver) } : {}),
+      ...(Number(r.maxTimeDiff) > 0 ? { maxTimeDiff: Number(r.maxTimeDiff) } : {}),
+      ...(r.minClientVer ? { minClientVer: String(r.minClientVer) } : {}),
+      ...(r.maxClientVer ? { maxClientVer: String(r.maxClientVer) } : {}),
+    };
+  }
+
+  const sockopt: Record<string, unknown> = {};
+  if (settings.proxyProtocol) sockopt.acceptProxyProtocol = true;
+  if (settings.tcpCongestion) sockopt.tcpcongestion = String(settings.tcpCongestion);
+  if (Number(settings.tcpKeepAliveIdle) > 0) sockopt.tcpKeepAliveIdle = Number(settings.tcpKeepAliveIdle);
+  if (Number(settings.tcpKeepAliveInterval) > 0) sockopt.tcpKeepAliveInterval = Number(settings.tcpKeepAliveInterval);
+  if (settings.tcpFastOpen) sockopt.tcpFastOpen = true;
+  if (settings.tcpMptcp) sockopt.tcpMptcp = true;
+  if (settings.v6only) sockopt.V6Only = true;
+  if (settings.domainStrategy) sockopt.domainStrategy = String(settings.domainStrategy);
+
+  const sniff = (settings.sniffing && typeof settings.sniffing === 'object' ? settings.sniffing : {}) as Record<string, unknown>;
+  const spec: Record<string, unknown> = {
+    preset: String(settings.preset || 'manual'),
+    tag: `xr-${inbound.name}`,
+    listen: '0.0.0.0',
+    port: inbound.port,
+    protocol,
+    transport,
+    security,
+    ...(flow ? { flow } : {}),
+    ...(transport === 'raw' ? { rawHeader: effectiveRawHeader } : {}),
+    tls: tlsSpec,
+    reality: realitySpec,
+    sockopt,
+    sniffing: {
+      enabled: sniff.enabled !== false,
+      destOverride: Array.isArray(sniff.destOverride) ? sniff.destOverride : ['http', 'tls', 'quic'],
+      ...(sniff.routeOnly ? { routeOnly: true } : {}),
+      ...(sniff.metadataOnly ? { metadataOnly: true } : {}),
+    },
+  };
+
+  return JSON.stringify(
+    {
+      spec,
+      engine: await getXrayEngineVersion(),
+      note: "The Reality key, the shadowsocks key and the clients' keys are not shown.",
+      combo: findXrayCombo(protocol, transport, security) ?? null,
+    },
+    null,
+    2,
+  );
+}
+
 /** Build the unified Xray config combining all running local Xray inbounds + routing policy + stats API. */
 export function buildUnifiedXrayConfig(): { configJson: string; hasActiveXray: boolean } {
   const db = getDb();
@@ -971,6 +1090,22 @@ async function findXrayBinary(): Promise<string | null> {
   const whichXray = await execFileAsync('which', ['xray'], { timeout: 3000 }).catch(() => null);
   const found = whichXray?.stdout?.trim();
   return found || null;
+}
+
+let cachedXrayVersion: string | null = null;
+async function getXrayEngineVersion(): Promise<string> {
+  if (cachedXrayVersion) return cachedXrayVersion;
+  const bin = await findXrayBinary();
+  if (bin) {
+    const out = await execFileAsync(bin, ['version'], { timeout: 3000 }).catch(() => null);
+    const m = /Xray\s+([0-9]+\.[0-9]+\.[0-9]+)/i.exec(out?.stdout || '');
+    if (m?.[1]) {
+      cachedXrayVersion = m[1];
+      return cachedXrayVersion;
+    }
+  }
+  cachedXrayVersion = '26.10.31';
+  return cachedXrayVersion;
 }
 
 /** Auto-install official Xray-core binary on Ubuntu Linux if missing when an Xray inbound is activated. */
@@ -1347,7 +1482,8 @@ export function buildClientXrayServerViews(
           ? (Array.isArray(r.serverNames) ? r.serverNames[0] : '') || s.realitySni || 'www.microsoft.com'
           : t.sni || t.serverName || t.certHost || s.cdnDomain || s.cdnHost || s.tlsHost || primaryHost),
     );
-    const pbk = String(s.realityPublicKey || ib.server_public_key || '');
+    const derivedPub = s._realityPrivateKey ? deriveRealityPublicKey(String(s._realityPrivateKey)) : '';
+    const pbk = String(derivedPub || ib.server_public_key || s.realityPublicKey || '');
     const sid = Array.isArray(r.shortIds) && r.shortIds.length > 0 ? String(r.shortIds[0]) : '';
     const fp = String(s.fingerprint || 'chrome');
     const netType = transport === 'raw' ? 'tcp' : transport;

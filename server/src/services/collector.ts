@@ -184,7 +184,12 @@ export async function runCollectorTick(): Promise<void> {
   }
 
   const clientByName = new Map(clients.map((c) => [c.name, c]));
-  const clientByNameLower = new Map(clients.map((c) => [c.name.toLowerCase(), c]));
+  const clientByNameLower = new Map<string, (typeof clients)[number]>();
+  for (const c of clients) {
+    clientByNameLower.set(c.name.toLowerCase(), c);
+    clientByNameLower.set(c.name.trim().replace(/\s+/g, '_').toLowerCase(), c);
+  }
+  const clientById = new Map(clients.map((c) => [c.id, c]));
   const clientNameByPub = new Map(clients.map((c) => [c.wg_public_key, c.name]));
 
   const nodes = db.prepare('SELECT id, name, multiplier FROM nodes').all() as { id: number; name: string; multiplier: number }[];
@@ -242,7 +247,11 @@ export async function runCollectorTick(): Promise<void> {
 
   for (const s of live) {
     seenLiveIds.add(s.id);
-    const client = clientByName.get(s.clientName) ?? clientByNameLower.get(s.clientName.toLowerCase());
+    let client = clientByName.get(s.clientName) ?? clientByNameLower.get(s.clientName.toLowerCase());
+    if (!client) {
+      const mCid = /-c(\d+)(?:-\d+)?$/i.exec(s.clientName);
+      if (mCid) client = clientById.get(Number(mCid[1]));
+    }
     if (!client) continue;
     const inbound = inbounds.find((i) => i.id === s.inboundId);
     if (!inbound) continue;

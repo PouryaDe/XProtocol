@@ -618,6 +618,10 @@ export function renderXrayRoutingConfig(params: {
   inboundNamesById?: Record<number, string>;
 }): string {
   const xrayOutbounds: Record<string, unknown>[] = [];
+  if (params.defaultAction === 'direct') {
+    xrayOutbounds.push({ tag: 'direct', protocol: 'freedom' });
+    xrayOutbounds.push({ tag: 'block', protocol: 'blackhole' });
+  }
   const obById = new Map(params.outbounds.map((o) => [o.id, o]));
   for (const ob of params.outbounds) {
     try {
@@ -627,8 +631,10 @@ export function renderXrayRoutingConfig(params: {
       xrayOutbounds.push({ tag: `out-${ob.name}`, protocol: ob.type });
     }
   }
-  xrayOutbounds.push({ tag: 'direct', protocol: 'freedom' });
-  xrayOutbounds.push({ tag: 'block', protocol: 'blackhole' });
+  if (params.defaultAction !== 'direct') {
+    xrayOutbounds.push({ tag: 'direct', protocol: 'freedom' });
+    xrayOutbounds.push({ tag: 'block', protocol: 'blackhole' });
+  }
 
   const xrayRules: Record<string, unknown>[] = [
     { type: 'field', port: '53', outboundTag: 'direct' },

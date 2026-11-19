@@ -35,8 +35,16 @@ async function runSyncPass(): Promise<void> {
     .all() as unknown as InboundRow[];
 
   const l2tpMerged = new Map<string, { name: string; vpnPassword: string }>();
+  let xraySynced = false;
 
   for (const ib of runningInbounds) {
+    if (ib.protocol === 'xray') {
+      if (!xraySynced) {
+        xraySynced = true;
+        await syncLinuxInboundPeers(ib, []).catch(() => undefined);
+      }
+      continue;
+    }
     let peers = getEligiblePeersForInbound(ib.id, ib.subnet);
     if (ib.protocol === 'wireguard' || ib.protocol === 'amneziawg') {
       const otherRows = db

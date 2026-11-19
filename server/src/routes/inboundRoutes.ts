@@ -3,13 +3,14 @@ import net from 'node:net';
 import dgram from 'node:dgram';
 import { Router } from 'express';
 import { getDb } from '../db/database.js';
-import { generateRealityKeypair, generateShortId, generateSs2022Key, generateWireGuardKeypair } from '../security/auth.js';
+import { deriveRealityPublicKey, generateRealityKeypair, generateShortId, generateSs2022Key, generateWireGuardKeypair } from '../security/auth.js';
 import { applyInboundRuntime } from '../drivers/runtime.js';
 import { getInboundRuntimeStatus, issueLetsEncryptCert } from '../drivers/linuxEngine.js';
 import {
   CURATED_SNI_DOMAINS,
   buildXrayPresetDefaults,
   probeRealitySni,
+  renderXrayConfigPreview,
   sanitizeXraySettingsForClient,
   saveSniResult,
   syncAndApplyXrayEngine,
@@ -477,11 +478,21 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
         return;
       }
       if (String(settingsObj.security || '') === 'reality') {
-        if (!settingsObj.realityPublicKey || !settingsObj._realityPrivateKey) {
+        if (settingsObj._realityPrivateKey) {
+          const priv = String(settingsObj._realityPrivateKey);
+          settingsObj.realityPublicKey = deriveRealityPublicKey(priv) || String(settingsObj.realityPublicKey || '');
+        } else if (!settingsObj.realityPublicKey || !settingsObj._realityPrivateKey) {
           const rk = generateRealityKeypair();
           settingsObj.realityPublicKey = rk.publicKey;
           settingsObj._realityPrivateKey = rk.privateKey;
         }
+        const realityObj = (
+          settingsObj.reality && typeof settingsObj.reality === 'object' ? settingsObj.reality : {}
+        ) as Record<string, unknown>;
+        if (!Array.isArray(realityObj.shortIds) || realityObj.shortIds.length === 0) {
+          realityObj.shortIds = [generateShortId(4)];
+        }
+        settingsObj.reality = realityObj;
         keys = {
           publicKey: String(settingsObj.realityPublicKey),
           privateKey: String(settingsObj._realityPrivateKey),
@@ -663,6 +674,29 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       }
     }
 
+    let nextServerPub = existing.server_public_key;
+    let nextServerPriv = existing.server_private_key;
+    if (existing.protocol === 'xray' && String(nextSettings.security || '') === 'reality') {
+      let priv = String(nextSettings._realityPrivateKey || existing.server_private_key || '');
+      let pub = priv ? deriveRealityPublicKey(priv) : '';
+      if (!priv || !pub) {
+        const rk = generateRealityKeypair();
+        priv = rk.privateKey;
+        pub = rk.publicKey;
+      }
+      nextSettings._realityPrivateKey = priv;
+      nextSettings.realityPublicKey = pub;
+      nextServerPriv = priv;
+      nextServerPub = pub;
+      const realityObj = (
+        nextSettings.reality && typeof nextSettings.reality === 'object' ? nextSettings.reality : {}
+      ) as Record<string, unknown>;
+      if (!Array.isArray(realityObj.shortIds) || realityObj.shortIds.length === 0) {
+        realityObj.shortIds = [generateShortId(4)];
+      }
+      nextSettings.reality = realityObj;
+    }
+
     const nextPort = body.port !== undefined ? Number(body.port) : existing.port;
     const nextTransport = body.transport ?? existing.transport;
     const nextEnabled = body.enabled !== undefined ? Boolean(body.enabled) : Boolean(existing.enabled);
@@ -686,7 +720,7 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
     }
 
     db.prepare(
-      `UPDATE inbounds SET transport = ?, port = ?, subnet = ?, auth_mode = ?, description = ?, public_address_override = ?, enabled = ?, cert_id = ?, settings_json = ? WHERE id = ?`,
+      `UPDATE inbounds SET transport = ?, port = ?, subnet = ?, auth_mode = ?, description = ?, public_address_override = ?, enabled = ?, cert_id = ?, server_public_key = ?, server_private_key = ?, settings_json = ? WHERE id = ?`,
     ).run(
       body.transport ?? existing.transport,
       body.port !== undefined ? Number(body.port) : existing.port,
@@ -696,6 +730,8 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       body.publicAddressOverride ?? existing.public_address_override,
       body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled,
       body.certId !== undefined ? body.certId : existing.cert_id,
+      nextServerPub,
+      nextServerPriv,
       JSON.stringify(nextSettings),
       id,
     );
@@ -824,7 +860,13 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       return;
     }
     const peers = getInboundPeers(id, row.subnet);
-    const rendered = renderInboundServerConfig(row, peers);
+    const rendered =
+      row.protocol === 'xray'
+        ? {
+            path: '/usr/local/lib/xprotocol/xray/config.json',
+            content: await renderXrayConfigPreview(row),
+          }
+        : renderInboundServerConfig(row, peers);
     const liveStatus = driverMode === 'linux' && row.node_id ? await getInboundRuntimeStatus(row) : [];
     const logs = [
       `[${new Date().toISOString()}] inbound=${row.name} protocol=${row.protocol} port=${row.port}`,

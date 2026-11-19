@@ -19,9 +19,11 @@ const { computeNextResetIso } = await import('../src/services/resetSchedule.js')
 const {
   buildXrayPresetDefaults,
   validateXraySettings,
+  renderXrayInboundObject,
   buildUnifiedXrayConfig,
   buildClientXrayServerViews,
 } = await import('../src/drivers/xrayEngine.js');
+const { generateRealityKeypair, deriveRealityPublicKey } = await import('../src/security/auth.js');
 const { encryptBackupBuffer, decryptBackupBuffer, extractSqliteBackup } = await import('../src/services/offsiteBackup.js');
 const { recordNodeHealthSample, buildNodeUptimeSummary, getNodeHealthSeries } = await import('../src/services/nodeHealth.js');
 const { validateWebhookUrl } = await import('../src/services/events.js');
@@ -689,6 +691,125 @@ test('Ovira 2.0 end-to-end API: templates, bulk actions, proxy app sub, events, 
     );
     assert.equal(chunkUpdated?.port, 29445);
     assert.equal(chunkUpdated?.displayName, 'رئالیتی تست');
+
+    // 13. Reality keypair derivation + sanitized Ovira-format Xray config preview + unique per-client UUID/email
+    const rk = generateRealityKeypair();
+    assert.equal(deriveRealityPublicKey(rk.privateKey), rk.publicKey);
+
+    const renderedDup = renderXrayInboundObject(
+      {
+        id: 999,
+        node_id: 1,
+        protocol: 'xray',
+        name: 'dup-check',
+        transport: 'tcp',
+        port: 29446,
+        subnet: '',
+        auth_mode: 'psk',
+        description: '',
+        public_address_override: null,
+        enabled: 1,
+        running: 1,
+        cert_id: null,
+        server_public_key: rk.publicKey,
+        server_private_key: rk.privateKey,
+        settings_json: JSON.stringify({
+          preset: 'direct',
+          protocol: 'vless',
+          transport: 'raw',
+          security: 'reality',
+          flow: 'xtls-rprx-vision',
+          reality: { target: 'www.speedtest.net:443', serverNames: ['www.speedtest.net'], shortIds: ['a1b2c3d4'] },
+        }),
+        created_at: new Date().toISOString(),
+      },
+      [
+        {
+          clientId: 101,
+          name: 'Ali Reza',
+          tunnelIp: '',
+          wgPublicKey: '',
+          wgPrivateKey: '',
+          wgPsk: '',
+          xrayUuid: '11111111-1111-4111-8111-111111111111',
+          vpnPassword: '',
+          ssPassword: '',
+          downloadMbps: null,
+          uploadMbps: null,
+        },
+        {
+          clientId: 102,
+          name: 'ali reza',
+          tunnelIp: '',
+          wgPublicKey: '',
+          wgPrivateKey: '',
+          wgPsk: '',
+          xrayUuid: '11111111-1111-4111-8111-111111111111',
+          vpnPassword: '',
+          ssPassword: '',
+          downloadMbps: null,
+          uploadMbps: null,
+        },
+        {
+          clientId: 103,
+          name: '   ',
+          tunnelIp: '',
+          wgPublicKey: '',
+          wgPrivateKey: '',
+          wgPsk: '',
+          xrayUuid: '',
+          vpnPassword: '',
+          ssPassword: '',
+          downloadMbps: null,
+          uploadMbps: null,
+        },
+      ],
+    );
+    const renderedClients = (renderedDup.settings as { clients: Array<{ id: string; email: string }> }).clients;
+    assert.equal(renderedClients.length, 3);
+    assert.equal(new Set(renderedClients.map((c) => c.id)).size, 3);
+    assert.equal(new Set(renderedClients.map((c) => c.email.toLowerCase())).size, 3);
+    assert.equal(renderedClients[0].email, 'Ali_Reza');
+    assert.equal(renderedClients[1].email, 'ali_reza-c102');
+
+    const previewInRes = await fetch(`${baseUrl}/api/inbounds`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        protocol: 'xray',
+        preset: 'direct',
+        displayName: 'Reality Preview',
+        port: 29447,
+        nodeId: 1,
+        settings: {
+          preset: 'direct',
+          protocol: 'vless',
+          transport: 'raw',
+          security: 'reality',
+          flow: 'xtls-rprx-vision',
+          realityPublicKey: rk.publicKey,
+          _realityPrivateKey: rk.privateKey,
+          reality: { target: 'www.speedtest.net:443', serverNames: ['www.speedtest.net'], shortIds: ['6581750bd4655330'] },
+        },
+      }),
+    });
+    assert.equal(previewInRes.status, 201);
+    const previewInJson = (await previewInRes.json()) as { id: number };
+    const cfgRes = await fetch(`${baseUrl}/api/inbounds/${previewInJson.id}/config`, { headers: { Cookie: cookie } });
+    assert.equal(cfgRes.status, 200);
+    const cfgPayload = (await cfgRes.json()) as { content: string };
+    assert.ok(!cfgPayload.content.includes(rk.privateKey));
+    const parsedCfg = JSON.parse(cfgPayload.content) as {
+      spec: Record<string, unknown>;
+      engine: string;
+      note: string;
+      combo: { protocol: string; transport: string; security: string } | null;
+    };
+    assert.equal(parsedCfg.spec.preset, 'direct');
+    assert.equal(parsedCfg.spec.protocol, 'vless');
+    assert.equal(parsedCfg.spec.security, 'reality');
+    assert.equal(parsedCfg.combo?.security, 'reality');
+    assert.ok(parsedCfg.note.includes('not shown'));
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }

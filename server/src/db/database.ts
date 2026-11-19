@@ -649,14 +649,24 @@ export function initDatabase(): { initialPasswordGenerated?: string } {
   ensureCol('sessions', 'mfa_confirmed_at', 'INTEGER NOT NULL DEFAULT 0');
   ensureCol('nodes', 'allow_from_json', "TEXT NOT NULL DEFAULT '[]'");
 
-  // Backfill Xray UUID / SS2022 password for existing clients missing them
-  const missingXrayClients = db
-    .prepare("SELECT id FROM clients WHERE xray_uuid = '' OR ss_password = ''")
-    .all() as Array<{ id: number }>;
-  for (const mc of missingXrayClients) {
-    db.prepare(
-      "UPDATE clients SET xray_uuid = CASE WHEN xray_uuid = '' THEN ? ELSE xray_uuid END, ss_password = CASE WHEN ss_password = '' THEN ? ELSE ss_password END WHERE id = ?",
-    ).run(crypto.randomUUID(), generateSs2022Key('2022-blake3-aes-128-gcm'), mc.id);
+  // Backfill and deduplicate Xray UUID / SS2022 password for existing clients
+  const allClientsForXray = db
+    .prepare('SELECT id, xray_uuid, ss_password FROM clients ORDER BY id ASC')
+    .all() as Array<{ id: number; xray_uuid: string; ss_password: string }>;
+  const seenXrayUuids = new Set<string>();
+  for (const mc of allClientsForXray) {
+    const curUuid = String(mc.xray_uuid || '').trim();
+    const needUuid = !curUuid || seenXrayUuids.has(curUuid);
+    const nextUuid = needUuid ? crypto.randomUUID() : curUuid;
+    seenXrayUuids.add(nextUuid);
+    const needSs = !String(mc.ss_password || '').trim();
+    if (needUuid || needSs) {
+      db.prepare('UPDATE clients SET xray_uuid = ?, ss_password = ? WHERE id = ?').run(
+        nextUuid,
+        needSs ? generateSs2022Key('2022-blake3-aes-128-gcm') : mc.ss_password,
+        mc.id,
+      );
+    }
   }
 
   const now = new Date().toISOString();
