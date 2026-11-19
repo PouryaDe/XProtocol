@@ -486,15 +486,13 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
     const updated = db.prepare('SELECT * FROM inbounds WHERE id = ?').get(id) as unknown as InboundRow;
     if (updated.node_id) {
       if (!updated.enabled && updated.running) {
-        const rt = await applyInboundRuntime(driverMode, updated, [], 'stop');
-        recordInboundLogs(id, rt.logs);
         db.prepare('UPDATE inbounds SET running = 0 WHERE id = ?').run(id);
-      } else if (updated.enabled && !updated.running && body.enabled === true) {
-        const rt = await applyInboundRuntime(driverMode, updated, getInboundPeers(id, updated.subnet), 'start');
+        const rt = await applyInboundRuntime(driverMode, { ...updated, running: 0 }, [], 'stop');
         recordInboundLogs(id, rt.logs);
-        db.prepare('UPDATE inbounds SET running = ? WHERE id = ?').run(rt.ok ? 1 : 0, id);
-      } else if (updated.enabled && updated.running) {
-        const rt = await applyInboundRuntime(driverMode, updated, getInboundPeers(id, updated.subnet), 'restart');
+      } else if (updated.enabled && (!updated.running || body.enabled === true || updated.running)) {
+        const action: 'start' | 'restart' = updated.running ? 'restart' : 'start';
+        db.prepare('UPDATE inbounds SET running = 1 WHERE id = ?').run(id);
+        const rt = await applyInboundRuntime(driverMode, { ...updated, running: 1 }, getInboundPeers(id, updated.subnet), action);
         recordInboundLogs(id, rt.logs);
         if (!rt.ok) {
           db.prepare('UPDATE inbounds SET running = 0 WHERE id = ?').run(id);
@@ -605,10 +603,11 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       res.status(404).json({ error: 'Deployment not found' });
       return;
     }
-    if (row.running) {
-      await applyInboundRuntime(driverMode, row, [], 'stop');
-    }
+    const wasRunning = Boolean(row.running);
     db.prepare('UPDATE inbounds SET node_id = NULL, running = 0 WHERE id = ?').run(id);
+    if (wasRunning) {
+      await applyInboundRuntime(driverMode, { ...row, running: 0 }, [], 'stop');
+    }
     res.json({ ok: true });
   });
 
@@ -655,7 +654,8 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       res.status(400).json({ error: 'Attach this inbound to a node before starting it' });
       return;
     }
-    const result = await applyInboundRuntime(driverMode, row, getInboundPeers(id, row.subnet), action);
+    db.prepare('UPDATE inbounds SET running = ? WHERE id = ?').run(action === 'stop' ? 0 : 1, id);
+    const result = await applyInboundRuntime(driverMode, { ...row, running: action === 'stop' ? 0 : 1 }, getInboundPeers(id, row.subnet), action);
     recordInboundLogs(id, result.logs);
     const nextRunning = action === 'stop' ? 0 : result.ok ? 1 : 0;
     db.prepare('UPDATE inbounds SET running = ? WHERE id = ?').run(nextRunning, id);

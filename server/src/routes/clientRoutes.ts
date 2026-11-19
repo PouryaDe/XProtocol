@@ -725,6 +725,11 @@ export function createClientRouter(): Router {
       return;
     }
     const general = getSetting('general', DEFAULT_GENERAL_SETTINGS);
+    const reqHost = req.hostname && req.hostname !== 'localhost' && req.hostname !== '127.0.0.1' ? req.hostname : '';
+    const fallbackHost =
+      general.publicAddress && general.publicAddress !== '127.0.0.1'
+        ? general.publicAddress
+        : reqHost || '127.0.0.1';
     const xrayInbounds = resolveClientInbounds(id).filter((i) => i.protocol === 'xray');
     const servers = buildClientXrayServerViews(
       {
@@ -735,7 +740,7 @@ export function createClientRouter(): Router {
         ssPassword: String(client.ss_password || ''),
       },
       xrayInbounds,
-      general.publicAddress || '127.0.0.1',
+      fallbackHost,
     );
     res.json({ servers });
   });

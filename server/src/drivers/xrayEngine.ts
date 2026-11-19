@@ -707,18 +707,23 @@ export function renderXrayInboundObject(inbound: InboundRow, peers: PeerEntry[])
     }
   }
 
-  const network = transport === 'raw' ? 'tcp' : transport === 'xhttp' ? 'splithttp' : transport;
+  const network = transport === 'raw' ? 'tcp' : transport;
   const streamSettings: Record<string, unknown> = { network, security };
+  const effectiveRawHeader = String(settings.headerType || settings.rawHeader || 'none');
+  const effectiveHttpHosts = Array.isArray(settings.httpHosts)
+    ? settings.httpHosts
+    : Array.isArray(settings.rawHttpHosts)
+      ? settings.rawHttpHosts
+      : [];
+  const effectiveRawPath = String(settings.rawHttpPath || settings.path || '/');
 
-  if (transport === 'raw' && settings.rawHeader === 'http') {
+  if (transport === 'raw' && effectiveRawHeader === 'http') {
     streamSettings.tcpSettings = {
       header: {
         type: 'http',
         request: {
-          path: [String(settings.rawHttpPath || '/')],
-          headers: Array.isArray(settings.rawHttpHosts) && settings.rawHttpHosts.length > 0
-            ? { Host: settings.rawHttpHosts }
-            : {},
+          path: [effectiveRawPath],
+          headers: effectiveHttpHosts.length > 0 ? { Host: effectiveHttpHosts } : {},
         },
       },
     };
@@ -734,7 +739,7 @@ export function renderXrayInboundObject(inbound: InboundRow, peers: PeerEntry[])
       ...(settings.host ? { host: String(settings.host) } : {}),
     };
   } else if (transport === 'xhttp') {
-    streamSettings.splithttpSettings = {
+    streamSettings.xhttpSettings = {
       path: String(settings.path || '/'),
       mode: String(settings.xhttpMode || 'auto'),
       ...(settings.host ? { host: String(settings.host) } : {}),
@@ -746,7 +751,7 @@ export function renderXrayInboundObject(inbound: InboundRow, peers: PeerEntry[])
     };
   } else if (transport === 'grpc') {
     streamSettings.grpcSettings = {
-      serviceName: String(settings.serviceName || 'grpc'),
+      serviceName: String(settings.grpcServiceName || settings.serviceName || 'grpc'),
       ...(settings.grpcAuthority ? { authority: String(settings.grpcAuthority) } : {}),
       multiMode: Boolean(settings.grpcMultiMode),
     };
@@ -764,25 +769,30 @@ export function renderXrayInboundObject(inbound: InboundRow, peers: PeerEntry[])
 
   if (security === 'reality') {
     const r = (settings.reality && typeof settings.reality === 'object' ? settings.reality : {}) as Record<string, unknown>;
-    const serverNames = Array.isArray(r.serverNames) && r.serverNames.length > 0 ? r.serverNames : ['www.amd.com'];
+    const rawNames = Array.isArray(r.serverNames) ? r.serverNames.map(String).map((x) => x.trim()).filter(Boolean) : [];
+    const fallbackName = String(settings.realitySni || '').trim() || 'www.amd.com';
+    const serverNames = rawNames.length > 0 ? rawNames : [fallbackName];
+    const dest = String(r.dest || r.target || '').trim() || `${serverNames[0]}:443`;
+    const rawShortIds = Array.isArray(r.shortIds) ? r.shortIds.map(String).map((x) => x.trim()).filter(Boolean) : [];
     streamSettings.realitySettings = {
       show: false,
-      dest: String(r.target || `${serverNames[0]}:443`),
+      dest: dest.includes(':') ? dest : `${dest}:443`,
       xver: Number(r.xver || 0),
       serverNames,
       privateKey: inbound.server_private_key || String(settings._realityPrivateKey || ''),
-      shortIds: Array.isArray(r.shortIds) && r.shortIds.length > 0 ? r.shortIds : [''],
+      shortIds: rawShortIds.length > 0 ? rawShortIds : [''],
       ...(Number(r.maxTimeDiff) > 0 ? { maxTimeDiff: Number(r.maxTimeDiff) } : {}),
       ...(r.minClientVer ? { minClientVer: String(r.minClientVer) } : {}),
       ...(r.maxClientVer ? { maxClientVer: String(r.maxClientVer) } : {}),
     };
   } else if (security === 'tls') {
     const t = (settings.tls && typeof settings.tls === 'object' ? settings.tls : {}) as Record<string, unknown>;
-    const certFile = String(t.certFile || `/etc/letsencrypt/live/${settings.tlsHost || 'localhost'}/fullchain.pem`);
-    const keyFile = String(t.keyFile || `/etc/letsencrypt/live/${settings.tlsHost || 'localhost'}/privkey.pem`);
+    const hostForCert = String(t.certHost || t.sni || settings.tlsHost || settings.cdnDomain || settings.cdnHost || 'localhost').trim() || 'localhost';
+    const certFile = String(t.certFile || `/etc/letsencrypt/live/${hostForCert}/fullchain.pem`);
+    const keyFile = String(t.keyFile || `/etc/letsencrypt/live/${hostForCert}/privkey.pem`);
     streamSettings.tlsSettings = {
       alpn: Array.isArray(t.alpn) && t.alpn.length > 0 ? t.alpn : ['h2', 'http/1.1'],
-      ...(t.sni ? { serverName: String(t.sni) } : {}),
+      ...(t.sni || t.serverName ? { serverName: String(t.sni || t.serverName) } : {}),
       ...(t.minVersion ? { minVersion: String(t.minVersion) } : {}),
       ...(t.maxVersion ? { maxVersion: String(t.maxVersion) } : {}),
       ...(t.cipherSuites ? { cipherSuites: String(t.cipherSuites) } : {}),
@@ -1012,6 +1022,22 @@ async function ensureXrayBinary(assetDir: string): Promise<{ bin: string | null;
   }
 }
 
+function ensureXrayAssets(assetDir: string): void {
+  fs.mkdirSync(assetDir, { recursive: true });
+  const searchDirs = ['/usr/local/share/xray', '/usr/share/xray', '/usr/local/bin', '/etc/xray'];
+  for (const file of ['geoip.dat', 'geosite.dat']) {
+    const dst = path.join(assetDir, file);
+    if (fs.existsSync(dst) && fs.statSync(dst).size > 0) continue;
+    for (const srcDir of searchDirs) {
+      const src = path.join(srcDir, file);
+      if (fs.existsSync(src) && fs.statSync(src).size > 0) {
+        fs.copyFileSync(src, dst);
+        break;
+      }
+    }
+  }
+}
+
 export async function syncAndApplyXrayEngine(): Promise<{ ok: boolean; statusMessage: string }> {
   const { configJson, hasActiveXray } = buildUnifiedXrayConfig();
   const dir = process.platform === 'linux' ? '/usr/local/lib/xprotocol/xray' : path.join(os.tmpdir(), 'xprotocol-xray');
@@ -1040,6 +1066,21 @@ export async function syncAndApplyXrayEngine(): Promise<{ ok: boolean; statusMes
   if (!ensured.bin) {
     return { ok: false, statusMessage: ensured.error || 'xray binary not installed on host' };
   }
+  ensureXrayAssets(dir);
+
+  // Pre-validate config with xray -test before restarting systemd
+  try {
+    await execFileAsync(ensured.bin, ['run', '-test', '-c', cfgPath], {
+      timeout: 6000,
+      env: { ...process.env, XRAY_LOCATION_ASSET: dir },
+    });
+  } catch (testErr: unknown) {
+    const te = testErr as { stderr?: string; stdout?: string; message?: string };
+    return {
+      ok: false,
+      statusMessage: `Xray config test failed: ${(te.stderr || te.stdout || te.message || String(testErr)).trim()}`,
+    };
+  }
 
   const desiredUnit = `[Unit]
 Description=XProtocol Xray Core Engine
@@ -1066,6 +1107,15 @@ WantedBy=multi-user.target
   try {
     await execFileAsync('systemctl', ['enable', 'xprotocol-xray'], { timeout: 5000 }).catch(() => undefined);
     await execFileAsync('systemctl', ['restart', 'xprotocol-xray'], { timeout: 10000 });
+    await new Promise((r) => setTimeout(r, 450));
+    const active = await execFileAsync('systemctl', ['is-active', 'xprotocol-xray'], { timeout: 3000 }).catch((e) => e as { stdout?: string });
+    if (String(active?.stdout || '').trim() !== 'active') {
+      const j = await execFileAsync('journalctl', ['-u', 'xprotocol-xray', '-n', '15', '--no-pager'], { timeout: 3000 }).catch(() => null);
+      return {
+        ok: false,
+        statusMessage: `xprotocol-xray exited after start: ${(j?.stdout || 'check journalctl -u xprotocol-xray').trim()}`,
+      };
+    }
     return { ok: true, statusMessage: `Xray engine running (${ensured.bin})` };
   } catch (err: unknown) {
     const e = err as { stderr?: string; message?: string };
@@ -1199,8 +1249,8 @@ export function buildClientXrayServerViews(
       }
     } else if (s.connectAddress && String(s.connectAddress).trim()) {
       endpoints.push({ host: String(s.connectAddress).trim(), port: ib.port });
-    } else if (s.cdn && s.cdnHost) {
-      endpoints.push({ host: String(s.cdnHost).trim(), port: ib.port });
+    } else if ((s.cdn || s.behindCdn) && (s.cdnDomain || s.cdnHost)) {
+      endpoints.push({ host: String(s.cdnDomain || s.cdnHost).trim(), port: ib.port });
     } else if (ib.public_address_override) {
       endpoints.push({ host: ib.public_address_override.trim(), port: ib.port });
     } else if (connectAddrs.length > 0) {
@@ -1222,16 +1272,19 @@ export function buildClientXrayServerViews(
     const r = (s.reality && typeof s.reality === 'object' ? s.reality : {}) as Record<string, unknown>;
     const t = (s.tls && typeof s.tls === 'object' ? s.tls : {}) as Record<string, unknown>;
     const defaultSni = String(
-      s.sniOverride ||
+      s.linkSni ||
+        s.sniOverride ||
         (security === 'reality'
-          ? (Array.isArray(r.serverNames) ? r.serverNames[0] : '') || 'www.amd.com'
-          : t.sni || s.cdnHost || s.tlsHost || primaryHost),
+          ? (Array.isArray(r.serverNames) ? r.serverNames[0] : '') || s.realitySni || 'www.amd.com'
+          : t.sni || t.serverName || t.certHost || s.cdnDomain || s.cdnHost || s.tlsHost || primaryHost),
     );
     const pbk = String(s.realityPublicKey || ib.server_public_key || '');
     const sid = Array.isArray(r.shortIds) && r.shortIds.length > 0 ? String(r.shortIds[0]) : '';
     const fp = String(s.fingerprint || 'chrome');
     const netType = transport === 'raw' ? 'tcp' : transport;
-    const defaultHostHdr = String(s.hostOverride || s.host || (s.cdn ? s.cdnHost || '' : ''));
+    const defaultHostHdr = String(
+      s.linkHost || s.hostOverride || s.host || (s.cdn || s.behindCdn ? s.cdnDomain || s.cdnHost || '' : ''),
+    );
 
     const params: Record<string, string> = {
       security,
@@ -1252,16 +1305,17 @@ export function buildClientXrayServerViews(
       if (t.allowInsecure) params.allowInsecure = '1';
     }
 
-    if (transport === 'raw' && s.rawHeader === 'http') {
+    if (transport === 'raw' && (s.headerType === 'http' || s.rawHeader === 'http')) {
       params.headerType = 'http';
-      if (Array.isArray(s.rawHttpHosts) && s.rawHttpHosts.length > 0) params.host = s.rawHttpHosts.join(',');
-      if (s.rawHttpPath) params.path = String(s.rawHttpPath);
+      const hosts = Array.isArray(s.httpHosts) ? s.httpHosts : Array.isArray(s.rawHttpHosts) ? s.rawHttpHosts : [];
+      if (hosts.length > 0) params.host = hosts.join(',');
+      if (s.rawHttpPath || s.path) params.path = String(s.rawHttpPath || s.path);
     } else if (transport === 'ws' || transport === 'httpupgrade' || transport === 'xhttp') {
       params.path = String(s.path || '/');
       if (defaultHostHdr) params.host = defaultHostHdr;
       if (transport === 'xhttp' && s.xhttpMode) params.mode = String(s.xhttpMode);
     } else if (transport === 'grpc') {
-      params.serviceName = String(s.serviceName || 'grpc');
+      params.serviceName = String(s.grpcServiceName || s.serviceName || 'grpc');
       if (s.grpcMultiMode) params.mode = 'multi';
     } else if (transport === 'kcp') {
       params.headerType = String(s.kcpHeader || 'none');

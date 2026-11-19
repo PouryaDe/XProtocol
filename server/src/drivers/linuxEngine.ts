@@ -978,6 +978,10 @@ export async function getInboundRuntimeStatus(inbound: InboundRow): Promise<stri
   if (inbound.protocol === 'xray') {
     const r = await runCmd('systemctl', ['status', 'xprotocol-xray', '--no-pager', '-n', '15'], 3000);
     if (r.stdout || r.stderr) out.push((r.stdout || r.stderr).trim());
+    if (fs.existsSync('/var/log/xprotocol/xray-error.log')) {
+      const errLines = fs.readFileSync('/var/log/xprotocol/xray-error.log', 'utf8').trim().split('\n').slice(-10).join('\n');
+      if (errLines) out.push(`[xray-error.log]\n${errLines}`);
+    }
   } else if (inbound.protocol === 'wireguard' || inbound.protocol === 'amneziawg') {
     const wgBin = isAmneziaInbound(inbound.protocol, settings) ? 'awg' : 'wg';
     const r = await runCmd(wgBin, ['show', inbound.name], 3000);

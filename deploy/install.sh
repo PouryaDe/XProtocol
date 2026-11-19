@@ -129,27 +129,33 @@ sync_cli_scripts() {
 }
 
 install_xray_binary() {
-  if command -v xray >/dev/null 2>&1 || [[ -x /usr/local/bin/xray ]]; then
-    return 0
-  fi
-  info "Installing Xray-core runtime binary..."
-  bash -c "$(curl -fsSL https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install >>"$INSTALL_LOG" 2>&1 || true
+  mkdir -p /usr/local/lib/xprotocol/xray
   if ! command -v xray >/dev/null 2>&1 && [[ ! -x /usr/local/bin/xray ]]; then
-    local arch="64"
-    [[ "$(uname -m)" == "aarch64" || "$(uname -m)" == "arm64" ]] && arch="arm64-v8a"
-    apt-get install -y -qq unzip >>"$INSTALL_LOG" 2>&1 || true
-    local tmp_zip
-    tmp_zip="$(mktemp -d)"
-    if curl -fsSL "https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-${arch}.zip" -o "${tmp_zip}/xray.zip" >>"$INSTALL_LOG" 2>&1; then
-      unzip -o -q "${tmp_zip}/xray.zip" -d "$tmp_zip" >>"$INSTALL_LOG" 2>&1 || true
-      if [[ -f "${tmp_zip}/xray" ]]; then
-        install -m 0755 "${tmp_zip}/xray" /usr/local/bin/xray
-        mkdir -p /usr/local/lib/xprotocol/xray
-        cp "${tmp_zip}/geoip.dat" "${tmp_zip}/geosite.dat" /usr/local/lib/xprotocol/xray/ 2>/dev/null || true
+    info "Installing Xray-core runtime binary..."
+    bash -c "$(curl -fsSL https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install >>"$INSTALL_LOG" 2>&1 || true
+    if ! command -v xray >/dev/null 2>&1 && [[ ! -x /usr/local/bin/xray ]]; then
+      local arch="64"
+      [[ "$(uname -m)" == "aarch64" || "$(uname -m)" == "arm64" ]] && arch="arm64-v8a"
+      apt-get install -y -qq unzip >>"$INSTALL_LOG" 2>&1 || true
+      local tmp_zip
+      tmp_zip="$(mktemp -d)"
+      if curl -fsSL "https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-${arch}.zip" -o "${tmp_zip}/xray.zip" >>"$INSTALL_LOG" 2>&1; then
+        unzip -o -q "${tmp_zip}/xray.zip" -d "$tmp_zip" >>"$INSTALL_LOG" 2>&1 || true
+        if [[ -f "${tmp_zip}/xray" ]]; then
+          install -m 0755 "${tmp_zip}/xray" /usr/local/bin/xray
+          cp "${tmp_zip}/geoip.dat" "${tmp_zip}/geosite.dat" /usr/local/lib/xprotocol/xray/ 2>/dev/null || true
+        fi
       fi
+      rm -rf "$tmp_zip"
     fi
-    rm -rf "$tmp_zip"
   fi
+  for f in geoip.dat geosite.dat; do
+    if [[ ! -s "/usr/local/lib/xprotocol/xray/$f" ]]; then
+      for src in /usr/local/share/xray /usr/share/xray /usr/local/bin; do
+        [[ -s "$src/$f" ]] && cp "$src/$f" "/usr/local/lib/xprotocol/xray/$f" 2>/dev/null && break
+      done
+    fi
+  done
 }
 
 do_update_from_src() {

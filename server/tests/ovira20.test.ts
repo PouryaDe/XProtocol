@@ -547,6 +547,20 @@ test('Ovira 2.0 end-to-end API: templates, bulk actions, proxy app sub, events, 
       }),
     });
     assert.equal(xrayRemotesRes.status, 201);
+    const xrRemJson = (await xrayRemotesRes.json()) as { id: number };
+
+    // Verify stop -> start updates DB state BEFORE building unified Xray config, and routing uses zero-dependency private CIDRs
+    const xrStopRes = await fetch(`${baseUrl}/api/inbounds/${xrRemJson.id}/stop`, { method: 'POST', headers });
+    assert.equal(xrStopRes.status, 200);
+    assert.equal(buildUnifiedXrayConfig().configJson.includes(`xr-` + (db.prepare('SELECT name FROM inbounds WHERE id = ?').get(xrRemJson.id) as { name: string }).name), false);
+
+    const xrStartRes = await fetch(`${baseUrl}/api/inbounds/${xrRemJson.id}/start`, { method: 'POST', headers });
+    assert.equal(xrStartRes.status, 200);
+    const unifiedAfterStart = buildUnifiedXrayConfig();
+    assert.equal(unifiedAfterStart.hasActiveXray, true);
+    assert.ok(unifiedAfterStart.configJson.includes(`10.0.0.0/8`));
+    assert.equal(unifiedAfterStart.configJson.includes('geoip:private'), false);
+    assert.ok(unifiedAfterStart.configJson.includes((db.prepare('SELECT name FROM inbounds WHERE id = ?').get(xrRemJson.id) as { name: string }).name));
 
     const clientsList = await fetch(`${baseUrl}/api/clients`, { headers: { Cookie: cookie } }).then((r) => r.json());
     const anyToken = String(clientsList.clients?.[0]?.subToken || '');

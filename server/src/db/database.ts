@@ -800,8 +800,8 @@ export function initDatabase(): { initialPasswordGenerated?: string } {
       const client2Keys = generateWireGuardKeypair();
       const GB = 1024 * 1024 * 1024;
       const insertClient = db.prepare(
-        `INSERT INTO clients (name, owner_id, traffic_limit_bytes, traffic_used_bytes, upload_bytes, download_bytes, expires_at, first_connect_days, device_limit, reset_period, enabled, note, contact, sub_token, wg_private_key, wg_public_key, vpn_password, created_at, last_online_at)
-         VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO clients (name, owner_id, traffic_limit_bytes, traffic_used_bytes, upload_bytes, download_bytes, expires_at, first_connect_days, device_limit, reset_period, enabled, note, contact, sub_token, wg_private_key, wg_public_key, vpn_password, xray_uuid, ss_password, created_at, last_online_at)
+         VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       );
       const exp30 = new Date(Date.now() + 25 * 86400_000).toISOString();
       const exp3 = new Date(Date.now() + 2 * 86400_000).toISOString();
@@ -821,6 +821,8 @@ export function initDatabase(): { initialPasswordGenerated?: string } {
         client1Keys.privateKey,
         client1Keys.publicKey,
         randomToken(12),
+        crypto.randomUUID(),
+        generateSs2022Key('2022-blake3-aes-128-gcm'),
         now,
         now,
       );
@@ -840,6 +842,8 @@ export function initDatabase(): { initialPasswordGenerated?: string } {
         client2Keys.privateKey,
         client2Keys.publicKey,
         randomToken(12),
+        crypto.randomUUID(),
+        generateSs2022Key('2022-blake3-aes-128-gcm'),
         now,
         new Date(Date.now() - 3600_000).toISOString(),
       );
