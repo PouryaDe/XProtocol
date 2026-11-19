@@ -810,6 +810,31 @@ test('Ovira 2.0 end-to-end API: templates, bulk actions, proxy app sub, events, 
     assert.equal(parsedCfg.spec.security, 'reality');
     assert.equal(parsedCfg.combo?.security, 'reality');
     assert.ok(parsedCfg.note.includes('not shown'));
+
+    // 14. Create several with trailing dash prefix (`user-`) + rename via PATCH
+    const severalRes = await fetch(`${baseUrl}/api/clients`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ prefix: 'user-', startNumber: 1, count: 2, trafficGb: 50, expiryMode: 'days', expiryDays: 30 }),
+    });
+    assert.equal(severalRes.status, 201);
+    const severalJson = (await severalRes.json()) as { items: Array<{ id: number; name: string }> };
+    assert.deepEqual(
+      severalJson.items.map((x) => x.name),
+      ['user-01', 'user-02'],
+    );
+    const renameRes = await fetch(`${baseUrl}/api/clients/${severalJson.items[0].id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ name: 'user-renamed', expiresAt: null }),
+    });
+    assert.equal(renameRes.status, 200);
+    const listAfterRename = await fetch(`${baseUrl}/api/clients`, { headers: { Cookie: cookie } }).then((r) => r.json());
+    const renamedRow = (listAfterRename.clients as Array<{ id: number; name: string; expiresAt: string | null }>).find(
+      (c) => c.id === severalJson.items[0].id,
+    );
+    assert.equal(renamedRow?.name, 'user-renamed');
+    assert.equal(renamedRow?.expiresAt, null);
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }

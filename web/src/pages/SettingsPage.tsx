@@ -15,6 +15,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
+import { copyToClipboard } from '../lib/clipboard';
 import { formatDateTime } from '../lib/format';
 import { toPanelUrl } from '../lib/router';
 import { ACCENT_PALETTES, useUi, type AccentName } from '../i18n/context';
@@ -146,9 +147,11 @@ export function SettingsPage({ account }: { account: CurrentAccount }) {
   };
 
   const copyText = (key: string, text: string) => {
-    navigator.clipboard?.writeText(text).catch(() => undefined);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(''), 1500);
+    void copyToClipboard(text).then((ok) => {
+      if (!ok) return;
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(''), 1500);
+    });
   };
 
   useEffect(() => {

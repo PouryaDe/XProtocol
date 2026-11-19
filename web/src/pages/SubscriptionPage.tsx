@@ -22,6 +22,7 @@ import '../styles/subscription.css';
 import { BrandMark, EqLoader, Odometer, useSlidingIndicator } from '../components/UiPrimitives';
 import { TrafficChart, type TrafficSample } from '../components/TrafficChart';
 import { formatBytes, formatBytesParts, formatDateTime } from '../lib/format';
+import { copyToClipboard } from '../lib/clipboard';
 import { useUi, type AccentName } from '../i18n/context';
 import {
   applySubTheme,
@@ -1837,15 +1838,12 @@ export function SubscriptionPage({ token }: { token: string }) {
   }, [data]);
 
   const copyText = useCallback(async (text: string, key: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedKey(key);
-      setTimeout(() => {
-        setCopiedKey((cur) => (cur === key ? null : cur));
-      }, 1800);
-    } catch {
-      // Clipboard blocked in non-HTTPS contexts
-    }
+    const ok = await copyToClipboard(text);
+    if (!ok) return;
+    setCopiedKey(key);
+    setTimeout(() => {
+      setCopiedKey((cur) => (cur === key ? null : cur));
+    }, 1800);
   }, []);
 
   const copy = SUB_COPY[locale];

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Check, Copy, Loader2, RefreshCw } from 'lucide-react';
 import { useUi } from '../i18n/context';
 import { apiFetch } from '../lib/api';
+import { copyToClipboard } from '../lib/clipboard';
 import { navigate, useLocationState } from '../lib/router';
 import {
   buildDefaultSettings,
@@ -1440,8 +1441,9 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
                   <Button
                     size="sm"
                     variant="secondary"
-                    onClick={() => {
-                      void navigator.clipboard.writeText(configText);
+                    onClick={async () => {
+                      const ok = await copyToClipboard(configText);
+                      if (!ok) return;
                       setCopiedCfg(true);
                       setTimeout(() => setCopiedCfg(false), 1800);
                     }}

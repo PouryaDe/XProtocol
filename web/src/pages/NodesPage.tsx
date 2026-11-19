@@ -15,6 +15,7 @@ import {
   Unlink,
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
+import { copyToClipboard } from '../lib/clipboard';
 import { formatBytes, formatDuration } from '../lib/format';
 import { navigate, toPanelUrl } from '../lib/router';
 import { useUi } from '../i18n/context';
@@ -941,7 +942,8 @@ export function NodesPage() {
                 type="button"
                 size="sm"
                 onClick={async () => {
-                  await navigator.clipboard.writeText(nodeInstallCmd);
+                  const ok = await copyToClipboard(nodeInstallCmd);
+                  if (!ok) return;
                   setCopiedCmd(true);
                   setTimeout(() => setCopiedCmd(false), 1500);
                 }}

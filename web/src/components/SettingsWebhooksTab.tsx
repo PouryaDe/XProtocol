@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Activity, Check, Copy, Edit3, Plus, RefreshCw, Send, Trash2 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
+import { copyToClipboard } from '../lib/clipboard';
 import { useUi } from '../i18n/context';
 import { formatDateTime } from '../lib/format';
 import { Button, Input, StatusPill } from './UiPrimitives';
@@ -400,8 +401,10 @@ export function SettingsWebhooksTab({ onNotice }: { onNotice: (msg: string) => v
               type="button"
               size="sm"
               variant="secondary"
-              onClick={() => {
-                if (revealedSecret) navigator.clipboard?.writeText(revealedSecret).catch(() => undefined);
+              onClick={async () => {
+                if (!revealedSecret) return;
+                const ok = await copyToClipboard(revealedSecret);
+                if (!ok) return;
                 setCopiedSecret(true);
                 setTimeout(() => setCopiedSecret(false), 1500);
               }}

@@ -434,9 +434,10 @@ export function createClientRouter(): Router {
 
     try {
       const startNum = Math.max(1, Number(body.startNumber || 1));
+      const sep = /[-_]$/.test(baseName) ? '' : '-';
       for (let i = 0; i < count; i++) {
         const seq = startNum + i;
-        const name = isBulk ? `${baseName}-${String(seq).padStart(2, '0')}` : baseName;
+        const name = isBulk ? `${baseName}${sep}${String(seq).padStart(2, '0')}` : baseName;
         const keys = generateWireGuardKeypair();
         const vpnPass = !isBulk && body.vpnPassword?.trim() ? body.vpnPassword.trim() : randomToken(12);
         const subTok = randomToken(18);
@@ -518,6 +519,7 @@ export function createClientRouter(): Router {
     }
 
     const body = req.body as {
+      name?: string;
       trafficGb?: number | null;
       expiresAt?: string | null;
       addDays?: number;
@@ -539,6 +541,21 @@ export function createClientRouter(): Router {
       uploadMbps?: number | null;
     };
 
+    let nextName = String(existing.name);
+    if (body.name !== undefined && body.name.trim() !== nextName) {
+      const trimmedName = body.name.trim();
+      if (!/^[a-zA-Z0-9._-]{2,48}$/.test(trimmedName)) {
+        res.status(400).json({ error: 'Client name must be 2-48 characters (letters, digits, dot, dash, underscore)' });
+        return;
+      }
+      const dup = db.prepare('SELECT id FROM clients WHERE name = ? AND id != ?').get(trimmedName, id) as { id: number } | undefined;
+      if (dup) {
+        res.status(400).json({ error: 'A client with this name already exists' });
+        return;
+      }
+      nextName = trimmedName;
+    }
+
     const prevTrafficLimit = existing.traffic_limit_bytes === null ? null : Number(existing.traffic_limit_bytes);
     let trafficLimitBytes =
       body.trafficGb !== undefined
@@ -553,6 +570,8 @@ export function createClientRouter(): Router {
 
     const prevExpiresAt = (existing.expires_at as string | null) ?? null;
     let expiresAt = body.expiresAt !== undefined ? body.expiresAt : prevExpiresAt;
+    const nextFirstConnectDays =
+      body.expiresAt !== undefined ? null : ((existing.first_connect_days as number | null) ?? null);
     if (body.addDays && body.addDays > 0) {
       const baseMs = expiresAt && new Date(expiresAt).getTime() > Date.now() ? new Date(expiresAt).getTime() : Date.now();
       expiresAt = new Date(baseMs + body.addDays * 86400_000).toISOString();
@@ -620,14 +639,16 @@ export function createClientRouter(): Router {
 
     db.prepare(
       `UPDATE clients SET
-         traffic_limit_bytes = ?, expires_at = ?, device_limit = ?,
+         name = ?, traffic_limit_bytes = ?, expires_at = ?, first_connect_days = ?, device_limit = ?,
          reset_period = ?, reset_every_days = ?, reset_anchor = ?, next_reset_at = ?,
          sub_update_hours = ?, sub_announce = ?, fixed_ip = ?, vpn_password = ?,
          note = ?, contact = ?, enabled = ?, download_mbps = ?, upload_mbps = ?
        WHERE id = ?`,
     ).run(
+      nextName,
       trafficLimitBytes,
       expiresAt,
+      nextFirstConnectDays,
       nextDeviceLimit,
       nextResetPeriod,
       nextResetEveryDays,

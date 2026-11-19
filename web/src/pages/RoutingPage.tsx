@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { copyToClipboard } from '../lib/clipboard';
 import {
   Activity,
   AlertTriangle,
@@ -930,8 +931,9 @@ export function RoutingPage() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => {
-                      navigator.clipboard.writeText(renderedConfig);
+                    onClick={async () => {
+                      const ok = await copyToClipboard(renderedConfig);
+                      if (!ok) return;
                       setCopiedJson(true);
                       setTimeout(() => setCopiedJson(false), 1800);
                     }}

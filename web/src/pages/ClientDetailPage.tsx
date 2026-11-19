@@ -10,13 +10,14 @@ import {
   Unplug,
 } from 'lucide-react';
 import { apiFetch, getApiBase } from '../lib/api';
+import { copyToClipboard } from '../lib/clipboard';
 import { formatBytes, formatDateTime, formatDaysLeft, formatDuration, formatSpeed } from '../lib/format';
 import { getSubPath, navigate, toPanelUrl } from '../lib/router';
 import { useUi } from '../i18n/context';
-import { Button, EqLoader, Input, Lamps, PageHead, Select, StatusPill } from '../components/UiPrimitives';
-import { Drawer } from '../components/Drawer';
+import { Button, EqLoader, Lamps, PageHead, StatusPill } from '../components/UiPrimitives';
 import { Modal } from '../components/Modal';
 import { QrCode } from '../components/QrCode';
+import { ClientFormSheet } from '../components/ClientFormSheet';
 import type { ClientItem } from './ClientsPage';
 
 interface XrayServerItem {
@@ -68,6 +69,7 @@ interface InboundSummary {
   protocol: string;
   transport: string;
   port: number;
+  subnet?: string;
   nodeName: string;
   enabled: boolean;
 }
@@ -93,24 +95,8 @@ export function ClientDetailPage({ clientId }: { clientId: number }) {
   const [copied, setCopied] = useState(false);
   const [busyAction, setBusyAction] = useState(false);
 
-  // Edit drawer
+  // Edit slide-over sheet
   const [editOpen, setEditOpen] = useState(false);
-  const [trafficGb, setTrafficGb] = useState('');
-  const [downloadMbps, setDownloadMbps] = useState('');
-  const [uploadMbps, setUploadMbps] = useState('');
-  const [deviceLimit, setDeviceLimit] = useState('');
-  const [resetPeriod, setResetPeriod] = useState('never');
-  const [resetEveryDays, setResetEveryDays] = useState('30');
-  const [resetAnchor, setResetAnchor] = useState(0);
-  const [subUpdateHours, setSubUpdateHours] = useState('0');
-  const [subAnnounce, setSubAnnounce] = useState('');
-  const [fixedIp, setFixedIp] = useState('');
-  const [vpnPassword, setVpnPassword] = useState('');
-  const [note, setNote] = useState('');
-  const [contact, setContact] = useState('');
-  const [enabled, setEnabled] = useState(true);
-  const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([]);
-  const [editError, setEditError] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -148,55 +134,7 @@ export function ClientDetailPage({ clientId }: { clientId: number }) {
 
   const openEdit = () => {
     if (!client) return;
-    setTrafficGb(client.trafficLimitBytes ? String(Math.round(client.trafficLimitBytes / 1024 ** 3)) : '');
-    setDownloadMbps(client.downloadMbps ? String(client.downloadMbps) : '');
-    setUploadMbps(client.uploadMbps ? String(client.uploadMbps) : '');
-    setDeviceLimit(client.deviceLimit ? String(client.deviceLimit) : '');
-    setResetPeriod(client.resetPeriod || 'never');
-    setResetEveryDays(String(client.resetEveryDays || 30));
-    setResetAnchor(client.resetAnchor || 0);
-    setSubUpdateHours(String(client.subUpdateHours || 0));
-    setSubAnnounce(client.subAnnounce || '');
-    setFixedIp(client.fixedIp);
-    setVpnPassword(client.vpnPassword || '');
-    setNote(client.note);
-    setContact(client.contact);
-    setEnabled(client.enabled);
-    setSelectedGroupIds(client.groups.map((g) => g.id));
-    setEditError('');
     setEditOpen(true);
-  };
-
-  const saveEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!client) return;
-    setEditError('');
-    try {
-      await apiFetch(`/clients/${client.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          trafficGb: trafficGb ? Number(trafficGb) : null,
-          downloadMbps: downloadMbps ? Number(downloadMbps) : null,
-          uploadMbps: uploadMbps ? Number(uploadMbps) : null,
-          deviceLimit: deviceLimit ? Number(deviceLimit) : null,
-          resetPeriod,
-          resetEveryDays: resetPeriod === 'every_n_days' ? Number(resetEveryDays || 30) : 0,
-          resetAnchor,
-          subUpdateHours: Number(subUpdateHours || 0),
-          subAnnounce,
-          fixedIp,
-          vpnPassword: vpnPassword.trim() || undefined,
-          note,
-          contact,
-          enabled,
-          groupIds: selectedGroupIds,
-        }),
-      });
-      setEditOpen(false);
-      await load();
-    } catch (err) {
-      setEditError(err instanceof Error ? err.message : 'Update failed');
-    }
   };
 
   const assignedInbounds = useMemo(() => {
@@ -265,7 +203,8 @@ export function ClientDetailPage({ clientId }: { clientId: number }) {
   };
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(subUrl);
+    const ok = await copyToClipboard(subUrl);
+    if (!ok) return;
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
   };
@@ -627,7 +566,8 @@ export function ClientDetailPage({ clientId }: { clientId: number }) {
                           <Button
                             size="sm"
                             onClick={async () => {
-                              await navigator.clipboard.writeText(link);
+                              const ok = await copyToClipboard(link);
+                              if (!ok) return;
                               setCopiedXrayKey(srv.key);
                               setTimeout(() => setCopiedXrayKey(''), 1500);
                             }}
@@ -681,167 +621,15 @@ export function ClientDetailPage({ clientId }: { clientId: number }) {
         </aside>
       </div>
 
-      <Drawer open={editOpen} onClose={() => setEditOpen(false)} title={`${t.common.edit}: ${client.name}`} widthClass="max-w-lg">
-        <form onSubmit={saveEdit} className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Input
-              label={t.clients.trafficAllowance}
-              type="number"
-              value={trafficGb}
-              onChange={(e) => setTrafficGb(e.target.value)}
-              placeholder={lang === 'fa' ? 'خالی = نامحدود' : 'Empty = Unlimited'}
-            />
-            <Input
-              label={t.clients.deviceLimit}
-              type="number"
-              value={deviceLimit}
-              onChange={(e) => setDeviceLimit(e.target.value)}
-              placeholder={lang === 'fa' ? 'خالی = نامحدود' : 'Empty = Unlimited'}
-            />
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Input
-              label={lang === 'fa' ? 'محدودیت دانلود (Mbps)' : 'Download speed (Mbps)'}
-              type="number"
-              min="0"
-              step="0.5"
-              value={downloadMbps}
-              onChange={(e) => setDownloadMbps(e.target.value)}
-            />
-            <Input
-              label={lang === 'fa' ? 'محدودیت آپلود (Mbps)' : 'Upload speed (Mbps)'}
-              type="number"
-              min="0"
-              step="0.5"
-              value={uploadMbps}
-              onChange={(e) => setUploadMbps(e.target.value)}
-            />
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Select
-              label={t.clients.resetPeriod}
-              value={resetPeriod}
-              onChange={(e) => setResetPeriod(e.target.value)}
-            >
-              <option value="never">{lang === 'fa' ? 'هیچ‌وقت' : 'Never'}</option>
-              <option value="daily">{lang === 'fa' ? 'روزانه' : 'Every day'}</option>
-              <option value="weekly">{lang === 'fa' ? 'هفتگی' : 'Every week'}</option>
-              <option value="monthly">{lang === 'fa' ? 'ماهانه میلادی' : 'Every month'}</option>
-              <option value="yearly">{lang === 'fa' ? 'سالانه میلادی' : 'Every year'}</option>
-              <option value="jalali_monthly">{lang === 'fa' ? 'ماهانه شمسی' : 'Every Persian month'}</option>
-              <option value="jalali_yearly">{lang === 'fa' ? 'سالانه شمسی' : 'Every Persian year'}</option>
-              <option value="every_n_days">{lang === 'fa' ? 'هر N روز' : 'Every N days'}</option>
-            </Select>
-            {resetPeriod === 'every_n_days' && (
-              <Input
-                label={lang === 'fa' ? 'تعداد روز دوره' : 'Every N days'}
-                type="number"
-                min="1"
-                max="365"
-                value={resetEveryDays}
-                onChange={(e) => setResetEveryDays(e.target.value)}
-              />
-            )}
-            {['monthly', 'yearly', 'jalali_monthly', 'jalali_yearly'].includes(resetPeriod) && (
-              <Select
-                label={lang === 'fa' ? 'مبنای ریست' : 'Count from'}
-                value={String(resetAnchor)}
-                onChange={(e) => setResetAnchor(Number(e.target.value))}
-              >
-                <option value="0">{lang === 'fa' ? 'ابتدای تقویم' : 'Calendar start'}</option>
-                <option value="1">{lang === 'fa' ? 'شروع کاربر' : 'Client start'}</option>
-              </Select>
-            )}
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Input
-              label={lang === 'fa' ? 'بازه بروزرسانی اپ‌ها (ساعت)' : 'Proxy app refresh (h)'}
-              type="number"
-              min="0"
-              max="720"
-              value={subUpdateHours}
-              onChange={(e) => setSubUpdateHours(e.target.value)}
-            />
-            <Input
-              label={lang === 'fa' ? 'پیام اعلان اپ‌ها' : 'Proxy app announcement'}
-              maxLength={200}
-              value={subAnnounce}
-              onChange={(e) => setSubAnnounce(e.target.value)}
-            />
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Input
-              label={lang === 'fa' ? 'رمزعبور VPN' : 'VPN password'}
-              value={vpnPassword}
-              onChange={(e) => setVpnPassword(e.target.value)}
-            />
-            <Input label={t.clients.fixedIp} value={fixedIp} onChange={(e) => setFixedIp(e.target.value)} />
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Input label={t.clients.contact} value={contact} onChange={(e) => setContact(e.target.value)} />
-            <Input label={t.common.note} value={note} onChange={(e) => setNote(e.target.value)} />
-          </div>
-
-          {groups.length > 0 && (
-            <div>
-              <div className="mb-1.5 text-xs font-medium text-(--text-secondary)">{t.nav.groups}</div>
-              <div className="flex flex-wrap gap-2">
-                {groups.map((g) => {
-                  const checked = selectedGroupIds.includes(g.id);
-                  return (
-                    <button
-                      key={g.id}
-                      type="button"
-                      onClick={() =>
-                        setSelectedGroupIds((prev) =>
-                          checked ? prev.filter((id) => id !== g.id) : [...prev, g.id],
-                        )
-                      }
-                      className={`rounded-xl border px-3 py-1 text-xs transition ${
-                        checked
-                          ? 'border-(--accent) bg-(--accent-soft) text-(--accent)'
-                          : 'border-(--border-subtle) bg-(--bg-elevated) text-(--text-secondary)'
-                      }`}
-                    >
-                      {g.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <label className="flex items-center justify-between rounded-xl border border-(--border-subtle) bg-(--bg-elevated) px-3 py-2 text-xs cursor-pointer">
-            <span>{lang === 'fa' ? 'حساب کاربر فعال باشد' : 'Enabled'}</span>
-            <input
-              type="checkbox"
-              checked={enabled}
-              onChange={(e) => setEnabled(e.target.checked)}
-              className="rounded accent-(--accent)"
-            />
-          </label>
-
-          {editError && (
-            <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
-              {editError}
-            </div>
-          )}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" onClick={() => setEditOpen(false)}>
-              {t.common.cancel}
-            </Button>
-            <Button type="submit" variant="primary">
-              {t.common.save}
-            </Button>
-          </div>
-        </form>
-      </Drawer>
+      <ClientFormSheet
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        mode="edit"
+        client={client}
+        groups={groups}
+        inbounds={inbounds}
+        onSaved={load}
+      />
 
       <Modal open={Boolean(xrayQrLink)} onClose={() => setXrayQrLink(null)} title={xrayQrLink?.title || ''}>
         {xrayQrLink && (
