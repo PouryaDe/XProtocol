@@ -6,7 +6,7 @@ import {
   disconnectLinuxPeer,
   type LiveTunnelSample,
 } from '../drivers/linuxEngine.js';
-import { applyXraySpeedLimits } from '../drivers/xrayEngine.js';
+import { applyXraySpeedLimits, type XraySpeedCapItem } from '../drivers/xrayEngine.js';
 import { writeLiveClientCounts } from '../drivers/pki.js';
 import type { InboundRow, PeerEntry } from '../generators/configs.js';
 import { emitEvent, pruneOldEvents } from './events.js';
@@ -351,7 +351,7 @@ export async function runCollectorTick(): Promise<void> {
   const liveCountsByLowerName: Record<string, number> = {};
   const ovpnPeersByIface = new Map<string, PeerEntry[]>();
   const ikePeersByIface = new Map<string, PeerEntry[]>();
-  const xraySpeedItems: Array<{ remoteIp: string; port: number; downloadMbps: number | null; uploadMbps: number | null }> = [];
+  const xraySpeedItems: XraySpeedCapItem[] = [];
   const excessItems: ProcessedSample[] = [];
 
   for (const [clientId, items] of perClientSessions) {
@@ -428,12 +428,17 @@ export async function runCollectorTick(): Promise<void> {
         } catch {
           xrSet = {};
         }
-        if (!xrSet.behindCdn && !xrSet.cdn && it.sample.remoteIp && it.sample.remoteIp !== '0.0.0.0') {
+        const proxied = Boolean(xrSet.behindCdn || xrSet.cdn || xrSet.proxyProtocol);
+        const speedMode = xrSet.speedMode === 'client' ? 'client' : 'device';
+        if (proxied || (it.sample.remoteIp && it.sample.remoteIp !== '0.0.0.0')) {
           xraySpeedItems.push({
+            clientId: client.id,
             remoteIp: it.sample.remoteIp,
             port: it.inbound.port,
             downloadMbps: it.effDl,
             uploadMbps: it.effUl,
+            speedMode,
+            proxied,
           });
         }
       } else if (
@@ -534,21 +539,12 @@ export async function runCollectorTick(): Promise<void> {
   }
 
   for (const ex of excessItems) {
-    let isCdnXray = false;
-    if (ex.inbound.protocol === 'xray') {
-      try {
-        const s = JSON.parse(ex.inbound.settings_json || '{}') as Record<string, unknown>;
-        isCdnXray = Boolean(s.behindCdn || s.cdn);
-      } catch {
-        isCdnXray = false;
-      }
-    }
     await disconnectLinuxPeer(ex.inbound, {
       clientName: ex.client.name,
       wgPublicKey: ex.sample.wgPublicKey || ex.client.wg_public_key,
       connectionId: ex.sample.id,
       remoteIp: ex.sample.remoteIp,
-      singleDeviceOnly: ex.inbound.protocol === 'xray' && !isCdnXray,
+      singleDeviceOnly: ex.inbound.protocol === 'xray',
     }).catch(() => undefined);
     const durSec = Math.max(1, Math.round((nowMs - ex.connectedAtMs) / 1000));
     db.prepare(

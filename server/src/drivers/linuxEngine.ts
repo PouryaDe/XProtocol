@@ -26,6 +26,7 @@ import {
   collectXrayLiveStats,
   kickXrayClient,
   kickXrayDeviceIp,
+  kickXrayProxiedWithCooldown,
   syncAndApplyXrayEngine,
 } from './xrayEngine.js';
 
@@ -37,6 +38,7 @@ export interface ProtocolStatus {
   protocol: ProtocolName;
   installed: boolean;
   version: string;
+  warning?: string;
 }
 
 export interface LiveTunnelSample {
@@ -97,6 +99,37 @@ export function resolveInboundInterfaceName(inbound: InboundRow): string {
   return '';
 }
 
+/** Check whether Ubuntu 22.04+ / Linux kernel supports `xfrm_interface` required for IKEv2 shaping. */
+export async function checkIkev2XfrmSupport(): Promise<{ supported: boolean; warning?: string }> {
+  if (process.platform !== 'linux') return { supported: true };
+  let ubuntuBelow22 = false;
+  try {
+    if (fs.existsSync('/etc/os-release')) {
+      const osRel = fs.readFileSync('/etc/os-release', 'utf8');
+      const idMatch = osRel.match(/^ID=([^\s]+)/m);
+      const verMatch = osRel.match(/^VERSION_ID="?([0-9.]+)/m);
+      if (idMatch?.[1]?.toLowerCase() === 'ubuntu' && verMatch?.[1]) {
+        const major = Number(verMatch[1].split('.')[0]);
+        if (Number.isFinite(major) && major < 22) ubuntuBelow22 = true;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  await runCmd('modprobe', ['xfrm_interface'], 2000);
+  const helpRes = await runCmd('ip', ['link', 'help', 'xfrm'], 2000);
+  const hasXfrm = fs.existsSync('/sys/module/xfrm_interface') || helpRes.ok || /type xfrm/i.test(helpRes.stderr || '');
+  if (!hasXfrm || ubuntuBelow22) {
+    return {
+      supported: false,
+      warning: ubuntuBelow22
+        ? 'Ubuntu < 22.04 detected: Linux xfrm_interface (kernel 5.15+) is required for IKEv2 speed shaping and tunnel routing.'
+        : 'Kernel xfrm_interface module is unavailable on this host (requires Ubuntu 22.04+ / kernel 5.15+); IKEv2 speed shaping cannot run.',
+    };
+  }
+  return { supported: true };
+}
+
 export async function detectInstalledProtocols(): Promise<ProtocolStatus[]> {
   const results: ProtocolStatus[] = [];
   for (const [proto, meta] of Object.entries(PROTOCOL_BINARIES) as [ProtocolName, { bin: string; apt: string[] }][]) {
@@ -116,7 +149,12 @@ export async function detectInstalledProtocols(): Promise<ProtocolStatus[]> {
       const match = firstLine.match(/\d+\.\d+(\.\d+)?/);
       if (match) version = match[0];
     }
-    results.push({ protocol: proto, installed: true, version });
+    let warning: string | undefined;
+    if (proto === 'ikev2') {
+      const xfrmCheck = await checkIkev2XfrmSupport();
+      if (!xfrmCheck.supported) warning = xfrmCheck.warning;
+    }
+    results.push({ protocol: proto, installed: true, version, ...(warning ? { warning } : {}) });
   }
   return results;
 }
@@ -661,10 +699,16 @@ export async function applyLinuxInbound(
         ['link', 'add', xfrmName, 'type', 'xfrm', 'dev', wanIface, 'if_id', String(xfrmId)],
         3000,
       );
-      if (xfrmAdd.ok) {
-        await runCmd('ip', ['link', 'set', xfrmName, 'up'], 2500);
-        await runCmd('ip', ['route', 'replace', inbound.subnet, 'dev', xfrmName], 2500);
+      if (!xfrmAdd.ok) {
+        const xfrmDiag = await checkIkev2XfrmSupport();
+        const errMsg =
+          xfrmDiag.warning ||
+          `ERROR: Failed to create ${xfrmName} (requires Ubuntu 22.04+ / kernel 5.15+ with xfrm_interface): ${xfrmAdd.stderr.trim()}`;
+        logs.push(errMsg);
+        return { ok: false, logs };
       }
+      await runCmd('ip', ['link', 'set', xfrmName, 'up'], 2500);
+      await runCmd('ip', ['route', 'replace', inbound.subnet, 'dev', xfrmName], 2500);
       await runCmd('systemctl', ['start', 'strongswan'], 5000);
       const r = await runCmd('swanctl', ['--load-all']);
       logs.push(`swanctl --load-all: ${r.ok ? 'ok' : r.stderr}`);
@@ -881,11 +925,17 @@ export async function disconnectLinuxPeer(
 
   if (inbound.protocol === 'xray') {
     const ipFromConn = opts.connectionId?.match(/@ip:([^\s]+)$/)?.[1] || opts.remoteIp || '';
-    if (opts.singleDeviceOnly && ipFromConn && ipFromConn !== '0.0.0.0') {
-      return kickXrayDeviceIp(inbound.port, inbound.transport, ipFromConn);
+    const isProxied = Boolean(settings.behindCdn || settings.cdn || settings.proxyProtocol);
+    if (opts.singleDeviceOnly) {
+      if (isProxied) {
+        return kickXrayProxiedWithCooldown(inbound.name, opts.clientName);
+      }
+      if (ipFromConn && ipFromConn !== '0.0.0.0') {
+        return kickXrayDeviceIp(inbound.port, inbound.transport, ipFromConn);
+      }
     }
     const rmuOk = await kickXrayClient(inbound.name, opts.clientName);
-    if (ipFromConn && ipFromConn !== '0.0.0.0') {
+    if (!isProxied && ipFromConn && ipFromConn !== '0.0.0.0') {
       await kickXrayDeviceIp(inbound.port, inbound.transport, ipFromConn).catch(() => false);
     }
     return rmuOk;

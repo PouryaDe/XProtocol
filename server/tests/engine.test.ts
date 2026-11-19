@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -14,13 +15,13 @@ process.env.XPROTOCOL_ADMIN_PASS = 'engine-test-pass';
 process.env.XPROTOCOL_SKIP_NET_FETCH = '1';
 
 const { initDatabase, closeDb, getDb } = await import('../src/db/database.js');
-const { parseCidr, allocateTunnelIp, isClientActiveQuota, getEligiblePeersForInbound, resolveClientTunnelIp, ensureClientDeviceSlots } =
+const { parseCidr, allocateTunnelIp, isClientActiveQuota, getEligiblePeersForInbound, resolveClientTunnelIp } =
   await import('../src/services/peerResolver.js');
 const { renderInboundServerConfig, renderInboundExtraFiles } = await import('../src/generators/configs.js');
 const { generateClientProfile } = await import('../src/generators/profiles.js');
 const { syncOpenVpnAuthScript, writeLiveClientCounts } = await import('../src/drivers/pki.js');
 const { parseSwanctlSasOutput } = await import('../src/drivers/linuxEngine.js');
-const { parseXrayAccessLogContent } = await import('../src/drivers/xrayEngine.js');
+const { parseXrayAccessLogContent, buildUnifiedXrayConfig } = await import('../src/drivers/xrayEngine.js');
 const { syncGateStateFromDb, admitGateSession, releaseGateSession, ensureDaemonGateHooks, readGateState } =
   await import('../src/services/sessionGate.js');
 const { getCurrentCommit, getUpdateState } = await import('../src/services/updater.js');
@@ -574,40 +575,23 @@ test('WireGuard multi-device (device_limit=2) allocates distinct key slots & tun
   const cid = Number(cDual.lastInsertRowid);
   db.prepare('INSERT OR IGNORE INTO client_inbounds (client_id, inbound_id) VALUES (?, ?)').run(cid, wgInbound.id);
 
-  const slots = ensureClientDeviceSlots(cid, 2);
-  assert.equal(slots.length, 2);
-  assert.notEqual(slots[0].wgPublicKey, slots[1].wgPublicKey);
-
+  // WireGuard keeps single keypair per client (2-user uses separate protocols or separate WG inbounds)
   const peers = getEligiblePeersForInbound(wgInbound.id, wgInbound.subnet).filter((p) => p.clientId === cid);
-  assert.equal(peers.length, 2);
-  assert.notEqual(peers[0].tunnelIp, peers[1].tunnelIp);
-  assert.notEqual(peers[0].wgPublicKey, peers[1].wgPublicKey);
+  assert.equal(peers.length, 1);
+  assert.equal(peers[0].wgPublicKey, 'pub-slot1');
+  assert.equal(peers[0].deviceLimit, 2);
 
   const prof1 = generateClientProfile({
     clientName: 'wg-dual',
     vpnPassword: 'pass',
-    wgPrivateKey: slots[0].wgPrivateKey,
+    wgPrivateKey: 'priv-slot1',
     fixedIp: '',
     clientIndex: cid,
-    slotIndex: 1,
-    inbound: wgInbound,
-    endpointHost: 'vpn.example.com',
-    nodeName: 'Node1',
-  });
-  const prof2 = generateClientProfile({
-    clientName: 'wg-dual',
-    vpnPassword: 'pass',
-    wgPrivateKey: slots[1].wgPrivateKey,
-    fixedIp: '',
-    clientIndex: cid,
-    slotIndex: 2,
     inbound: wgInbound,
     endpointHost: 'vpn.example.com',
     nodeName: 'Node1',
   });
   assert.ok(prof1.content.includes(`Address = ${peers[0].tunnelIp}/32`));
-  assert.ok(prof2.content.includes(`Address = ${peers[1].tunnelIp}/32`));
-  assert.notEqual(prof1.filename, prof2.filename);
 });
 
 test('IKEv2 multi-SA parser uses uniqueid & EAP identity and avoids collisions on device_limit=2', () => {
@@ -640,12 +624,13 @@ test('IKEv2 multi-SA parser uses uniqueid & EAP identity and avoids collisions o
   assert.equal(parsed[1].bytesOut, 8192);
 });
 
-test('Xray access.log parser extracts per-inbound multi-device IPs within active window', () => {
+test('Xray access.log parser extracts per-inbound multi-device IPs & X-Forwarded-For headers', () => {
   const now = new Date(2026, 10, 19, 14, 0, 30).getTime();
   const log = [
     '2026/11/19 13:55:00.000000 from 198.51.100.99:1111 accepted tcp:1.1.1.1:443 [xr-vless-1 -> direct] email: alice',
     '2026/11/19 14:00:10.123456 from 203.0.113.10:54321 accepted tcp:1.1.1.1:443 [xr-vless-2 -> direct] email: alice',
     '2026/11/19 14:00:25.654321 from tcp:203.0.113.11:54322 accepted tcp:8.8.8.8:443 [xr-vless-2 -> direct] email: alice',
+    '2026/11/19 14:00:28.000000 from 172.64.0.1:443 accepted tcp:8.8.8.8:443 [xr-cdn-ws -> direct] X-Forwarded-For: 198.51.100.77 email: bob',
   ].join('\n');
 
   const res = parseXrayAccessLogContent(log, now, 45_000);
@@ -654,6 +639,47 @@ test('Xray access.log parser extracts per-inbound multi-device IPs within active
   assert.ok(ent);
   assert.deepEqual(ent.ips, ['203.0.113.10', '203.0.113.11']);
   assert.equal(ent.lastIp, '203.0.113.11');
+  assert.equal(ent.hasXffIp, false);
+
+  const cdnEnt = res.get('cdn-ws::bob');
+  assert.ok(cdnEnt);
+  assert.equal(cdnEnt.hasXffIp, true);
+  assert.deepEqual(cdnEnt.ips, ['198.51.100.77']);
+});
+
+test('Xray unified config emits per-client fwmark outbounds for speed-capped proxied CDN/Relay inbounds', () => {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const cdnIbRes = db
+    .prepare(
+      `INSERT INTO inbounds (node_id, protocol, name, transport, port, subnet, auth_mode, enabled, running, settings_json, created_at)
+       VALUES (1, 'xray', 'xr-relay-cap', 'tcp', 29443, '10.98.0.0/24', 'xray', 1, 1, ?, ?)`,
+    )
+    .run(JSON.stringify({ protocol: 'vless', transport: 'raw', security: 'none', proxyProtocol: true }), now);
+  const cdnIbId = Number(cdnIbRes.lastInsertRowid);
+
+  const capClient = db
+    .prepare(
+      `INSERT INTO clients (name, owner_id, enabled, download_mbps, upload_mbps, sub_token, wg_private_key, wg_public_key, vpn_password, xray_uuid, created_at)
+       VALUES ('relay-capped', 1, 1, 10, 5, 'tok-rcap', 'rp1', 'rpub1', 'rpass1', ?, ?)`,
+    )
+    .run(crypto.randomUUID(), now);
+  const cid = Number(capClient.lastInsertRowid);
+  db.prepare('INSERT OR IGNORE INTO client_inbounds (client_id, inbound_id) VALUES (?, ?)').run(cid, cdnIbId);
+
+  const built = buildUnifiedXrayConfig();
+  const parsed = JSON.parse(built.configJson) as {
+    outbounds: Array<{ tag: string; streamSettings?: { sockopt?: { mark?: number } } }>;
+    routing: { rules: Array<{ outboundTag?: string; user?: string[] }> };
+  };
+  const capOb = parsed.outbounds.find((o) => o.tag === `out-cap-c${cid}`);
+  assert.ok(capOb);
+  assert.equal(capOb.streamSettings?.sockopt?.mark, 20000 + cid);
+  const capRule = parsed.routing.rules.find((r) => r.outboundTag === `out-cap-c${cid}`);
+  assert.ok(capRule);
+  assert.ok(capRule.user?.includes('relay-capped'));
+
+  db.prepare('DELETE FROM inbounds WHERE id = ?').run(cdnIbId);
 });
 
 test('Daemon server configs render duplicate-cn, gate hooks, and IKEv2 XFRM interface IDs', () => {

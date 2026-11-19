@@ -11,7 +11,6 @@ export interface ClientProfileParams {
   xrayUuid?: string;
   fixedIp: string;
   clientIndex: number;
-  slotIndex?: number;
   inbound: InboundRow;
   endpointHost: string;
   nodeName: string;
@@ -68,13 +67,11 @@ export function generateClientProfile(p: ClientProfileParams): {
   const mtu = Number(settings.mtu || (amneziaOn ? 1380 : 1420));
   const keepalive = Number(settings.keepalive ?? 25);
   const allowedClientRoutes = settings.ipv6 ? '0.0.0.0/0, ::/0' : '0.0.0.0/0';
-  const slotIndex = Math.max(1, Number(p.slotIndex || 1));
-  const clientIp = resolveClientTunnelIp(p.inbound.id, p.inbound.subnet, p.clientIndex, p.fixedIp, slotIndex);
+  const clientIp = resolveClientTunnelIp(p.inbound.id, p.inbound.subnet, p.clientIndex, p.fixedIp);
 
   if (p.inbound.protocol === 'wireguard' || p.inbound.protocol === 'amneziawg') {
-    const deviceSuffix = slotIndex > 1 ? ` · Device #${slotIndex}` : '';
     const lines = [
-      `# ${p.nodeName} — ${p.inbound.name} (${p.clientName}${deviceSuffix})`,
+      `# ${p.nodeName} — ${p.inbound.name} (${p.clientName})`,
       `[Interface]`,
       `PrivateKey = ${p.wgPrivateKey}`,
       `Address = ${clientIp}/32`,
@@ -108,7 +105,7 @@ export function generateClientProfile(p: ClientProfileParams): {
       settings.filenameTemplate,
       {
         inbound: p.inbound.name,
-        client: slotIndex > 1 ? `${p.clientName}-dev${slotIndex}` : p.clientName,
+        client: p.clientName,
         node: p.nodeName,
         kind: amneziaOn ? 'awg' : 'wg',
       },

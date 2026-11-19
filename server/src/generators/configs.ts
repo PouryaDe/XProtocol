@@ -171,7 +171,7 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
       for (const p of peers) {
         lines.push(
           ``,
-          `# ${p.name}${p.slotIndex && p.slotIndex > 1 ? ` (device #${p.slotIndex})` : ''}`,
+          `# ${p.name}`,
           `[Peer]`,
           `PublicKey = ${p.wgPublicKey}`,
           `AllowedIPs = ${p.tunnelIp}/32`,

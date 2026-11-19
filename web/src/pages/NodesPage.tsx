@@ -89,6 +89,7 @@ interface ProtocolRow {
   protocol: string;
   installed: boolean;
   version: string;
+  warning?: string;
 }
 
 export function NodesPage() {
@@ -784,6 +785,11 @@ export function NodesPage() {
                           <div className="text-[11px] text-(--text-muted)">
                             {p.version || (p.installed ? 'Installed' : 'Not installed')}
                           </div>
+                          {p.warning && (
+                            <div className="mt-1 text-[11px] text-amber-400">
+                              {p.warning}
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           <StatusPill

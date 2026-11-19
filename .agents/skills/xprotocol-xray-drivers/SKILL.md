@@ -25,7 +25,7 @@ Read [xray-and-tunnels.md](./references/xray-and-tunnels.md) for valid `(protoco
   - Dispatches WG/AWG (`wg-quick`/`awg-quick`), OpenVPN (`duplicate-cn`, salted scrypt `ovpn-auth` skipping `trusted_ip` renegotiation, `client-connect`/`client-disconnect`), `ocserv` (`connect-script`/`disconnect-script`), strongSwan `swanctl` (`xfrm-*` interface for IKEv2 `tc`, `updown`, L2TP `ip-pre-up`/`ip-up`), `xray`, and incremental `tc` HTB/ingress bandwidth shaping.
   - Strictly uses `execFile` arg arrays; sanitizes CRLF/quotes in generated daemon configs.
 - **`server/src/services/peerResolver.ts`, `sessionGate.ts`, `syncService.ts`, `collector.ts`**:
-  - `getInboundPeers(inboundId, subnet)` filters active/unexpired/quota-ok granted clients, expands multi-device WG slots (`client_device_slots`), and resolves tunnel IPs (`allocateTunnelIp`) & bandwidth (`downloadMbps`/`uploadMbps`).
+  - `getInboundPeers(inboundId, subnet)` filters active/unexpired/quota-ok granted clients (single keypair per WireGuard client) and resolves tunnel IPs (`allocateTunnelIp`) & per-device bandwidth (`downloadMbps`/`uploadMbps`).
   - `sessionGate.ts` maintains atomic `gate-state.json` + `xp-gate.mjs` hooks for connect-time cross-protocol `device_limit`, expiry/quota, inbound grants, and immediate `pppN`/`vcN` `tc` shaping.
   - `collector.ts` runs every 5s: polls Xray `-reset` stats + `xray-access.log` multi-IP sessions, WG/AWG/OVPN/ocserv/IKEv2 (`uniqueid`)/L2TP sessions, enforces quota/expiry/device-limit eviction, applies `tc` across `tun-*`, `xfrm-*`, `pppN`, `vcN`, and WAN Xray, triggers periodic resets, and samples `nodeHealth`.
 

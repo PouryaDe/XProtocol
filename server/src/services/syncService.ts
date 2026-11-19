@@ -62,18 +62,11 @@ async function runSyncPass(): Promise<void> {
         .prepare('SELECT client_id, COUNT(*) AS cnt FROM connections_live WHERE inbound_id != ? GROUP BY client_id')
         .all(ib.id) as Array<{ client_id: number; cnt: number }>;
       const otherMap = new Map(otherRows.map((r) => [r.client_id, Number(r.cnt)]));
-      const emittedWgSlots = new Map<number, number>();
-      peers = peers.filter((p) => {
-        if (isClientWgSuppressed(p.clientId)) return false;
-        if (!p.deviceLimit || p.deviceLimit <= 0) return true;
-        const otherCnt = otherMap.get(p.clientId) || 0;
-        const remaining = p.deviceLimit - otherCnt;
-        if (remaining <= 0) return false;
-        const seen = emittedWgSlots.get(p.clientId) || 0;
-        if (seen >= remaining) return false;
-        emittedWgSlots.set(p.clientId, seen + 1);
-        return true;
-      });
+      peers = peers.filter(
+        (p) =>
+          !isClientWgSuppressed(p.clientId) &&
+          (!p.deviceLimit || p.deviceLimit <= 0 || (otherMap.get(p.clientId) || 0) < p.deviceLimit),
+      );
     }
     if (ib.protocol === 'l2tp') {
       for (const p of peers) {

@@ -704,7 +704,13 @@ export function ClientFormSheet({
                     value={deviceLimit}
                     onChange={(e) => setDeviceLimit(e.target.value)}
                   />
-                  <span className="hint">{lang === 'fa' ? '0 = بدون محدودیت' : '0 = no limit'}</span>
+                  <span className="hint">
+                    {lang === 'fa' ? '0 = بدون محدودیت' : '0 = no limit'}
+                    {(Number(deviceLimit) === 0 || Number(deviceLimit) > 1) &&
+                      (lang === 'fa'
+                        ? ' · در WireGuard/AmneziaWG هر کلید همزمان روی ۱ دستگاه در یک اینباند کار می‌کند (کاربر چندکاربره می‌تواند از پروتکل یا اینباند دیگر همزمان استفاده کند).'
+                        : ' · WireGuard/AmneziaWG uses one keypair per client (1 active device per WG inbound; multi-device works across different protocols or separate WG inbounds).')}
+                  </span>
                 </label>
 
                 <label className="field">

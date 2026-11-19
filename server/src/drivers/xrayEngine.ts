@@ -1034,16 +1034,67 @@ export function buildUnifiedXrayConfig(): { configJson: string; hasActiveXray: b
       settings: { address: '127.0.0.1' },
     },
   ];
+  const proxiedInboundTags: string[] = [];
+  const proxiedCappedPeers = new Map<number, { email: string; downloadMbps: number | null; uploadMbps: number | null }>();
+  const nowCooldownMs = Date.now();
+
   for (const ib of xrayInbounds) {
-    const peers = getEligiblePeersForInbound(ib.id, ib.subnet);
-    renderedInbounds.push(renderXrayInboundObject(ib, peers));
+    let ibSet: Record<string, unknown> = {};
+    try {
+      ibSet = JSON.parse(ib.settings_json || '{}') as Record<string, unknown>;
+    } catch {
+      ibSet = {};
+    }
+    const isProxied = Boolean(ibSet.behindCdn || ibSet.cdn || ibSet.proxyProtocol);
+    if (isProxied) proxiedInboundTags.push(`xr-${ib.name}`);
+
+    const peers = getEligiblePeersForInbound(ib.id, ib.subnet).filter((p) => {
+      const until = xrayClientCooldownUntil.get(`${ib.name}::${p.name}`);
+      return !until || until <= nowCooldownMs;
+    });
+    const rendered = renderXrayInboundObject(ib, peers);
+    renderedInbounds.push(rendered);
+
+    if (isProxied && !routingEnabled) {
+      const clientsArr = ((rendered.settings as Record<string, unknown>)?.clients || []) as Array<{ email?: string }>;
+      for (let i = 0; i < peers.length; i += 1) {
+        const p = peers[i];
+        const email = String(clientsArr[i]?.email || p.name);
+        if ((p.downloadMbps && p.downloadMbps > 0) || (p.uploadMbps && p.uploadMbps > 0)) {
+          proxiedCappedPeers.set(p.clientId, {
+            email,
+            downloadMbps: p.downloadMbps ?? null,
+            uploadMbps: p.uploadMbps ?? null,
+          });
+        }
+      }
+    }
   }
 
+  const outboundsList = [...((baseRouting.outbounds as Array<Record<string, unknown>>) || [])];
   const routingObj = (baseRouting.routing || { domainStrategy: 'IPIfNonMatch', rules: [] }) as {
     domainStrategy: string;
     rules: Record<string, unknown>[];
   };
   routingObj.rules.unshift({ type: 'field', inboundTag: ['api'], outboundTag: 'api' });
+
+  // Behind CDN or Relay, L3/L4 remoteIp is the proxy edge IP; tag per-client outbound sockets with fwmark
+  if (proxiedInboundTags.length > 0 && proxiedCappedPeers.size > 0) {
+    for (const [cid, meta] of proxiedCappedPeers) {
+      const obTag = `out-cap-c${cid}`;
+      outboundsList.push({
+        tag: obTag,
+        protocol: 'freedom',
+        streamSettings: { sockopt: { mark: 20000 + cid } },
+      });
+      routingObj.rules.push({
+        type: 'field',
+        inboundTag: proxiedInboundTags,
+        user: [meta.email],
+        outboundTag: obTag,
+      });
+    }
+  }
 
   const logDir = process.platform === 'linux' ? '/var/log/xprotocol' : path.join(os.tmpdir(), 'xprotocol-xray');
   const unified = {
@@ -1074,7 +1125,7 @@ export function buildUnifiedXrayConfig(): { configJson: string; hasActiveXray: b
       },
     },
     inbounds: renderedInbounds,
-    outbounds: baseRouting.outbounds,
+    outbounds: outboundsList,
     routing: routingObj,
   };
 
@@ -1462,12 +1513,14 @@ export interface XrayAccessLogEntry {
   inboundName: string;
   email: string;
   ips: string[];
+  hasXffIp: boolean;
   lastIp: string;
   lastSeenMs: number;
 }
 
 /**
  * Parse Xray `access.log` lines within the trailing `windowMs` to resolve active device IPs
+ * (including `X-Forwarded-For` / `CF-Connecting-IP` headers if logged by a front proxy)
  * and exact inbound tags (`[xr-<name> -> ...]`) per user email.
  */
 export function parseXrayAccessLogContent(
@@ -1493,19 +1546,22 @@ export function parseXrayAccessLogContent(
       if (Number.isFinite(tsMs) && tsMs < cutoff) continue;
     }
     const emailMatch = line.match(/email:\s*([^\s]+)/);
+    if (!emailMatch) continue;
+    const xffMatch = line.match(/(?:X-Forwarded-For|CF-Connecting-IP|XFF)\s*:\s*([0-9a-fA-F.:]+)/i);
     const ipMatch = line.match(/from\s+(?:tcp:|udp:)?(?:\[([^\]]+)\]|(\d{1,3}(?:\.\d{1,3}){3})):\d+/);
-    if (!emailMatch || !ipMatch) continue;
-    const email = emailMatch[1];
-    const ip = ipMatch[1] || ipMatch[2] || '';
+    const xffIp = xffMatch?.[1] && net.isIP(xffMatch[1]) !== 0 ? xffMatch[1] : '';
+    const peerIp = ipMatch ? ipMatch[1] || ipMatch[2] || '' : '';
+    const ip = xffIp || peerIp;
     if (!ip) continue;
     const ibMatch = line.match(/\[xr-([^\s\]]+)\s*->/);
     const inboundName = ibMatch ? ibMatch[1] : '';
-    const key = `${inboundName}::${email}`;
+    const key = `${inboundName}::${emailMatch[1]}`;
     let entry = byKey.get(key);
     if (!entry) {
-      entry = { inboundName, email, ips: [], lastIp: ip, lastSeenMs: tsMs };
+      entry = { inboundName, email: emailMatch[1], ips: [], hasXffIp: Boolean(xffIp), lastIp: ip, lastSeenMs: tsMs };
       byKey.set(key, entry);
     }
+    if (xffIp) entry.hasXffIp = true;
     if (!entry.ips.includes(ip)) entry.ips.push(ip);
     entry.lastIp = ip;
     if (tsMs > entry.lastSeenMs) entry.lastSeenMs = tsMs;
@@ -1587,8 +1643,8 @@ export async function collectXrayLiveStats(xrayInbounds: InboundRow[] = []): Pro
         } catch {
           s = {};
         }
-        const isCdnMode = Boolean(s.behindCdn || s.cdn || s.speedMode === 'client');
-        const ips = isCdnMode ? [ent.lastIp || '0.0.0.0'] : ent.ips.length > 0 ? ent.ips : ['0.0.0.0'];
+        const isCdnNoXff = Boolean((s.behindCdn || s.cdn) && !ent.hasXffIp);
+        const ips = isCdnNoXff ? [ent.lastIp || '0.0.0.0'] : ent.ips.length > 0 ? ent.ips : ['0.0.0.0'];
         for (const ip of ips) {
           out.push({
             clientName,
@@ -1605,6 +1661,20 @@ export async function collectXrayLiveStats(xrayInbounds: InboundRow[] = []): Pro
   } catch {
     return [];
   }
+}
+
+const xrayClientCooldownUntil = new Map<string, number>();
+
+/** Briefly remove an Xray user from a proxied (CDN/relay) inbound without blocking the shared edge/relay IP. */
+export async function kickXrayProxiedWithCooldown(inboundName: string, clientName: string, cooldownMs = 20_000): Promise<boolean> {
+  const key = `${inboundName}::${clientName}`;
+  xrayClientCooldownUntil.set(key, Date.now() + cooldownMs);
+  const t = setTimeout(() => {
+    xrayClientCooldownUntil.delete(key);
+    void syncAndApplyXrayEngine().catch(() => undefined);
+  }, cooldownMs + 500);
+  t.unref?.();
+  return kickXrayClient(inboundName, clientName);
 }
 
 export async function kickXrayClient(inboundName: string, clientName: string): Promise<boolean> {
@@ -1664,24 +1734,33 @@ export async function kickXrayDeviceIp(port: number, transport: string, remoteIp
 
 let lastXrayWanTcSig = '';
 
+export interface XraySpeedCapItem {
+  clientId: number;
+  remoteIp: string;
+  port: number;
+  downloadMbps: number | null;
+  uploadMbps: number | null;
+  speedMode?: 'device' | 'client';
+  proxied?: boolean;
+}
+
 /**
- * Enforce per-device download (HTB egress) and upload (ingress policer) speed limits for active
- * non-CDN Xray client IPs on the host's default WAN interface without altering routing rules.
+ * Enforce Xray speed limits on the host's default WAN interface:
+ * - Direct inbounds: HTB egress (`sport` + `dst`) for download and ingress policer (`dport` + `src`) for upload,
+ *   sharing a per-client bucket (`index` / class) when `speedMode === 'client'` or isolated per-device otherwise.
+ * - Proxied CDN/Relay inbounds: `tc` `fw` filter matching `sockopt.mark = 20000 + clientId` on outbound sockets
+ *   plus `iptables` `CONNMARK` + `hashlimit` for returning download traffic.
  */
-export async function applyXraySpeedLimits(
-  entries: Array<{ remoteIp: string; port: number; downloadMbps: number | null; uploadMbps: number | null }>,
-): Promise<void> {
+export async function applyXraySpeedLimits(entries: XraySpeedCapItem[]): Promise<void> {
   if (process.platform !== 'linux') return;
   const active = entries.filter(
     (e) =>
-      e.remoteIp &&
-      e.remoteIp !== '0.0.0.0' &&
-      net.isIPv4(e.remoteIp) &&
       e.port > 0 &&
-      ((e.downloadMbps && e.downloadMbps > 0) || (e.uploadMbps && e.uploadMbps > 0)),
+      ((e.downloadMbps && e.downloadMbps > 0) || (e.uploadMbps && e.uploadMbps > 0)) &&
+      (e.proxied || (e.remoteIp && e.remoteIp !== '0.0.0.0' && net.isIPv4(e.remoteIp))),
   );
   const sig = active
-    .map((e) => `${e.remoteIp}:${e.port}:${e.downloadMbps ?? 0}:${e.uploadMbps ?? 0}`)
+    .map((e) => `${e.clientId}:${e.proxied ? 'p' : e.remoteIp}:${e.port}:${e.speedMode || 'device'}:${e.downloadMbps ?? 0}:${e.uploadMbps ?? 0}`)
     .sort()
     .join('|');
   if (sig === lastXrayWanTcSig) return;
@@ -1695,26 +1774,38 @@ export async function applyXraySpeedLimits(
   lastXrayWanTcSig = sig;
   await execFileAsync('tc', ['qdisc', 'del', 'dev', wanIface, 'root'], { timeout: 2500 }).catch(() => undefined);
   await execFileAsync('tc', ['qdisc', 'del', 'dev', wanIface, 'ingress'], { timeout: 2500 }).catch(() => undefined);
+  await execFileAsync('iptables', ['-t', 'mangle', '-F', 'XPROTOCOL_XR_DL'], { timeout: 2500 }).catch(() => undefined);
+  await execFileAsync('iptables', ['-t', 'mangle', '-F', 'XPROTOCOL_XR_UL'], { timeout: 2500 }).catch(() => undefined);
   if (active.length === 0) return;
 
-  const dlItems = active.filter((e) => e.downloadMbps && e.downloadMbps > 0);
-  if (dlItems.length > 0) {
+  const directDl = active.filter((e) => !e.proxied && e.downloadMbps && e.downloadMbps > 0);
+  const proxiedUl = active.filter((e) => e.proxied && e.uploadMbps && e.uploadMbps > 0);
+  const proxiedDl = active.filter((e) => e.proxied && e.downloadMbps && e.downloadMbps > 0);
+
+  if (directDl.length > 0 || proxiedUl.length > 0) {
     await execFileAsync('tc', ['qdisc', 'replace', 'dev', wanIface, 'root', 'handle', '1:', 'htb', 'default', 'fff'], {
       timeout: 2500,
     }).catch(() => undefined);
     await execFileAsync('tc', ['class', 'replace', 'dev', wanIface, 'parent', '1:', 'classid', '1:fff', 'htb', 'rate', '10gbit'], {
       timeout: 2500,
     }).catch(() => undefined);
+
     let idx = 10;
-    for (const item of dlItems) {
-      const cid = `1:${(idx++).toString(16)}`;
-      const kbps = Math.max(100, Math.round(Number(item.downloadMbps) * 1000));
-      const burst = String(Math.max(16384, Math.round((kbps * 1024) / 8)));
-      await execFileAsync(
-        'tc',
-        ['class', 'replace', 'dev', wanIface, 'parent', '1:', 'classid', cid, 'htb', 'rate', `${kbps}kbit`, 'ceil', `${kbps}kbit`, 'burst', burst],
-        { timeout: 2500 },
-      ).catch(() => undefined);
+    const clientClassMap = new Map<string, string>();
+    for (const item of directDl) {
+      const shareKey = item.speedMode === 'client' ? `dl-c${item.clientId}-${item.port}` : '';
+      let cid = shareKey ? clientClassMap.get(shareKey) : undefined;
+      if (!cid) {
+        cid = `1:${(idx++).toString(16)}`;
+        if (shareKey) clientClassMap.set(shareKey, cid);
+        const kbps = Math.max(100, Math.round(Number(item.downloadMbps) * 1000));
+        const burst = String(Math.max(16384, Math.round((kbps * 1024) / 8)));
+        await execFileAsync(
+          'tc',
+          ['class', 'replace', 'dev', wanIface, 'parent', '1:', 'classid', cid, 'htb', 'rate', `${kbps}kbit`, 'ceil', `${kbps}kbit`, 'burst', burst],
+          { timeout: 2500 },
+        ).catch(() => undefined);
+      }
       await execFileAsync(
         'tc',
         [
@@ -1727,7 +1818,7 @@ export async function applyXraySpeedLimits(
           'parent',
           '1:',
           'prio',
-          String(idx),
+          String(idx++),
           'u32',
           'match',
           'ip',
@@ -1744,17 +1835,49 @@ export async function applyXraySpeedLimits(
         { timeout: 2500 },
       ).catch(() => undefined);
     }
+
+    // Proxied CDN/Relay upload packets leave WAN with `sockopt.mark = 20000 + clientId`
+    const seenFwClient = new Set<number>();
+    for (const item of proxiedUl) {
+      if (seenFwClient.has(item.clientId)) continue;
+      seenFwClient.add(item.clientId);
+      const cid = `1:${(idx++).toString(16)}`;
+      const fwMark = String(20000 + item.clientId);
+      const kbps = Math.max(100, Math.round(Number(item.uploadMbps) * 1000));
+      const burst = String(Math.max(16384, Math.round((kbps * 1024) / 8)));
+      await execFileAsync(
+        'tc',
+        ['class', 'replace', 'dev', wanIface, 'parent', '1:', 'classid', cid, 'htb', 'rate', `${kbps}kbit`, 'ceil', `${kbps}kbit`, 'burst', burst],
+        { timeout: 2500 },
+      ).catch(() => undefined);
+      await execFileAsync(
+        'tc',
+        ['filter', 'replace', 'dev', wanIface, 'parent', '1:', 'protocol', 'ip', 'prio', String(idx++), 'handle', fwMark, 'fw', 'flowid', cid],
+        { timeout: 2500 },
+      ).catch(() => undefined);
+    }
   }
 
-  const ulItems = active.filter((e) => e.uploadMbps && e.uploadMbps > 0);
-  if (ulItems.length > 0) {
+  const directUl = active.filter((e) => !e.proxied && e.uploadMbps && e.uploadMbps > 0);
+  if (directUl.length > 0) {
     await execFileAsync('tc', ['qdisc', 'add', 'dev', wanIface, 'handle', 'ffff:', 'ingress'], { timeout: 2500 }).catch(
       () => undefined,
     );
     let idx = 10;
-    for (const item of ulItems) {
+    for (const item of directUl) {
       const kbps = Math.max(100, Math.round(Number(item.uploadMbps) * 1000));
       const burst = String(Math.max(16384, Math.round((kbps * 1024) / 8)));
+      const policeArgs = [
+        'police',
+        'rate',
+        `${kbps}kbit`,
+        'burst',
+        burst,
+        'drop',
+        ...(item.speedMode === 'client' ? ['index', String(item.clientId)] : []),
+        'flowid',
+        ':1',
+      ];
       await execFileAsync(
         'tc',
         [
@@ -1778,16 +1901,60 @@ export async function applyXraySpeedLimits(
           'dport',
           String(item.port),
           '0xffff',
-          'police',
-          'rate',
-          `${kbps}kbit`,
-          'burst',
-          burst,
-          'drop',
-          'flowid',
-          ':1',
+          ...policeArgs,
         ],
         { timeout: 2500 },
+      ).catch(() => undefined);
+    }
+  }
+
+  // Proxied CDN/Relay download: save socket fwmark into CONNMARK on egress and police returning traffic on INPUT
+  if (proxiedDl.length > 0) {
+    await execFileAsync('iptables', ['-t', 'mangle', '-N', 'XPROTOCOL_XR_UL'], { timeout: 2000 }).catch(() => undefined);
+    await execFileAsync('iptables', ['-t', 'mangle', '-N', 'XPROTOCOL_XR_DL'], { timeout: 2000 }).catch(() => undefined);
+    await execFileAsync('iptables', ['-t', 'mangle', '-C', 'POSTROUTING', '-j', 'XPROTOCOL_XR_UL'], { timeout: 2000 }).catch(
+      () => execFileAsync('iptables', ['-t', 'mangle', '-I', 'POSTROUTING', '1', '-j', 'XPROTOCOL_XR_UL'], { timeout: 2000 }),
+    );
+    await execFileAsync('iptables', ['-t', 'mangle', '-C', 'INPUT', '-j', 'XPROTOCOL_XR_DL'], { timeout: 2000 }).catch(
+      () => execFileAsync('iptables', ['-t', 'mangle', '-I', 'INPUT', '1', '-j', 'XPROTOCOL_XR_DL'], { timeout: 2000 }),
+    );
+    const seenDlClient = new Set<number>();
+    for (const item of proxiedDl) {
+      if (seenDlClient.has(item.clientId)) continue;
+      seenDlClient.add(item.clientId);
+      const fwMark = String(20000 + item.clientId);
+      const kbPerSec = Math.max(16, Math.round((Number(item.downloadMbps) * 1000) / 8));
+      const burstKb = Math.max(32, kbPerSec);
+      await execFileAsync(
+        'iptables',
+        ['-t', 'mangle', '-A', 'XPROTOCOL_XR_UL', '-m', 'mark', '--mark', fwMark, '-j', 'CONNMARK', '--save-mark'],
+        { timeout: 2000 },
+      ).catch(() => undefined);
+      await execFileAsync(
+        'iptables',
+        [
+          '-t',
+          'mangle',
+          '-A',
+          'XPROTOCOL_XR_DL',
+          '-m',
+          'connmark',
+          '--mark',
+          fwMark,
+          '-m',
+          'hashlimit',
+          '--hashlimit-name',
+          `xpr_c${item.clientId}`,
+          '--hashlimit-above',
+          `${kbPerSec}kb/s`,
+          '--hashlimit-burst',
+          `${burstKb}kb`,
+          '--hashlimit-mode',
+          'dstip',
+          '-j',
+          'DROP',
+        ],
+        { timeout: 2000 },
       ).catch(() => undefined);
     }
   }

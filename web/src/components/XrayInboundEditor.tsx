@@ -1691,6 +1691,23 @@ export function XrayAdvancedSection({
             {L('Behind a CDN every connection comes from the CDN, so the whole client is the safer choice.', 'پشت CDN انتخاب کل کاربر امن‌تر است.')}
           </p>
         </div>
+
+        {Boolean(settings.proxyProtocol) && (
+          <div className="banner quiet space-y-1.5 text-xs">
+            <div className="font-semibold">
+              {L('Iran / Relay Tunnel (PROXY protocol)', 'تانل ایران / سرور رله (PROXY protocol)')}
+            </div>
+            <p className="m-0 text-(--text-muted)">
+              {L(
+                'Enable send-proxy on the relay server so real client IPs reach Xray for 1-user / 2-user device limits. Pure NAT forwarding without PROXY protocol hides client IPs (speed limits still work per client via fwmark).',
+                'برای اعمال محدودیت تک‌کاربره / دوکاربره پشت سرور ایران، در رله گزینه send-proxy یا proxy_protocol را فعال کنید تا آی‌پی واقعی کاربر به Xray برسد. در فوروارد NAT ساده آی‌پی واقعی مخفی می‌شود (ولی محدودیت سرعت با fwmark همچنان اعمال می‌گردد).',
+              )}
+            </p>
+            <pre dir="ltr" className="overflow-x-auto rounded bg-(--bg-app) p-2 font-mono text-[11px]">
+              {`# HAProxy (Iran relay)\nserver foreign <FOREIGN_IP>:${port} send-proxy\n# Nginx stream (Iran relay)\nproxy_pass <FOREIGN_IP>:${port};\nproxy_protocol on;`}
+            </pre>
+          </div>
+        )}
       </fieldset>
 
       {/* Socket options */}

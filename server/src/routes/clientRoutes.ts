@@ -12,7 +12,7 @@ import { generateClientProfile } from '../generators/profiles.js';
 import type { InboundRow } from '../generators/configs.js';
 import { buildClientXrayServerViews, writeUnifiedXrayConfigFile } from '../drivers/xrayEngine.js';
 import { ensureClientCertificate, ensureOpenVpnPki } from '../drivers/pki.js';
-import { ensureClientDeviceSlots, parseOptionalMbps } from '../services/peerResolver.js';
+import { parseOptionalMbps } from '../services/peerResolver.js';
 import { kickClientConnections, scheduleSyncRunningInbounds, syncRunningInbounds } from '../services/syncService.js';
 
 async function syncAfterClientChange(): Promise<void> {
@@ -477,9 +477,6 @@ export function createClientRouter(): Router {
           now,
         );
         const cid = Number(info.lastInsertRowid);
-        if (effDeviceLimit && effDeviceLimit > 1) {
-          ensureClientDeviceSlots(cid, effDeviceLimit);
-        }
         createdIds.push(cid);
         createdItems.push({ id: cid, name, subToken: subTok });
         for (const gid of groupIds) {
@@ -675,10 +672,6 @@ export function createClientRouter(): Router {
       nextUlMbps,
       id,
     );
-
-    if (nextDeviceLimit && nextDeviceLimit > 1) {
-      ensureClientDeviceSlots(id, nextDeviceLimit);
-    }
 
     if (body.groupIds !== undefined) {
       const nextGroups = filterAllowedIds(acc, body.groupIds, acc.allowedGroupIds);
@@ -985,7 +978,6 @@ export function createClientRouter(): Router {
           continue;
         }
         db.prepare('UPDATE clients SET device_limit = ? WHERE id = ?').run(cap, id);
-        if (cap && cap > 1) ensureClientDeviceSlots(id, cap);
       } else if (action === 'set_sub') {
         const nextHrs =
           subUpdateHours !== undefined ? Math.max(0, Math.min(720, Math.trunc(Number(subUpdateHours)))) : Number(existing.sub_update_hours || 0);
@@ -1021,7 +1013,6 @@ export function createClientRouter(): Router {
           tplSettings.subAnnounce || '',
           id,
         );
-        if (tplSettings.maxDevices > 1) ensureClientDeviceSlots(id, tplSettings.maxDevices);
       } else if (action === 'renew' && tplSettings) {
         const curExp = existing.expires_at ? Date.parse(String(existing.expires_at)) : 0;
         const baseMs = curExp > Date.now() ? curExp : Date.now();
@@ -1123,30 +1114,12 @@ export function createClientRouter(): Router {
     const reqHost = req.hostname && req.hostname !== 'localhost' && req.hostname !== '127.0.0.1' ? req.hostname : '';
     const endpointHost = !rawHost || rawHost === '127.0.0.1' ? reqHost || rawHost || '127.0.0.1' : rawHost;
 
-    const slotParam = Math.max(1, Math.trunc(Number(req.query.slot || 1)));
-    let wgPrivateKey = String(client.wg_private_key);
-    let effectiveSlot = 1;
-    if (
-      slotParam > 1 &&
-      (inbound.protocol === 'wireguard' || inbound.protocol === 'amneziawg') &&
-      client.device_limit !== null &&
-      Number(client.device_limit) >= slotParam
-    ) {
-      const slots = ensureClientDeviceSlots(id, Number(client.device_limit));
-      const matched = slots.find((s) => s.slotIndex === slotParam);
-      if (matched) {
-        wgPrivateKey = matched.wgPrivateKey;
-        effectiveSlot = matched.slotIndex;
-      }
-    }
-
     const profile = generateClientProfile({
       clientName: String(client.name),
       vpnPassword: String(client.vpn_password),
-      wgPrivateKey,
-      fixedIp: effectiveSlot === 1 ? String(client.fixed_ip || '') : '',
+      wgPrivateKey: String(client.wg_private_key),
+      fixedIp: String(client.fixed_ip || ''),
       clientIndex: id,
-      slotIndex: effectiveSlot,
       inbound,
       endpointHost,
       nodeName: inbound.node_name,
