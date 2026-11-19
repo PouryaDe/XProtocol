@@ -581,8 +581,8 @@ export function ClientFormSheet({
                 </div>
                 <p className="hint">
                   {lang === 'fa'
-                    ? 'برای هر دستگاه؛ خالی یا ۰ = نامحدود. روی WireGuard، OpenVPN و OpenConnect اعمال می‌شود.'
-                    : 'Per device, empty or 0 = unlimited. Applies to WireGuard, OpenVPN and OpenConnect (OpenConnect: from the next connection).'}
+                    ? 'برای هر دستگاه؛ خالی یا ۰ = نامحدود. روی WireGuard، AmneziaWG، OpenVPN، OpenConnect، IKEv2، L2TP و Xray اعمال می‌شود.'
+                    : 'Per device, empty or 0 = unlimited. Applies across WireGuard, AmneziaWG, OpenVPN, OpenConnect, IKEv2, L2TP, and Xray.'}
                 </p>
               </div>
 

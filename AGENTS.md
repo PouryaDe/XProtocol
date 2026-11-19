@@ -4,8 +4,8 @@ This repository contains the clean-room, open-core **XProtocol** VPN control pan
 
 ## Tech Stack & Modules
 - **Backend (`server/`)**: Node.js 24+ (`node:sqlite` WAL), Express 5, TypeScript (`tsx --test`).
-  - `drivers/`: `xrayEngine.ts` (VLESS/VMess/Trojan/SS2022, Reality X25519, SNI probe/scan, unified `/etc/xray/config.json` + `127.0.0.1:10085` StatsService), `linuxEngine.ts` (WireGuard/AmneziaWG, OpenVPN, ocserv, strongSwan IKEv2/L2TP, Xray routing, `tc` HTB/IFB), `pki.ts`, `runtime.ts`.
-  - `services/`: `peerResolver.ts`, `syncService.ts`, `collector.ts` (5s live telemetry, quota/expiry/device eviction), `resetSchedule.ts` (Gregorian, `every_n_days`, Jalali `Asia/Tehran`), `subOrigins.ts`, `events.ts` (bell, Telegram, HMAC webhooks), `nodeHealth.ts`, `offsiteBackup.ts` (S3 SigV4, SFTP, `.ovbk` AES-256-GCM).
+  - `drivers/`: `xrayEngine.ts` (VLESS/VMess/Trojan/SS2022, Reality X25519, SNI probe/scan, unified `config.json` + `127.0.0.1:10085` `StatsService`/`HandlerService` hot-sync `adu`/`rmu`, access-log multi-IP & WAN `tc`), `linuxEngine.ts` (WireGuard/AmneziaWG, OpenVPN, ocserv, strongSwan IKEv2 `xfrm-*`/L2TP, Xray routing, incremental `tc` HTB/ingress), `pki.ts`, `runtime.ts`.
+  - `services/`: `peerResolver.ts` (multi-slot WG keys `client_device_slots`), `sessionGate.ts` (atomic `xp-gate.mjs` connect/disconnect gate + WG suppression), `syncService.ts`, `collector.ts` (5s live telemetry, quota/expiry/device eviction), `resetSchedule.ts` (Gregorian, `every_n_days`, Jalali `Asia/Tehran`), `subOrigins.ts`, `events.ts` (bell, Telegram, HMAC webhooks), `nodeHealth.ts`, `offsiteBackup.ts` (S3 SigV4, SFTP, `.ovbk` AES-256-GCM).
   - `security/`: `auth.ts` (scrypt, Reality/SS keygen), `loginGuard.ts` (CIDR allowlist + escalating bans), `rbac.ts`, `totp.ts`.
   - `generators/`: `configs.ts`, `profiles.ts`.
 - **Frontend (`web/`)**: React 19, Vite 6, Tailwind CSS v4, Lucide icons, `qrcode`.

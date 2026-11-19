@@ -3,6 +3,7 @@ import { applyLinuxInbound, disableStockProtocolDaemons, disconnectLinuxPeer, sy
 import { writeLiveClientCounts } from '../drivers/pki.js';
 import type { InboundRow } from '../generators/configs.js';
 import { getEligiblePeersForInbound } from './peerResolver.js';
+import { isClientWgSuppressed, syncGateStateFromDb } from './sessionGate.js';
 
 let syncInFlight: Promise<void> | null = null;
 let syncQueued = false;
@@ -30,8 +31,18 @@ export async function reconcileRunningInboundsOnBoot(): Promise<void> {
 
 async function runSyncPass(): Promise<void> {
   const db = getDb();
+  try {
+    syncGateStateFromDb();
+  } catch {
+    // ignore in restricted environments
+  }
+
   const runningInbounds = db
-    .prepare('SELECT * FROM inbounds WHERE running = 1 AND node_id IS NOT NULL')
+    .prepare(
+      `SELECT i.* FROM inbounds i
+       JOIN nodes n ON n.id = i.node_id
+       WHERE i.running = 1 AND i.enabled = 1 AND n.is_local = 1`,
+    )
     .all() as unknown as InboundRow[];
 
   const l2tpMerged = new Map<string, { name: string; vpnPassword: string }>();
@@ -51,9 +62,18 @@ async function runSyncPass(): Promise<void> {
         .prepare('SELECT client_id, COUNT(*) AS cnt FROM connections_live WHERE inbound_id != ? GROUP BY client_id')
         .all(ib.id) as Array<{ client_id: number; cnt: number }>;
       const otherMap = new Map(otherRows.map((r) => [r.client_id, Number(r.cnt)]));
-      peers = peers.filter(
-        (p) => !p.deviceLimit || p.deviceLimit <= 0 || (otherMap.get(p.clientId) || 0) < p.deviceLimit,
-      );
+      const emittedWgSlots = new Map<number, number>();
+      peers = peers.filter((p) => {
+        if (isClientWgSuppressed(p.clientId)) return false;
+        if (!p.deviceLimit || p.deviceLimit <= 0) return true;
+        const otherCnt = otherMap.get(p.clientId) || 0;
+        const remaining = p.deviceLimit - otherCnt;
+        if (remaining <= 0) return false;
+        const seen = emittedWgSlots.get(p.clientId) || 0;
+        if (seen >= remaining) return false;
+        emittedWgSlots.set(p.clientId, seen + 1);
+        return true;
+      });
     }
     if (ib.protocol === 'l2tp') {
       for (const p of peers) {
@@ -116,6 +136,7 @@ export async function kickConnectionById(
     clientName: String(row.client_name),
     wgPublicKey: String(row.wg_public_key || ''),
     connectionId,
+    remoteIp: String(row.remote_ip || ''),
   }).catch(() => undefined);
 
   const now = new Date().toISOString();
@@ -154,6 +175,7 @@ export async function kickConnectionById(
   for (const r of countRows) counts[r.uname] = Number(r.cnt);
   try {
     writeLiveClientCounts(counts);
+    syncGateStateFromDb();
   } catch {
     // ignore in restricted environments
   }

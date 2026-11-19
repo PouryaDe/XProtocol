@@ -58,6 +58,7 @@ interface SubProfile {
   configText: string;
   uri?: string;
   connectInfo: Record<string, string | number>;
+  extraSlots?: Array<{ slotIndex: number; filename: string; configText: string }>;
 }
 
 interface SubXrayServer {
@@ -158,7 +159,7 @@ interface SubViewModel {
   copyText: (text: string, key: string) => Promise<void>;
   toggleMode: () => void;
   toggleLocale: () => void;
-  profileUrl: (inboundId: number) => string;
+  profileUrl: (inboundId: number, slot?: number) => string;
   importUrl: (inboundId: number) => string;
 }
 
@@ -518,6 +519,11 @@ function ProtocolSteps({ m, tab }: { m: SubViewModel; tab: SubProtocolTab }) {
                       <strong dir="auto">
                         {p.nodeName ? `${p.nodeName} · ` : ''}
                         {p.inboundName}
+                        {p.extraSlots && p.extraSlots.length > 0
+                          ? m.locale === 'fa'
+                            ? ' (دستگاه ۱)'
+                            : ' (Device 1)'
+                          : ''}
                       </strong>
                       {p.description && (
                         <span className="muted small" dir="auto">
@@ -555,6 +561,52 @@ function ProtocolSteps({ m, tab }: { m: SubViewModel; tab: SubProtocolTab }) {
                       </button>
                     </div>
                     {isQrOpen && <ProfileQrImage value={p.configText} alt={p.inboundName} size={220} />}
+                    {p.extraSlots?.map((slot) => {
+                      const slotKey = `slot-${p.inboundId}-${slot.slotIndex}`;
+                      const slotQrOpen = openXrayQr === slotKey;
+                      const slotCopied = m.copiedKey === slotKey;
+                      return (
+                        <div key={slotKey} className="sub-profile sub-oc-entry" style={{ marginTop: 8, width: '100%' }}>
+                          <div>
+                            <strong dir="auto">
+                              {p.nodeName ? `${p.nodeName} · ` : ''}
+                              {p.inboundName}{' '}
+                              {m.locale === 'fa' ? `(دستگاه ${slot.slotIndex})` : `(Device ${slot.slotIndex})`}
+                            </strong>
+                          </div>
+                          <div className="row-gap">
+                            <a
+                              className="btn sm"
+                              dir="ltr"
+                              href={m.profileUrl(p.inboundId, slot.slotIndex)}
+                              download={slot.filename}
+                              aria-label={copy.downloadConf}
+                            >
+                              <Download size={14} aria-hidden="true" />
+                              .conf
+                            </a>
+                            <button
+                              type="button"
+                              className="btn sm"
+                              aria-expanded={slotQrOpen}
+                              onClick={() => setOpenXrayQr(slotQrOpen ? null : slotKey)}
+                            >
+                              <QrCode size={14} aria-hidden="true" />
+                              QR
+                            </button>
+                            <button
+                              type="button"
+                              className="btn sm"
+                              onClick={() => m.copyText(slot.configText, slotKey)}
+                            >
+                              {slotCopied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
+                              {slotCopied ? copy.copied : copy.copy}
+                            </button>
+                          </div>
+                          {slotQrOpen && <ProfileQrImage value={slot.configText} alt={slot.filename} size={220} />}
+                        </div>
+                      );
+                    })}
                   </li>
                 );
               })}
@@ -1945,7 +1997,8 @@ export function SubscriptionPage({ token }: { token: string }) {
     copyText,
     toggleMode: () => setTheme(mode === 'light' ? 'dark' : 'light'),
     toggleLocale: () => setLang(locale === 'fa' ? 'en' : 'fa'),
-    profileUrl: (inboundId: number) => `${window.location.origin}/${subPath}/${encodeURIComponent(token)}/profile/${inboundId}`,
+    profileUrl: (inboundId: number, slot?: number) =>
+      `${window.location.origin}/${subPath}/${encodeURIComponent(token)}/profile/${inboundId}${slot && slot > 1 ? `?slot=${slot}` : ''}`,
     importUrl: (inboundId: number) =>
       `openvpn://import-profile/${window.location.origin}/${subPath}/${encodeURIComponent(token)}/profile/${inboundId}`,
   };

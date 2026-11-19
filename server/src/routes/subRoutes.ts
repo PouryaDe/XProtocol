@@ -12,6 +12,7 @@ import { computeClientState } from './context.js';
 import { resolveClientInbounds } from './clientRoutes.js';
 import { generateClientProfile } from '../generators/profiles.js';
 import { ensureClientCertificate, ensureOpenVpnPki } from '../drivers/pki.js';
+import { ensureClientDeviceSlots } from '../services/peerResolver.js';
 
 const DEFAULT_APPS: Record<string, { android: { name: string; url: string }[]; ios: { name: string; url: string }[]; desktop: { name: string; url: string }[] }> = {
   xray: {
@@ -132,6 +133,12 @@ export function createSubRouter(): Router {
       fallbackHost,
     );
 
+    const deviceLimit = client.device_limit === null ? null : Number(client.device_limit);
+    const wgSlots =
+      deviceLimit && deviceLimit > 1 && nonXrayInbounds.some((ib) => ib.protocol === 'wireguard' || ib.protocol === 'amneziawg')
+        ? ensureClientDeviceSlots(clientId, deviceLimit)
+        : [];
+
     const profiles = nonXrayInbounds.map((ib) => {
       const connectAddrs = JSON.parse(ib.connect_addresses_json || '[]') as string[];
       const rawHost = connectAddrs[0] || (ib.node_address !== '127.0.0.1' ? ib.node_address : general.publicAddress);
@@ -143,10 +150,35 @@ export function createSubRouter(): Router {
         xrayUuid: String(client.xray_uuid || ''),
         fixedIp: String(client.fixed_ip || ''),
         clientIndex: clientId,
+        slotIndex: 1,
         inbound: ib,
         endpointHost: host,
         nodeName: ib.node_name,
       });
+      const extraSlots =
+        (ib.protocol === 'wireguard' || ib.protocol === 'amneziawg') && wgSlots.length > 1
+          ? wgSlots
+              .filter((s) => s.slotIndex > 1)
+              .map((s) => {
+                const sGen = generateClientProfile({
+                  clientName: String(client.name),
+                  vpnPassword: String(client.vpn_password),
+                  wgPrivateKey: s.wgPrivateKey,
+                  xrayUuid: String(client.xray_uuid || ''),
+                  fixedIp: '',
+                  clientIndex: clientId,
+                  slotIndex: s.slotIndex,
+                  inbound: ib,
+                  endpointHost: host,
+                  nodeName: ib.node_name,
+                });
+                return {
+                  slotIndex: s.slotIndex,
+                  filename: sGen.filename,
+                  configText: sGen.content,
+                };
+              })
+          : undefined;
       return {
         inboundId: ib.id,
         inboundName: ib.name,
@@ -157,6 +189,7 @@ export function createSubRouter(): Router {
         configText: gen.content,
         uri: gen.uri,
         connectInfo: gen.connectInfo,
+        ...(extraSlots && extraSlots.length > 0 ? { extraSlots } : {}),
       };
     });
 
@@ -287,13 +320,31 @@ export function createSubRouter(): Router {
     const rawHost = connectAddrs[0] || (inbound.node_address !== '127.0.0.1' ? inbound.node_address : general.publicAddress);
     const host = !rawHost || rawHost === '127.0.0.1' ? reqHost || rawHost || '127.0.0.1' : rawHost;
 
+    const slotParam = Math.max(1, Math.trunc(Number(req.query.slot || 1)));
+    let wgPrivateKey = String(client.wg_private_key);
+    let effectiveSlot = 1;
+    if (
+      slotParam > 1 &&
+      (inbound.protocol === 'wireguard' || inbound.protocol === 'amneziawg') &&
+      client.device_limit !== null &&
+      Number(client.device_limit) >= slotParam
+    ) {
+      const slots = ensureClientDeviceSlots(clientId, Number(client.device_limit));
+      const matched = slots.find((s) => s.slotIndex === slotParam);
+      if (matched) {
+        wgPrivateKey = matched.wgPrivateKey;
+        effectiveSlot = matched.slotIndex;
+      }
+    }
+
     const gen = generateClientProfile({
       clientName: String(client.name),
       vpnPassword: String(client.vpn_password),
-      wgPrivateKey: String(client.wg_private_key),
+      wgPrivateKey,
       xrayUuid: String(client.xray_uuid || ''),
-      fixedIp: String(client.fixed_ip || ''),
+      fixedIp: effectiveSlot === 1 ? String(client.fixed_ip || '') : '',
       clientIndex: clientId,
+      slotIndex: effectiveSlot,
       inbound,
       endpointHost: host,
       nodeName: inbound.node_name,

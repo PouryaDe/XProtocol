@@ -34,7 +34,7 @@
 - `groups(id, name, note, all_inbounds, enabled, download_mbps, upload_mbps, created_at)` & `group_inbounds(group_id, inbound_id)`
 - `clients(id, name, owner_id, traffic_limit_bytes, traffic_used_bytes, upload_bytes, download_bytes, expires_at, first_connect_days, first_connected_at, device_limit, download_mbps, upload_mbps, reset_period, reset_every_days, reset_anchor, template_id, next_reset_at, fixed_ip, enabled, note, contact, sub_token, wg_private_key, wg_public_key, vpn_password, xray_uuid, ss_password, sub_update_hours, sub_announce, created_at, last_online_at)`
   - *Note*: NO `email` or `updated_at` columns; `name`, `owner_id`, `wg_private_key`, `wg_public_key`, `vpn_password`, `sub_token`, `created_at` are `NOT NULL`.
-- `client_groups(client_id, group_id)`, `client_inbounds(client_id, inbound_id)`
+- `client_groups(client_id, group_id)`, `client_inbounds(client_id, inbound_id)`, `client_device_slots(id, client_id, slot_index, wg_private_key, wg_public_key, created_at)`
 - `connections_live(id, client_id, inbound_id, node_id, remote_ip, tunnel_ip, device, connected_at, bytes_in, bytes_out, speed_in_bps, speed_out_bps)` & `connections_history(...)`
 - `outbounds(id, name, type, config_json, last_test_json, created_at)` & `routing_policies(node_id, enabled, inbound_scope, inbound_ids_json, default_action, default_outbound_id, rules_json, inbound_routes_json, status, status_message, updated_at)`
 - `client_templates(id, name, settings_json, sort, enabled, created_at, updated_at)`

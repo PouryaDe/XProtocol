@@ -6,12 +6,14 @@ import {
   disconnectLinuxPeer,
   type LiveTunnelSample,
 } from '../drivers/linuxEngine.js';
+import { applyXraySpeedLimits } from '../drivers/xrayEngine.js';
 import { writeLiveClientCounts } from '../drivers/pki.js';
 import type { InboundRow, PeerEntry } from '../generators/configs.js';
 import { emitEvent, pruneOldEvents } from './events.js';
 import { recordNodeHealthSample } from './nodeHealth.js';
-import { isClientActiveQuota } from './peerResolver.js';
+import { getAllClientWgKeyMap, isClientActiveQuota } from './peerResolver.js';
 import { computeNextResetIso } from './resetSchedule.js';
+import { listWgSuppressedClients, setClientWgSuppressed, syncGateStateFromDb } from './sessionGate.js';
 import { kickClientConnections, scheduleSyncRunningInbounds } from './syncService.js';
 
 let collectorTimer: NodeJS.Timeout | null = null;
@@ -20,7 +22,7 @@ const lastTunnelBytes = new Map<string, { in: number; out: number }>();
 const lastActivityAt = new Map<string, number>();
 const appliedDedicatedShape = new Map<string, string>();
 const appliedSharedOvpnShape = new Map<string, string>();
-const wgSuppressedClients = new Set<number>();
+const appliedSharedIkeShape = new Map<string, string>();
 
 export interface SessionCapCandidate {
   id: string;
@@ -120,6 +122,11 @@ export async function runPeriodicResets(): Promise<boolean> {
     }
   }
   if (anyReactivated) {
+    try {
+      syncGateStateFromDb();
+    } catch {
+      // ignore
+    }
     scheduleSyncRunningInbounds();
   }
   return anyReactivated;
@@ -190,7 +197,7 @@ export async function runCollectorTick(): Promise<void> {
     clientByNameLower.set(c.name.trim().replace(/\s+/g, '_').toLowerCase(), c);
   }
   const clientById = new Map(clients.map((c) => [c.id, c]));
-  const clientNameByPub = new Map(clients.map((c) => [c.wg_public_key, c.name]));
+  const clientNameByPub = getAllClientWgKeyMap();
 
   const nodes = db.prepare('SELECT id, name, multiplier FROM nodes').all() as { id: number; name: string; multiplier: number }[];
   const nodeMult = new Map(nodes.map((n) => [n.id, n.multiplier]));
@@ -343,6 +350,8 @@ export async function runCollectorTick(): Promise<void> {
 
   const liveCountsByLowerName: Record<string, number> = {};
   const ovpnPeersByIface = new Map<string, PeerEntry[]>();
+  const ikePeersByIface = new Map<string, PeerEntry[]>();
+  const xraySpeedItems: Array<{ remoteIp: string; port: number; downloadMbps: number | null; uploadMbps: number | null }> = [];
   const excessItems: ProcessedSample[] = [];
 
   for (const [clientId, items] of perClientSessions) {
@@ -363,7 +372,6 @@ export async function runCollectorTick(): Promise<void> {
       if (evictSet.has(it.sample.id)) {
         excessItems.push(it);
         if (it.sample.id.startsWith('wg-')) {
-          wgSuppressedClients.add(clientId);
           needSyncAfterTick = true;
         }
         continue;
@@ -401,6 +409,33 @@ export async function runCollectorTick(): Promise<void> {
           uploadMbps: it.effUl,
         });
         ovpnPeersByIface.set(tunIface, list);
+      } else if (it.inbound.protocol === 'ikev2' && it.sample.tunnelIp) {
+        const xfrmIface = `xfrm-${it.inbound.name}`;
+        const list = ikePeersByIface.get(xfrmIface) || [];
+        list.push({
+          clientId: client.id,
+          name: client.name,
+          wgPublicKey: client.wg_public_key,
+          tunnelIp: it.sample.tunnelIp,
+          downloadMbps: it.effDl,
+          uploadMbps: it.effUl,
+        });
+        ikePeersByIface.set(xfrmIface, list);
+      } else if (it.inbound.protocol === 'xray' && (it.effDl || it.effUl)) {
+        let xrSet: Record<string, unknown> = {};
+        try {
+          xrSet = JSON.parse(it.inbound.settings_json || '{}') as Record<string, unknown>;
+        } catch {
+          xrSet = {};
+        }
+        if (!xrSet.behindCdn && !xrSet.cdn && it.sample.remoteIp && it.sample.remoteIp !== '0.0.0.0') {
+          xraySpeedItems.push({
+            remoteIp: it.sample.remoteIp,
+            port: it.inbound.port,
+            downloadMbps: it.effDl,
+            uploadMbps: it.effUl,
+          });
+        }
       } else if (
         it.sample.interfaceName &&
         (it.sample.interfaceName.startsWith('ppp') ||
@@ -408,7 +443,7 @@ export async function runCollectorTick(): Promise<void> {
           it.sample.interfaceName.startsWith('vpns'))
       ) {
         seenDedicatedIfaces.add(it.sample.interfaceName);
-        const shapeKey = `${it.effDl ?? 0}:${it.effUl ?? 0}`;
+        const shapeKey = `${client.id}:${it.connectedAtIso}:${it.effDl ?? 0}:${it.effUl ?? 0}`;
         const prevKey = appliedDedicatedShape.get(it.sample.interfaceName);
         if (shapeKey !== prevKey && (it.effDl || it.effUl || prevKey !== undefined)) {
           appliedDedicatedShape.set(it.sample.interfaceName, shapeKey);
@@ -424,38 +459,53 @@ export async function runCollectorTick(): Promise<void> {
       client.device_limit > 0 &&
       keepIds.size >= client.device_limit
     ) {
-      if (!wgSuppressedClients.has(clientId)) {
-        wgSuppressedClients.add(clientId);
+      if (setClientWgSuppressed(clientId, true)) {
         needSyncAfterTick = true;
       }
     } else if (
-      wgSuppressedClients.has(clientId) &&
-      (client.device_limit === null || client.device_limit <= 0 || keepIds.size < client.device_limit)
+      client.device_limit === null ||
+      client.device_limit <= 0 ||
+      keepIds.size < client.device_limit ||
+      hasActiveWg
     ) {
-      wgSuppressedClients.delete(clientId);
-      needSyncAfterTick = true;
+      if (setClientWgSuppressed(clientId, false)) {
+        needSyncAfterTick = true;
+      }
     }
   }
 
-  for (const clientId of [...wgSuppressedClients]) {
+  for (const clientId of listWgSuppressedClients()) {
     if (!perClientSessions.has(clientId)) {
-      wgSuppressedClients.delete(clientId);
+      setClientWgSuppressed(clientId, false);
       needSyncAfterTick = true;
     }
   }
 
   // Shape OpenVPN virtual client IPs dynamically by live session IP (required for server-assigned pool IPs & duplicate-cn)
   for (const ib of inbounds) {
-    if (ib.protocol !== 'openvpn' || !ib.running) continue;
-    const tunIface = `tun-${ib.name}`;
-    const ovpnPeers = ovpnPeersByIface.get(tunIface) || [];
-    const sig = ovpnPeers
-      .map((p) => `${p.tunnelIp}:${p.downloadMbps ?? 0}:${p.uploadMbps ?? 0}`)
-      .sort()
-      .join('|');
-    if (sig !== (appliedSharedOvpnShape.get(tunIface) ?? '')) {
-      appliedSharedOvpnShape.set(tunIface, sig);
-      await applyInterfaceSpeedLimits(tunIface, ovpnPeers).catch(() => undefined);
+    if (!ib.running) continue;
+    if (ib.protocol === 'openvpn') {
+      const tunIface = `tun-${ib.name}`;
+      const ovpnPeers = ovpnPeersByIface.get(tunIface) || [];
+      const sig = ovpnPeers
+        .map((p) => `${p.tunnelIp}:${p.downloadMbps ?? 0}:${p.uploadMbps ?? 0}`)
+        .sort()
+        .join('|');
+      if (sig !== (appliedSharedOvpnShape.get(tunIface) ?? '')) {
+        appliedSharedOvpnShape.set(tunIface, sig);
+        await applyInterfaceSpeedLimits(tunIface, ovpnPeers).catch(() => undefined);
+      }
+    } else if (ib.protocol === 'ikev2') {
+      const xfrmIface = `xfrm-${ib.name}`;
+      const ikePeers = ikePeersByIface.get(xfrmIface) || [];
+      const sig = ikePeers
+        .map((p) => `${p.tunnelIp}:${p.downloadMbps ?? 0}:${p.uploadMbps ?? 0}`)
+        .sort()
+        .join('|');
+      if (sig !== (appliedSharedIkeShape.get(xfrmIface) ?? '')) {
+        appliedSharedIkeShape.set(xfrmIface, sig);
+        await applyInterfaceSpeedLimits(xfrmIface, ikePeers).catch(() => undefined);
+      }
     }
   }
   for (const iface of appliedSharedOvpnShape.keys()) {
@@ -463,9 +513,11 @@ export async function runCollectorTick(): Promise<void> {
       appliedSharedOvpnShape.delete(iface);
     }
   }
+  await applyXraySpeedLimits(xraySpeedItems).catch(() => undefined);
 
   try {
     writeLiveClientCounts(liveCountsByLowerName);
+    syncGateStateFromDb(nowMs);
   } catch {
     // ignore in restricted environments
   }
@@ -482,10 +534,21 @@ export async function runCollectorTick(): Promise<void> {
   }
 
   for (const ex of excessItems) {
+    let isCdnXray = false;
+    if (ex.inbound.protocol === 'xray') {
+      try {
+        const s = JSON.parse(ex.inbound.settings_json || '{}') as Record<string, unknown>;
+        isCdnXray = Boolean(s.behindCdn || s.cdn);
+      } catch {
+        isCdnXray = false;
+      }
+    }
     await disconnectLinuxPeer(ex.inbound, {
       clientName: ex.client.name,
-      wgPublicKey: ex.client.wg_public_key,
+      wgPublicKey: ex.sample.wgPublicKey || ex.client.wg_public_key,
       connectionId: ex.sample.id,
+      remoteIp: ex.sample.remoteIp,
+      singleDeviceOnly: ex.inbound.protocol === 'xray' && !isCdnXray,
     }).catch(() => undefined);
     const durSec = Math.max(1, Math.round((nowMs - ex.connectedAtMs) / 1000));
     db.prepare(

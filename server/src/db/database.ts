@@ -618,6 +618,16 @@ export function initDatabase(): { initialPasswordGenerated?: string } {
       until INTEGER NOT NULL DEFAULT 0,
       last_fail INTEGER NOT NULL DEFAULT 0
     );
+
+    CREATE TABLE IF NOT EXISTS client_device_slots (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      slot_index INTEGER NOT NULL,
+      wg_private_key TEXT NOT NULL,
+      wg_public_key TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE(client_id, slot_index)
+    );
   `);
 
   // Idempotent schema migrations for pre-existing databases

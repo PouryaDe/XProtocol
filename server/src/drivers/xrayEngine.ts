@@ -1217,8 +1217,131 @@ export function writeUnifiedXrayConfigFile(): {
 let xraySyncInFlight: Promise<{ ok: boolean; statusMessage: string }> | null = null;
 let xraySyncPending = false;
 
+interface AppliedXrayInboundSnapshot {
+  tag: string;
+  protocol: string;
+  clients: Array<Record<string, unknown>>;
+  baseSettings: Record<string, unknown>;
+}
+
+interface AppliedXrayState {
+  structureHash: string;
+  inbounds: Record<string, AppliedXrayInboundSnapshot>;
+}
+
+function computeXrayStructureAndClients(configJson: string): AppliedXrayState {
+  const parsed = JSON.parse(configJson) as {
+    inbounds?: Array<{ tag?: string; protocol?: string; settings?: Record<string, unknown>; [k: string]: unknown }>;
+    [k: string]: unknown;
+  };
+  const inbMap: Record<string, AppliedXrayInboundSnapshot> = {};
+  const strippedInbounds = (parsed.inbounds || []).map((ib) => {
+    const tag = String(ib.tag || '');
+    const proto = String(ib.protocol || '');
+    const settings = ib.settings ? { ...ib.settings } : undefined;
+    const clients = Array.isArray(settings?.clients) ? (settings!.clients as Array<Record<string, unknown>>) : [];
+    if (settings && 'clients' in settings) {
+      settings.clients = [];
+    }
+    if (tag && tag !== 'api') {
+      inbMap[tag] = { tag, protocol: proto, clients, baseSettings: settings || {} };
+    }
+    return { ...ib, ...(settings ? { settings } : {}) };
+  });
+  const structureObj = { ...parsed, inbounds: strippedInbounds };
+  const structureHash = crypto.createHash('sha256').update(JSON.stringify(structureObj)).digest('hex');
+  return { structureHash, inbounds: inbMap };
+}
+
+async function tryHotSyncXrayUsers(
+  xrayBin: string,
+  dir: string,
+  nextState: AppliedXrayState,
+): Promise<boolean> {
+  const statePath = path.join(dir, 'xray-applied-state.json');
+  if (!fs.existsSync(statePath)) return false;
+
+  let prevState: AppliedXrayState;
+  try {
+    prevState = JSON.parse(fs.readFileSync(statePath, 'utf8')) as AppliedXrayState;
+  } catch {
+    return false;
+  }
+  if (!prevState.structureHash || prevState.structureHash !== nextState.structureHash) {
+    return false;
+  }
+
+  const active = await execFileAsync('systemctl', ['is-active', 'xprotocol-xray'], { timeout: 3000 }).catch(() => null);
+  if (String(active?.stdout || '').trim() !== 'active') return false;
+
+  const tmpFiles: string[] = [];
+  try {
+    for (const [tag, nextIb] of Object.entries(nextState.inbounds)) {
+      const prevIb = prevState.inbounds[tag];
+      if (!prevIb) return false;
+      const prevByEmail = new Map(prevIb.clients.map((c) => [String(c.email || ''), c]));
+      const nextByEmail = new Map(nextIb.clients.map((c) => [String(c.email || ''), c]));
+
+      const toRemove: string[] = [];
+      const toAdd: Array<Record<string, unknown>> = [];
+
+      for (const [email, prevClient] of prevByEmail) {
+        const nextClient = nextByEmail.get(email);
+        if (!nextClient) {
+          toRemove.push(email);
+        } else if (JSON.stringify(prevClient) !== JSON.stringify(nextClient)) {
+          toRemove.push(email);
+          toAdd.push(nextClient);
+        }
+      }
+      for (const [email, nextClient] of nextByEmail) {
+        if (!prevByEmail.has(email)) {
+          toAdd.push(nextClient);
+        }
+      }
+
+      if (toRemove.length > 0) {
+        await execFileAsync(
+          xrayBin,
+          ['api', 'rmu', '--server=127.0.0.1:10085', `-tag=${tag}`, ...toRemove],
+          { timeout: 5000 },
+        );
+      }
+      if (toAdd.length > 0) {
+        const aduFile = path.join(os.tmpdir(), `xp-adu-${tag.replace(/[^a-zA-Z0-9_-]/g, '_')}-${Date.now()}.json`);
+        tmpFiles.push(aduFile);
+        fs.writeFileSync(
+          aduFile,
+          JSON.stringify({
+            inbounds: [
+              {
+                tag,
+                protocol: nextIb.protocol,
+                settings: {
+                  ...nextIb.baseSettings,
+                  clients: toAdd,
+                },
+              },
+            ],
+          }),
+          { mode: 0o600 },
+        );
+        await execFileAsync(xrayBin, ['api', 'adu', '--server=127.0.0.1:10085', aduFile], { timeout: 5000 });
+      }
+    }
+    fs.writeFileSync(statePath, JSON.stringify(nextState), { mode: 0o600 });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    for (const f of tmpFiles) {
+      fs.rmSync(f, { force: true });
+    }
+  }
+}
+
 async function syncAndApplyXrayEngineOnce(): Promise<{ ok: boolean; statusMessage: string }> {
-  const { hasActiveXray, dir, cfgPath } = writeUnifiedXrayConfigFile();
+  const { configJson, hasActiveXray, dir, cfgPath } = writeUnifiedXrayConfigFile();
 
   if (process.platform !== 'linux') {
     return {
@@ -1229,11 +1352,13 @@ async function syncAndApplyXrayEngineOnce(): Promise<{ ok: boolean; statusMessag
 
   fs.mkdirSync('/var/log/xprotocol', { recursive: true });
   const unitPath = '/etc/systemd/system/xprotocol-xray.service';
+  const statePath = path.join(dir, 'xray-applied-state.json');
 
   if (!hasActiveXray) {
     if (fs.existsSync(unitPath)) {
       await execFileAsync('systemctl', ['stop', 'xprotocol-xray'], { timeout: 5000 }).catch(() => undefined);
     }
+    fs.rmSync(statePath, { force: true });
     return { ok: true, statusMessage: 'Stopped' };
   }
 
@@ -1242,6 +1367,11 @@ async function syncAndApplyXrayEngineOnce(): Promise<{ ok: boolean; statusMessag
     return { ok: false, statusMessage: ensured.error || 'xray binary not installed on host' };
   }
   ensureXrayAssets(dir);
+
+  const nextState = computeXrayStructureAndClients(configJson);
+  if (await tryHotSyncXrayUsers(ensured.bin, dir, nextState)) {
+    return { ok: true, statusMessage: `Xray users hot-synced (${ensured.bin})` };
+  }
 
   // Pre-validate config with xray -test before restarting systemd
   try {
@@ -1291,6 +1421,7 @@ WantedBy=multi-user.target
         statusMessage: `xprotocol-xray exited after start: ${(j?.stdout || 'check journalctl -u xprotocol-xray').trim()}`,
       };
     }
+    fs.writeFileSync(statePath, JSON.stringify(nextState), { mode: 0o600 });
     return { ok: true, statusMessage: `Xray engine running (${ensured.bin})` };
   } catch (err: unknown) {
     const e = err as { stderr?: string; message?: string };
@@ -1327,15 +1458,71 @@ export async function syncAndApplyXrayEngine(): Promise<{ ok: boolean; statusMes
   }
 }
 
+export interface XrayAccessLogEntry {
+  inboundName: string;
+  email: string;
+  ips: string[];
+  lastIp: string;
+  lastSeenMs: number;
+}
+
+/**
+ * Parse Xray `access.log` lines within the trailing `windowMs` to resolve active device IPs
+ * and exact inbound tags (`[xr-<name> -> ...]`) per user email.
+ */
+export function parseXrayAccessLogContent(
+  content: string,
+  nowMs = Date.now(),
+  windowMs = 45_000,
+): Map<string, XrayAccessLogEntry> {
+  const byKey = new Map<string, XrayAccessLogEntry>();
+  const cutoff = nowMs - windowMs;
+  for (const line of content.split('\n')) {
+    if (!line.trim()) continue;
+    const tsMatch = line.match(/^(\d{4})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
+    let tsMs = nowMs;
+    if (tsMatch) {
+      tsMs = new Date(
+        Number(tsMatch[1]),
+        Number(tsMatch[2]) - 1,
+        Number(tsMatch[3]),
+        Number(tsMatch[4]),
+        Number(tsMatch[5]),
+        Number(tsMatch[6]),
+      ).getTime();
+      if (Number.isFinite(tsMs) && tsMs < cutoff) continue;
+    }
+    const emailMatch = line.match(/email:\s*([^\s]+)/);
+    const ipMatch = line.match(/from\s+(?:tcp:|udp:)?(?:\[([^\]]+)\]|(\d{1,3}(?:\.\d{1,3}){3})):\d+/);
+    if (!emailMatch || !ipMatch) continue;
+    const email = emailMatch[1];
+    const ip = ipMatch[1] || ipMatch[2] || '';
+    if (!ip) continue;
+    const ibMatch = line.match(/\[xr-([^\s\]]+)\s*->/);
+    const inboundName = ibMatch ? ibMatch[1] : '';
+    const key = `${inboundName}::${email}`;
+    let entry = byKey.get(key);
+    if (!entry) {
+      entry = { inboundName, email, ips: [], lastIp: ip, lastSeenMs: tsMs };
+      byKey.set(key, entry);
+    }
+    if (!entry.ips.includes(ip)) entry.ips.push(ip);
+    entry.lastIp = ip;
+    if (tsMs > entry.lastSeenMs) entry.lastSeenMs = tsMs;
+  }
+  return byKey;
+}
+
 export interface XrayUserStatSample {
   clientName: string;
+  inboundName?: string;
   uplink: number;
   downlink: number;
   remoteIp: string;
 }
 
-/** Collect live per-user byte deltas from Xray StatsService API on 127.0.0.1:10085. */
-export async function collectXrayLiveStats(): Promise<XrayUserStatSample[]> {
+/** Collect live per-user, per-inbound, per-device-IP deltas from Xray StatsService + access.log. */
+export async function collectXrayLiveStats(xrayInbounds: InboundRow[] = []): Promise<XrayUserStatSample[]> {
   if (process.platform !== 'linux') return [];
   const xrayBin = await findXrayBinary();
   if (!xrayBin) return [];
@@ -1354,36 +1541,64 @@ export async function collectXrayLiveStats(): Promise<XrayUserStatSample[]> {
       byUser.set(user, cur);
     }
 
-    // Read tail of access log to associate recent remote IPs
-    const ipByUser = new Map<string, string>();
+    const inboundByName = new Map(xrayInbounds.map((ib) => [ib.name, ib]));
+    let accessEntries = new Map<string, XrayAccessLogEntry>();
     const accessLog = '/var/log/xprotocol/xray-access.log';
     if (fs.existsSync(accessLog)) {
       const stat = fs.statSync(accessLog);
-      const readSize = Math.min(stat.size, 32768);
+      const readSize = Math.min(stat.size, 65536);
       if (readSize > 0) {
         const fd = fs.openSync(accessLog, 'r');
         const buf = Buffer.alloc(readSize);
         fs.readSync(fd, buf, 0, readSize, stat.size - readSize);
         fs.closeSync(fd);
-        for (const line of buf.toString('utf8').split('\n')) {
-          const emailMatch = line.match(/email:\s*([^\s]+)/);
-          const ipMatch = line.match(/from\s+(?:tcp:|udp:)?(\d{1,3}(?:\.\d{1,3}){3}):\d+/);
-          if (emailMatch && ipMatch) {
-            ipByUser.set(emailMatch[1], ipMatch[1]);
-          }
-        }
+        accessEntries = parseXrayAccessLogContent(buf.toString('utf8'));
       }
+    }
+
+    const entriesByEmail = new Map<string, XrayAccessLogEntry[]>();
+    for (const ent of accessEntries.values()) {
+      const list = entriesByEmail.get(ent.email) || [];
+      list.push(ent);
+      entriesByEmail.set(ent.email, list);
     }
 
     const out: XrayUserStatSample[] = [];
     for (const [clientName, v] of byUser.entries()) {
-      if (v.up > 0 || v.down > 0) {
+      if (v.up <= 0 && v.down <= 0) continue;
+      const matching = entriesByEmail.get(clientName) || [];
+      if (matching.length === 0) {
         out.push({
           clientName,
+          inboundName: xrayInbounds[0]?.name,
           uplink: v.up,
           downlink: v.down,
-          remoteIp: ipByUser.get(clientName) || '0.0.0.0',
+          remoteIp: '0.0.0.0',
         });
+        continue;
+      }
+
+      let bytesAttributed = false;
+      for (const ent of matching) {
+        const ib = inboundByName.get(ent.inboundName) || xrayInbounds[0];
+        let s: Record<string, unknown> = {};
+        try {
+          s = ib ? (JSON.parse(ib.settings_json || '{}') as Record<string, unknown>) : {};
+        } catch {
+          s = {};
+        }
+        const isCdnMode = Boolean(s.behindCdn || s.cdn || s.speedMode === 'client');
+        const ips = isCdnMode ? [ent.lastIp || '0.0.0.0'] : ent.ips.length > 0 ? ent.ips : ['0.0.0.0'];
+        for (const ip of ips) {
+          out.push({
+            clientName,
+            inboundName: ent.inboundName || ib?.name,
+            uplink: !bytesAttributed ? v.up : 0,
+            downlink: !bytesAttributed ? v.down : 0,
+            remoteIp: ip,
+          });
+          bytesAttributed = true;
+        }
       }
     }
     return out;
@@ -1396,11 +1611,185 @@ export async function kickXrayClient(inboundName: string, clientName: string): P
   if (process.platform !== 'linux') return true;
   const xrayBin = await findXrayBinary();
   if (!xrayBin) return false;
+  const sanitized = clientName.trim().replace(/\s+/g, '_') || clientName;
+  const candidates = sanitized === clientName ? [clientName] : [clientName, sanitized];
+  let anyOk = false;
+  for (const name of candidates) {
+    try {
+      await execFileAsync(xrayBin, ['api', 'rmu', '--server=127.0.0.1:10085', `-tag=xr-${inboundName}`, name], { timeout: 3000 });
+      anyOk = true;
+    } catch {
+      // try next candidate
+    }
+  }
+  return anyOk;
+}
+
+const activeXrayIpBlocks = new Set<string>();
+
+/**
+ * Terminate and briefly block an excess device IP on an Xray inbound port without disrupting
+ * other active devices of the same client (or any other Xray client).
+ */
+export async function kickXrayDeviceIp(port: number, transport: string, remoteIp: string): Promise<boolean> {
+  if (process.platform !== 'linux') return true;
+  if (!remoteIp || remoteIp === '0.0.0.0' || net.isIP(remoteIp) === 0 || !port) return false;
+
+  const isUdp = transport === 'kcp';
+  if (!isUdp) {
+    await execFileAsync('ss', ['-K', 'dst', remoteIp, 'dport', '=', `:${port}`], { timeout: 2500 }).catch(() => undefined);
+  }
+
+  const blockKey = `${remoteIp}:${port}:${isUdp ? 'udp' : 'tcp'}`;
+  if (activeXrayIpBlocks.has(blockKey)) return true;
+
+  const ipt = net.isIPv6(remoteIp) ? 'ip6tables' : 'iptables';
+  const proto = isUdp ? 'udp' : 'tcp';
+  const rule = ['-I', 'INPUT', '1', '-s', remoteIp, '-p', proto, '--dport', String(port), '-j', 'DROP'];
   try {
-    await execFileAsync(xrayBin, ['api', 'rmu', '--server=127.0.0.1:10085', `-tag=xr-${inboundName}`, clientName], { timeout: 3000 });
+    await execFileAsync(ipt, rule, { timeout: 2500 });
+    activeXrayIpBlocks.add(blockKey);
+    const t = setTimeout(() => {
+      activeXrayIpBlocks.delete(blockKey);
+      void execFileAsync(ipt, ['-D', 'INPUT', '-s', remoteIp, '-p', proto, '--dport', String(port), '-j', 'DROP'], {
+        timeout: 2500,
+      }).catch(() => undefined);
+    }, 35_000);
+    t.unref?.();
     return true;
   } catch {
     return false;
+  }
+}
+
+let lastXrayWanTcSig = '';
+
+/**
+ * Enforce per-device download (HTB egress) and upload (ingress policer) speed limits for active
+ * non-CDN Xray client IPs on the host's default WAN interface without altering routing rules.
+ */
+export async function applyXraySpeedLimits(
+  entries: Array<{ remoteIp: string; port: number; downloadMbps: number | null; uploadMbps: number | null }>,
+): Promise<void> {
+  if (process.platform !== 'linux') return;
+  const active = entries.filter(
+    (e) =>
+      e.remoteIp &&
+      e.remoteIp !== '0.0.0.0' &&
+      net.isIPv4(e.remoteIp) &&
+      e.port > 0 &&
+      ((e.downloadMbps && e.downloadMbps > 0) || (e.uploadMbps && e.uploadMbps > 0)),
+  );
+  const sig = active
+    .map((e) => `${e.remoteIp}:${e.port}:${e.downloadMbps ?? 0}:${e.uploadMbps ?? 0}`)
+    .sort()
+    .join('|');
+  if (sig === lastXrayWanTcSig) return;
+  if (!sig && !lastXrayWanTcSig) return;
+
+  const routeRes = await execFileAsync('ip', ['-4', '-o', 'route', 'show', 'default'], { timeout: 2500 }).catch(() => null);
+  const devMatch = routeRes?.stdout?.match(/\bdev\s+(\S+)/);
+  const wanIface = devMatch?.[1];
+  if (!wanIface) return;
+
+  lastXrayWanTcSig = sig;
+  await execFileAsync('tc', ['qdisc', 'del', 'dev', wanIface, 'root'], { timeout: 2500 }).catch(() => undefined);
+  await execFileAsync('tc', ['qdisc', 'del', 'dev', wanIface, 'ingress'], { timeout: 2500 }).catch(() => undefined);
+  if (active.length === 0) return;
+
+  const dlItems = active.filter((e) => e.downloadMbps && e.downloadMbps > 0);
+  if (dlItems.length > 0) {
+    await execFileAsync('tc', ['qdisc', 'replace', 'dev', wanIface, 'root', 'handle', '1:', 'htb', 'default', 'fff'], {
+      timeout: 2500,
+    }).catch(() => undefined);
+    await execFileAsync('tc', ['class', 'replace', 'dev', wanIface, 'parent', '1:', 'classid', '1:fff', 'htb', 'rate', '10gbit'], {
+      timeout: 2500,
+    }).catch(() => undefined);
+    let idx = 10;
+    for (const item of dlItems) {
+      const cid = `1:${(idx++).toString(16)}`;
+      const kbps = Math.max(100, Math.round(Number(item.downloadMbps) * 1000));
+      const burst = String(Math.max(16384, Math.round((kbps * 1024) / 8)));
+      await execFileAsync(
+        'tc',
+        ['class', 'replace', 'dev', wanIface, 'parent', '1:', 'classid', cid, 'htb', 'rate', `${kbps}kbit`, 'ceil', `${kbps}kbit`, 'burst', burst],
+        { timeout: 2500 },
+      ).catch(() => undefined);
+      await execFileAsync(
+        'tc',
+        [
+          'filter',
+          'replace',
+          'dev',
+          wanIface,
+          'protocol',
+          'ip',
+          'parent',
+          '1:',
+          'prio',
+          String(idx),
+          'u32',
+          'match',
+          'ip',
+          'dst',
+          `${item.remoteIp}/32`,
+          'match',
+          'ip',
+          'sport',
+          String(item.port),
+          '0xffff',
+          'flowid',
+          cid,
+        ],
+        { timeout: 2500 },
+      ).catch(() => undefined);
+    }
+  }
+
+  const ulItems = active.filter((e) => e.uploadMbps && e.uploadMbps > 0);
+  if (ulItems.length > 0) {
+    await execFileAsync('tc', ['qdisc', 'add', 'dev', wanIface, 'handle', 'ffff:', 'ingress'], { timeout: 2500 }).catch(
+      () => undefined,
+    );
+    let idx = 10;
+    for (const item of ulItems) {
+      const kbps = Math.max(100, Math.round(Number(item.uploadMbps) * 1000));
+      const burst = String(Math.max(16384, Math.round((kbps * 1024) / 8)));
+      await execFileAsync(
+        'tc',
+        [
+          'filter',
+          'replace',
+          'dev',
+          wanIface,
+          'parent',
+          'ffff:',
+          'protocol',
+          'ip',
+          'prio',
+          String(idx++),
+          'u32',
+          'match',
+          'ip',
+          'src',
+          `${item.remoteIp}/32`,
+          'match',
+          'ip',
+          'dport',
+          String(item.port),
+          '0xffff',
+          'police',
+          'rate',
+          `${kbps}kbit`,
+          'burst',
+          burst,
+          'drop',
+          'flowid',
+          ':1',
+        ],
+        { timeout: 2500 },
+      ).catch(() => undefined);
+    }
   }
 }
 

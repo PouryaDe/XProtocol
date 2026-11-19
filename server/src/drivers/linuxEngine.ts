@@ -18,8 +18,14 @@ import {
   syncOpenVpnAuthScript,
 } from './pki.js';
 import {
+  ensureDaemonGateHooks,
+  ensureSessionGateScript,
+  syncGateStateFromDb,
+} from '../services/sessionGate.js';
+import {
   collectXrayLiveStats,
   kickXrayClient,
+  kickXrayDeviceIp,
   syncAndApplyXrayEngine,
 } from './xrayEngine.js';
 
@@ -41,6 +47,7 @@ export interface LiveTunnelSample {
   tunnelIp: string;
   device: string;
   interfaceName?: string;
+  wgPublicKey?: string;
   bytesIn: number;
   bytesOut: number;
 }
@@ -83,6 +90,9 @@ export function resolveInboundInterfaceName(inbound: InboundRow): string {
   }
   if (inbound.protocol === 'openvpn') {
     return `tun-${inbound.name}`;
+  }
+  if (inbound.protocol === 'ikev2') {
+    return `xfrm-${inbound.name}`;
   }
   return '';
 }
@@ -141,9 +151,18 @@ export async function openFirewallPort(port: number, transport: string): Promise
   await runCmd('ufw', ['allow', `${port}/${proto}`], 5000);
 }
 
+const ocservHashCache = new Map<string, string>();
+
 async function hashUnixSha512(password: string): Promise<string> {
+  const cached = ocservHashCache.get(password);
+  if (cached) return cached;
   const res = await runCmd('openssl', ['passwd', '-6', password], 4000);
-  if (res.ok && res.stdout.trim()) return res.stdout.trim();
+  if (res.ok && res.stdout.trim()) {
+    const out = res.stdout.trim();
+    if (ocservHashCache.size > 5000) ocservHashCache.clear();
+    ocservHashCache.set(password, out);
+    return out;
+  }
   return password;
 }
 
@@ -177,34 +196,51 @@ export async function syncL2tpSecrets(clients: { name: string; vpnPassword: stri
   fs.writeFileSync('/etc/ppp/pap-secrets', body, { mode: 0o600 });
 }
 
+function writeIfChanged(filePath: string, content: string, mode: number): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const existing = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : null;
+  if (existing !== content) {
+    fs.writeFileSync(filePath, content, { mode });
+  }
+}
+
 function ensurePppSessionHooks(): void {
   if (process.platform !== 'linux') return;
-  const upDir = '/etc/ppp/ip-up.d';
-  const downDir = '/etc/ppp/ip-down.d';
-  const upFile = path.join(upDir, '99-xprotocol');
-  const downFile = path.join(downDir, '99-xprotocol');
-  if (!fs.existsSync(upFile)) {
-    fs.mkdirSync(upDir, { recursive: true });
-    fs.writeFileSync(
-      upFile,
-      `#!/bin/sh
+  const gateScript = ensureSessionGateScript();
+  const nodeBin = process.execPath;
+
+  const preUpFile = '/etc/ppp/ip-pre-up.d/99-xprotocol';
+  writeIfChanged(
+    preUpFile,
+    `#!/bin/sh
+exec ${JSON.stringify(nodeBin)} ${JSON.stringify(gateScript)} ppp-pre-up "$1" "$6"
+`,
+    0o755,
+  );
+
+  const upFile = '/etc/ppp/ip-up.d/99-xprotocol';
+  writeIfChanged(
+    upFile,
+    `#!/bin/sh
+REMOTE_WAN=$(printf '%s' "\${CALLER_ID:-0.0.0.0}" | tr -cd '0-9a-fA-F.:')
+[ -n "\${REMOTE_WAN}" ] || REMOTE_WAN="0.0.0.0"
 cat > "/var/run/xprotocol-ppp-\${IFNAME}.json" <<EOF
-{"ifname":"\${IFNAME}","clientName":"\${PEERNAME}","remoteIp":"\${IPREMOTE}","tunnelIp":"\${IPLOCAL}","inboundName":"\${6}"}
+{"ifname":"\${IFNAME}","clientName":"\${PEERNAME}","remoteIp":"\${REMOTE_WAN}","tunnelIp":"\${IPREMOTE}","inboundName":"\${6}"}
 EOF
+${JSON.stringify(nodeBin)} ${JSON.stringify(gateScript)} ppp-up "$1" "$6" || true
 `,
-      { mode: 0o755 },
-    );
-  }
-  if (!fs.existsSync(downFile)) {
-    fs.mkdirSync(downDir, { recursive: true });
-    fs.writeFileSync(
-      downFile,
-      `#!/bin/sh
+    0o755,
+  );
+
+  const downFile = '/etc/ppp/ip-down.d/99-xprotocol';
+  writeIfChanged(
+    downFile,
+    `#!/bin/sh
 rm -f "/var/run/xprotocol-ppp-\${IFNAME}.json"
+${JSON.stringify(nodeBin)} ${JSON.stringify(gateScript)} ppp-down "$1" "$6" || true
 `,
-      { mode: 0o755 },
-    );
-  }
+    0o755,
+  );
 }
 
 function ensureSystemdTemplateUnits(): void {
@@ -264,26 +300,42 @@ function minorOfIp(ip: string): number {
   return minor === 0 || minor === 0xffff ? 0 : minor;
 }
 
+const activeInterfaceFilters = new Map<string, Set<number>>();
+
 /**
  * Apply per-client download (HTB) and upload (native kernel ingress policer — no IFB required)
- * traffic shaping on shared tunnel interfaces such as `wg*` and `tun-*`.
+ * traffic shaping on shared tunnel interfaces such as `wg*`, `tun-*`, and `xfrm-*`.
+ * Updates classes/filters incrementally when the HTB root is already present so active peers do not drop.
  */
 export async function applyInterfaceSpeedLimits(iface: string, peers: PeerEntry[]): Promise<void> {
   if (process.platform !== 'linux' || !iface) return;
   const check = await runCmd('ip', ['link', 'show', iface], 3000);
   if (!check.ok) return;
 
-  await runCmd('tc', ['qdisc', 'del', 'dev', iface, 'root'], 3000);
   const dlEntries = peers
     .filter((p) => p.downloadMbps && p.downloadMbps > 0 && p.tunnelIp)
     .map((p) => ({ ip: p.tunnelIp, mbps: Number(p.downloadMbps) }));
 
-  if (dlEntries.length > 0) {
-    await runCmd('tc', ['qdisc', 'replace', 'dev', iface, 'root', 'handle', '1:', 'htb', 'default', 'fff'], 3000);
+  const qdiscShow = await runCmd('tc', ['qdisc', 'show', 'dev', iface], 2500);
+  const hasHtbRoot = qdiscShow.ok && qdiscShow.stdout.includes('qdisc htb 1:');
+  const hasIngress = qdiscShow.ok && qdiscShow.stdout.includes('qdisc ingress ffff:');
+
+  if (dlEntries.length === 0) {
+    if (hasHtbRoot) {
+      await runCmd('tc', ['qdisc', 'del', 'dev', iface, 'root'], 3000);
+    }
+    activeInterfaceFilters.delete(`${iface}:dl`);
+  } else {
+    if (!hasHtbRoot) {
+      await runCmd('tc', ['qdisc', 'del', 'dev', iface, 'root'], 3000);
+      await runCmd('tc', ['qdisc', 'replace', 'dev', iface, 'root', 'handle', '1:', 'htb', 'default', 'fff'], 3000);
+    }
     await runCmd('tc', ['class', 'replace', 'dev', iface, 'parent', '1:', 'classid', '1:fff', 'htb', 'rate', '10gbit'], 3000);
+    const nextDlMinors = new Set<number>();
     for (const item of dlEntries) {
       const m = minorOfIp(item.ip);
       if (!m) continue;
+      nextDlMinors.add(m);
       const cid = `1:${m.toString(16)}`;
       const { rate, burst } = calcTcRateAndBurst(item.mbps);
       await runCmd('tc', ['class', 'replace', 'dev', iface, 'parent', '1:', 'classid', cid, 'htb', 'rate', rate, 'ceil', rate, 'burst', burst], 3000);
@@ -293,17 +345,35 @@ export async function applyInterfaceSpeedLimits(iface: string, peers: PeerEntry[
         3000,
       );
     }
+    const prevDlMinors = activeInterfaceFilters.get(`${iface}:dl`);
+    if (prevDlMinors && hasHtbRoot) {
+      for (const oldM of prevDlMinors) {
+        if (!nextDlMinors.has(oldM)) {
+          await runCmd('tc', ['filter', 'del', 'dev', iface, 'parent', '1:', 'prio', String(oldM)], 2500);
+          await runCmd('tc', ['class', 'del', 'dev', iface, 'classid', `1:${oldM.toString(16)}`], 2500);
+        }
+      }
+    }
+    activeInterfaceFilters.set(`${iface}:dl`, nextDlMinors);
   }
 
-  await runCmd('tc', ['qdisc', 'del', 'dev', iface, 'ingress'], 3000);
   const ulEntries = peers
     .filter((p) => p.uploadMbps && p.uploadMbps > 0 && p.tunnelIp)
     .map((p) => ({ ip: p.tunnelIp, mbps: Number(p.uploadMbps) }));
-  if (ulEntries.length > 0) {
-    await runCmd('tc', ['qdisc', 'add', 'dev', iface, 'handle', 'ffff:', 'ingress'], 3000);
+  if (ulEntries.length === 0) {
+    if (hasIngress) {
+      await runCmd('tc', ['qdisc', 'del', 'dev', iface, 'ingress'], 3000);
+    }
+    activeInterfaceFilters.delete(`${iface}:ul`);
+  } else {
+    if (!hasIngress) {
+      await runCmd('tc', ['qdisc', 'add', 'dev', iface, 'handle', 'ffff:', 'ingress'], 3000);
+    }
+    const nextUlMinors = new Set<number>();
     for (const item of ulEntries) {
       const m = minorOfIp(item.ip);
       if (!m) continue;
+      nextUlMinors.add(m);
       const { rate, burst } = calcTcRateAndBurst(item.mbps);
       await runCmd(
         'tc',
@@ -335,6 +405,15 @@ export async function applyInterfaceSpeedLimits(iface: string, peers: PeerEntry[
         3000,
       );
     }
+    const prevUlMinors = activeInterfaceFilters.get(`${iface}:ul`);
+    if (prevUlMinors && hasIngress) {
+      for (const oldM of prevUlMinors) {
+        if (!nextUlMinors.has(oldM)) {
+          await runCmd('tc', ['filter', 'del', 'dev', iface, 'parent', 'ffff:', 'prio', String(oldM)], 2500);
+        }
+      }
+    }
+    activeInterfaceFilters.set(`${iface}:ul`, nextUlMinors);
   }
 }
 
@@ -449,13 +528,31 @@ export async function applyLinuxInbound(
   if (inbound.protocol === 'openvpn') {
     await ensureOpenVpnPki();
     syncOpenVpnAuthScript(inbound.name, peers);
+    ensureDaemonGateHooks(inbound.name);
+    try {
+      syncGateStateFromDb();
+    } catch {
+      // ignore if db not ready
+    }
   } else if (inbound.protocol === 'openconnect' || inbound.protocol === 'ocserv') {
     await ensureInboundTlsCertFiles(inbound.cert_id, inbound.public_address_override || undefined);
+    ensureDaemonGateHooks(inbound.name);
+    try {
+      syncGateStateFromDb();
+    } catch {
+      // ignore
+    }
     await syncOpenConnectPasswd(
       inbound,
       peers.map((p) => ({ name: p.name, vpnPassword: p.vpnPassword || '' })),
     );
   } else if (inbound.protocol === 'ikev2') {
+    ensureDaemonGateHooks(inbound.name);
+    try {
+      syncGateStateFromDb();
+    } catch {
+      // ignore
+    }
     const certs = await ensureInboundTlsCertFiles(inbound.cert_id, String(settings.serverId || '') || undefined);
     if (process.platform === 'linux') {
       const tag = inbound.cert_id ? String(inbound.cert_id) : 'default';
@@ -466,6 +563,11 @@ export async function applyLinuxInbound(
     }
   } else if (inbound.protocol === 'l2tp') {
     ensurePppSessionHooks();
+    try {
+      syncGateStateFromDb();
+    } catch {
+      // ignore
+    }
     await syncL2tpSecrets(peers.map((p) => ({ name: p.name, vpnPassword: p.vpnPassword || '' })));
   }
 
@@ -530,9 +632,6 @@ export async function applyLinuxInbound(
     const unit = `openvpn-server@${inbound.name}`;
     const r = await runCmd('systemctl', [action, unit]);
     logs.push(`systemctl ${action} ${unit}: ${r.ok ? 'ok' : r.stderr}`);
-    if (r.ok && action !== 'stop') {
-      await applyInterfaceSpeedLimits(`tun-${inbound.name}`, peers);
-    }
     return { ok: r.ok, logs };
   }
 
@@ -550,13 +649,29 @@ export async function applyLinuxInbound(
 
   if (inbound.protocol === 'ikev2') {
     await ensureSubnetNat(inbound.subnet, action !== 'stop' && settings.nat !== false);
+    const xfrmName = `xfrm-${inbound.name}`;
+    const xfrmId = 1000 + Math.max(1, Number(inbound.id || 1));
     if (action !== 'stop') {
+      await runCmd('modprobe', ['xfrm_interface'], 2000);
+      const routeRes = await runCmd('ip', ['-4', '-o', 'route', 'show', 'default'], 2500);
+      const wanIface = routeRes.stdout?.match(/\bdev\s+(\S+)/)?.[1] || 'eth0';
+      await runCmd('ip', ['link', 'del', xfrmName], 2000);
+      const xfrmAdd = await runCmd(
+        'ip',
+        ['link', 'add', xfrmName, 'type', 'xfrm', 'dev', wanIface, 'if_id', String(xfrmId)],
+        3000,
+      );
+      if (xfrmAdd.ok) {
+        await runCmd('ip', ['link', 'set', xfrmName, 'up'], 2500);
+        await runCmd('ip', ['route', 'replace', inbound.subnet, 'dev', xfrmName], 2500);
+      }
       await runCmd('systemctl', ['start', 'strongswan'], 5000);
       const r = await runCmd('swanctl', ['--load-all']);
       logs.push(`swanctl --load-all: ${r.ok ? 'ok' : r.stderr}`);
       return { ok: r.ok, logs };
     } else {
       await runCmd('swanctl', ['--terminate', '--ike', inbound.name]);
+      await runCmd('ip', ['link', 'del', xfrmName], 2000);
     }
     return { ok: true, logs };
   }
@@ -620,7 +735,8 @@ export async function syncLinuxInboundPeers(inbound: InboundRow, peers: PeerEntr
 
   if (inbound.protocol === 'openvpn') {
     syncOpenVpnAuthScript(inbound.name, peers);
-    await applyInterfaceSpeedLimits(`tun-${inbound.name}`, peers);
+    ensureDaemonGateHooks(inbound.name);
+    // OpenVPN assigns dynamic tunnel IPs; collector.ts owns live `tc` shaping on `tun-*`
     return;
   }
 
@@ -672,6 +788,7 @@ export async function syncLinuxInboundPeers(inbound: InboundRow, peers: PeerEntr
     }
   } else if (inbound.protocol === 'ikev2') {
     await runCmd('swanctl', ['--load-creds'], 5000);
+    await applyInterfaceSpeedLimits(`xfrm-${inbound.name}`, peers);
   }
 }
 
@@ -701,7 +818,7 @@ async function sendOpenVpnManagementCmd(inboundName: string, command: string): P
 
 export async function disconnectLinuxPeer(
   inbound: InboundRow,
-  opts: { clientName: string; wgPublicKey?: string; connectionId?: string },
+  opts: { clientName: string; wgPublicKey?: string; connectionId?: string; singleDeviceOnly?: boolean; remoteIp?: string },
 ): Promise<boolean> {
   if (process.platform !== 'linux') return true;
   const settings = parseInboundSettings(inbound);
@@ -733,6 +850,11 @@ export async function disconnectLinuxPeer(
   }
 
   if (inbound.protocol === 'ikev2') {
+    const ikeIdMatch = opts.connectionId?.match(/^ikev2-\d+-(\d+)$/);
+    if (ikeIdMatch) {
+      const r = await runCmd('swanctl', ['--terminate', '--ike-id', ikeIdMatch[1]], 4000);
+      if (r.ok) return true;
+    }
     const r = await runCmd('swanctl', ['--terminate', '--ike', inbound.name, '--remote-id', opts.clientName], 4000);
     return r.ok;
   }
@@ -758,7 +880,15 @@ export async function disconnectLinuxPeer(
   }
 
   if (inbound.protocol === 'xray') {
-    return kickXrayClient(inbound.name, opts.clientName);
+    const ipFromConn = opts.connectionId?.match(/@ip:([^\s]+)$/)?.[1] || opts.remoteIp || '';
+    if (opts.singleDeviceOnly && ipFromConn && ipFromConn !== '0.0.0.0') {
+      return kickXrayDeviceIp(inbound.port, inbound.transport, ipFromConn);
+    }
+    const rmuOk = await kickXrayClient(inbound.name, opts.clientName);
+    if (ipFromConn && ipFromConn !== '0.0.0.0') {
+      await kickXrayDeviceIp(inbound.port, inbound.transport, ipFromConn).catch(() => false);
+    }
+    return rmuOk;
   }
 
   return false;
@@ -770,6 +900,63 @@ async function resolveInterfaceByTunnelIp(tunnelIp: string): Promise<string> {
   if (!r.ok || !r.stdout) return '';
   const m = r.stdout.match(/\bdev\s+(\S+)/);
   return m ? m[1] : '';
+}
+
+/** Parse `swanctl --list-sas` output into per-SA live samples keyed by unique SA ID and EAP/remote identity. */
+export function parseSwanctlSasOutput(stdout: string, inboundId: number): LiveTunnelSample[] {
+  const samples: LiveTunnelSample[] = [];
+  let curUniqueId = '';
+  let curRemoteIp = '0.0.0.0';
+  let curClientName = '';
+  let curTunnelIp = '';
+  let curBytesIn = 0;
+  let curBytesOut = 0;
+
+  const flushIfReady = () => {
+    if (!curClientName) return;
+    const uid = curUniqueId || `${curClientName}-${curRemoteIp}-${samples.length + 1}`;
+    samples.push({
+      id: `ikev2-${inboundId}-${uid}`,
+      clientName: curClientName,
+      inboundId,
+      remoteIp: curRemoteIp,
+      tunnelIp: curTunnelIp,
+      device: 'IKEv2',
+      bytesIn: curBytesIn,
+      bytesOut: curBytesOut,
+    });
+    curUniqueId = '';
+    curRemoteIp = '0.0.0.0';
+    curClientName = '';
+    curTunnelIp = '';
+    curBytesIn = 0;
+    curBytesOut = 0;
+  };
+
+  for (const line of stdout.split('\n')) {
+    const saHeader = line.match(/^\S+:\s+#(\d+),/);
+    if (saHeader) {
+      flushIfReady();
+      curUniqueId = saHeader[1];
+    }
+    const remoteMatch = line.match(/remote\s+'([^']+)'\s+@\s+([\d.]+)/);
+    if (remoteMatch) {
+      if (!curClientName) curClientName = remoteMatch[1];
+      curRemoteIp = remoteMatch[2];
+    }
+    const eapMatch = line.match(/(?:EAP|XAuth):\s+'([^']+)'/i);
+    if (eapMatch) {
+      curClientName = eapMatch[1];
+    }
+    const vipMatch = line.match(/(?:remote|local) virtual IP:\s+([\d.]+)/i);
+    if (vipMatch) curTunnelIp = vipMatch[1];
+    const inMatch = line.match(/in\s+[\da-f]+,\s+(\d+)\s+bytes/i);
+    if (inMatch) curBytesIn += Number(inMatch[1] || 0);
+    const outMatch = line.match(/out\s+[\da-f]+,\s+(\d+)\s+bytes/i);
+    if (outMatch) curBytesOut += Number(outMatch[1] || 0);
+  }
+  flushIfReady();
+  return samples;
 }
 
 export async function collectLinuxLiveTunnels(
@@ -793,7 +980,8 @@ export async function collectLinuxLiveTunnels(
         if (cols.length < 7) continue;
         const [pubKey, , endpoint, allowedIps, latestHandshakeStr, rxStr, txStr] = cols;
         const latestHandshake = Number(latestHandshakeStr || 0);
-        if (latestHandshake > 0 && Date.now() / 1000 - latestHandshake <= 180) {
+        // PersistentKeepalive is 25s; >75s silence means >3 missed keepalives
+        if (latestHandshake > 0 && Date.now() / 1000 - latestHandshake <= 75) {
           const clientName = clientsByWgPub.get(pubKey);
           if (!clientName) continue;
           samples.push({
@@ -803,6 +991,7 @@ export async function collectLinuxLiveTunnels(
             remoteIp: endpoint.split(':')[0] || '0.0.0.0',
             tunnelIp: allowedIps.split('/')[0] || '',
             device: isAmneziaInbound(ib.protocol, settings) ? 'AmneziaWG' : 'WireGuard',
+            wgPublicKey: pubKey,
             bytesIn: Number(rxStr || 0),
             bytesOut: Number(txStr || 0),
           });
@@ -862,7 +1051,7 @@ export async function collectLinuxLiveTunnels(
         for (const u of users) {
           const clientName = String(u.Username || u.username || '');
           if (!clientName) continue;
-          const tunnelIp = String(u.IPv4 || u['Remote IP'] || '');
+          const tunnelIp = String(u.IPv4 || '');
           let ifaceName = String(u.Device || u.device || '');
           if (!ifaceName && tunnelIp) {
             ifaceName = await resolveInterfaceByTunnelIp(tunnelIp);
@@ -885,39 +1074,7 @@ export async function collectLinuxLiveTunnels(
     } else if (ib.protocol === 'ikev2') {
       const saRes = await runCmd('swanctl', ['--list-sas', '--ike', ib.name], 4000);
       if (!saRes.ok || !saRes.stdout.trim()) continue;
-      let curRemoteIp = '0.0.0.0';
-      let curClientName = '';
-      let curTunnelIp = '';
-      let curBytesIn = 0;
-      let curBytesOut = 0;
-      for (const line of saRes.stdout.split('\n')) {
-        const remoteMatch = line.match(/remote\s+'([^']+)'\s+@\s+([\d.]+)/);
-        if (remoteMatch) {
-          curClientName = remoteMatch[1];
-          curRemoteIp = remoteMatch[2];
-        }
-        const vipMatch = line.match(/local virtual IP:\s+([\d.]+)/i);
-        if (vipMatch) curTunnelIp = vipMatch[1];
-        const inMatch = line.match(/in\s+[\da-f]+,\s+(\d+)\s+bytes/i);
-        if (inMatch) curBytesIn = Number(inMatch[1] || 0);
-        const outMatch = line.match(/out\s+[\da-f]+,\s+(\d+)\s+bytes/i);
-        if (outMatch) {
-          curBytesOut = Number(outMatch[1] || 0);
-          if (curClientName) {
-            samples.push({
-              id: `ikev2-${ib.id}-${curClientName}`,
-              clientName: curClientName,
-              inboundId: ib.id,
-              remoteIp: curRemoteIp,
-              tunnelIp: curTunnelIp,
-              device: 'IKEv2',
-              bytesIn: curBytesIn,
-              bytesOut: curBytesOut,
-            });
-            curClientName = '';
-          }
-        }
-      }
+      samples.push(...parseSwanctlSasOutput(saRes.stdout, ib.id));
     } else if (ib.protocol === 'l2tp') {
       try {
         const runEntries = fs.readdirSync('/var/run').filter((f) => f.startsWith('xprotocol-ppp-') && f.endsWith('.json'));
@@ -951,16 +1108,19 @@ export async function collectLinuxLiveTunnels(
     }
   }
 
-  // Collect active Xray user traffic deltas if any Xray inbound is running
+  // Collect active Xray user traffic deltas & per-device IPs if any Xray inbound is running
   const xrayInbounds = inbounds.filter((i) => i.running && i.protocol === 'xray');
   if (xrayInbounds.length > 0) {
-    const xrStats = await collectXrayLiveStats();
-    const firstXrayId = xrayInbounds[0].id;
+    const xrStats = await collectXrayLiveStats(xrayInbounds);
+    const xrByName = new Map(xrayInbounds.map((ib) => [ib.name, ib]));
+    const fallbackIb = xrayInbounds[0];
     for (const xs of xrStats) {
+      const targetIb = (xs.inboundName ? xrByName.get(xs.inboundName) : undefined) || fallbackIb;
+      const ipSuffix = xs.remoteIp && xs.remoteIp !== '0.0.0.0' ? `@ip:${xs.remoteIp}` : '';
       samples.push({
-        id: `xray-${firstXrayId}-${xs.clientName}`,
+        id: `xray-${targetIb.id}-${xs.clientName}${ipSuffix}`,
         clientName: xs.clientName,
-        inboundId: firstXrayId,
+        inboundId: targetIb.id,
         remoteIp: xs.remoteIp,
         tunnelIp: '',
         device: 'Xray',

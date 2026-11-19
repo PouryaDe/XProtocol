@@ -1,5 +1,6 @@
 import { getDb } from '../db/database.js';
 import type { PeerEntry } from '../generators/configs.js';
+import { generateWireGuardKeypair } from '../security/auth.js';
 
 export interface ParsedCidr {
   baseInt: number;
@@ -117,6 +118,74 @@ function minPositive(values: Array<number | null | undefined>): number | null {
   return best;
 }
 
+const MAX_WG_DEVICE_SLOTS = 10;
+
+/**
+ * Ensure `client_device_slots` contains WireGuard keypairs for slots `2..min(deviceLimit, 10)`.
+ * Slot 1 always remains the client's primary `clients.wg_private_key` / `wg_public_key`.
+ */
+export function ensureClientDeviceSlots(
+  clientId: number,
+  deviceLimit: number | null | undefined,
+): Array<{ slotIndex: number; wgPrivateKey: string; wgPublicKey: string }> {
+  const db = getDb();
+  const primary = db
+    .prepare('SELECT wg_private_key, wg_public_key FROM clients WHERE id = ?')
+    .get(clientId) as { wg_private_key: string; wg_public_key: string } | undefined;
+  if (!primary) return [];
+
+  const result: Array<{ slotIndex: number; wgPrivateKey: string; wgPublicKey: string }> = [
+    { slotIndex: 1, wgPrivateKey: primary.wg_private_key, wgPublicKey: primary.wg_public_key },
+  ];
+  const targetSlots = deviceLimit && deviceLimit > 1 ? Math.min(MAX_WG_DEVICE_SLOTS, Math.trunc(deviceLimit)) : 1;
+  if (targetSlots <= 1) return result;
+
+  const existingRows = db
+    .prepare('SELECT slot_index, wg_private_key, wg_public_key FROM client_device_slots WHERE client_id = ? ORDER BY slot_index ASC')
+    .all(clientId) as Array<{ slot_index: number; wg_private_key: string; wg_public_key: string }>;
+  const bySlot = new Map(existingRows.map((r) => [r.slot_index, r]));
+  const now = new Date().toISOString();
+
+  for (let slot = 2; slot <= targetSlots; slot += 1) {
+    let row = bySlot.get(slot);
+    if (!row) {
+      const kp = generateWireGuardKeypair();
+      db.prepare(
+        `INSERT OR IGNORE INTO client_device_slots (client_id, slot_index, wg_private_key, wg_public_key, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      ).run(clientId, slot, kp.privateKey, kp.publicKey, now);
+      row = db
+        .prepare('SELECT slot_index, wg_private_key, wg_public_key FROM client_device_slots WHERE client_id = ? AND slot_index = ?')
+        .get(clientId, slot) as { slot_index: number; wg_private_key: string; wg_public_key: string };
+    }
+    if (row) {
+      result.push({ slotIndex: row.slot_index, wgPrivateKey: row.wg_private_key, wgPublicKey: row.wg_public_key });
+    }
+  }
+  return result;
+}
+
+/** Build a lookup map from every WireGuard public key (primary + device slots) to its client name. */
+export function getAllClientWgKeyMap(): Map<string, string> {
+  const db = getDb();
+  const map = new Map<string, string>();
+  const primaryRows = db.prepare('SELECT name, wg_public_key FROM clients').all() as Array<{ name: string; wg_public_key: string }>;
+  for (const r of primaryRows) {
+    if (r.wg_public_key) map.set(r.wg_public_key, r.name);
+  }
+  const slotRows = db
+    .prepare(
+      `SELECT c.name, s.wg_public_key
+       FROM client_device_slots s
+       JOIN clients c ON c.id = s.client_id`,
+    )
+    .all() as Array<{ name: string; wg_public_key: string }>;
+  for (const r of slotRows) {
+    if (r.wg_public_key) map.set(r.wg_public_key, r.name);
+  }
+  return map;
+}
+
 /**
  * Resolve all peers permitted to connect to `inboundId` right now.
  * Enforces client enablement, expiry, traffic quota, direct/group inbound grants,
@@ -125,6 +194,8 @@ function minPositive(values: Array<number | null | undefined>): number | null {
 export function getEligiblePeersForInbound(inboundId: number, subnet: string): PeerEntry[] {
   const db = getDb();
   const nowMs = Date.now();
+  const inboundRow = db.prepare('SELECT protocol FROM inbounds WHERE id = ?').get(inboundId) as { protocol: string } | undefined;
+  const isWgInbound = inboundRow?.protocol === 'wireguard' || inboundRow?.protocol === 'amneziawg';
 
   const clientRows = db
     .prepare(
@@ -183,9 +254,13 @@ export function getEligiblePeersForInbound(inboundId: number, subnet: string): P
 
   const usedIps = new Set<string>();
   const peers: PeerEntry[] = [];
+  const activeClients: Array<(typeof clientRows)[number] & { dl: number | null; ul: number | null }> = [];
 
   for (const c of clientRows) {
     if (!isClientActiveQuota(c, nowMs)) continue;
+    const dl = c.download_mbps ?? minPositive(groupDlMap.get(c.id) || []);
+    const ul = c.upload_mbps ?? minPositive(groupUlMap.get(c.id) || []);
+    activeClients.push({ ...c, dl, ul });
     const tunnelIp = allocateTunnelIp(subnet, c.id, c.fixed_ip || '', usedIps);
     peers.push({
       clientId: c.id,
@@ -195,10 +270,36 @@ export function getEligiblePeersForInbound(inboundId: number, subnet: string): P
       xrayUuid: c.xray_uuid,
       ssPassword: c.ss_password,
       tunnelIp,
-      downloadMbps: c.download_mbps ?? minPositive(groupDlMap.get(c.id) || []),
-      uploadMbps: c.upload_mbps ?? minPositive(groupUlMap.get(c.id) || []),
+      downloadMbps: dl,
+      uploadMbps: ul,
       deviceLimit: c.device_limit,
+      slotIndex: 1,
     });
+  }
+
+  // Pass 2: allocate secondary WireGuard/AmneziaWG device slots after all slot-1 IPs are fixed
+  if (isWgInbound) {
+    for (const c of activeClients) {
+      if (!c.device_limit || c.device_limit <= 1) continue;
+      const slots = ensureClientDeviceSlots(c.id, c.device_limit);
+      for (const s of slots) {
+        if (s.slotIndex <= 1) continue;
+        const slotIp = allocateTunnelIp(subnet, c.id * 100 + s.slotIndex, '', usedIps);
+        peers.push({
+          clientId: c.id,
+          name: c.name,
+          wgPublicKey: s.wgPublicKey,
+          vpnPassword: c.vpn_password,
+          xrayUuid: c.xray_uuid,
+          ssPassword: c.ss_password,
+          tunnelIp: slotIp,
+          downloadMbps: c.dl,
+          uploadMbps: c.ul,
+          deviceLimit: c.device_limit,
+          slotIndex: s.slotIndex,
+        });
+      }
+    }
   }
 
   return peers;
@@ -207,9 +308,16 @@ export function getEligiblePeersForInbound(inboundId: number, subnet: string): P
 /**
  * Resolve a single client's assigned tunnel IP within `inboundId` consistent with server peer allocation.
  */
-export function resolveClientTunnelIp(inboundId: number, subnet: string, clientId: number, fixedIp = ''): string {
+export function resolveClientTunnelIp(
+  inboundId: number,
+  subnet: string,
+  clientId: number,
+  fixedIp = '',
+  slotIndex = 1,
+): string {
   const peers = getEligiblePeersForInbound(inboundId, subnet);
-  const found = peers.find((p) => p.clientId === clientId);
+  const found = peers.find((p) => p.clientId === clientId && (p.slotIndex ?? 1) === slotIndex);
   if (found) return found.tunnelIp;
-  return allocateTunnelIp(subnet, clientId, fixedIp, new Set<string>(peers.map((p) => p.tunnelIp)));
+  const seed = slotIndex > 1 ? clientId * 100 + slotIndex : clientId;
+  return allocateTunnelIp(subnet, seed, slotIndex === 1 ? fixedIp : '', new Set<string>(peers.map((p) => p.tunnelIp)));
 }

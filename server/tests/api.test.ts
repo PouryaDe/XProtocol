@@ -117,6 +117,28 @@ test('Full panel API workflow: auth, 2FA, clients, subscription, RBAC, routing',
     });
     assert.equal(forbiddenPreflight.status, 403);
 
+    // Reseller must not bypass maxLifetimeDays via first_connect mode or inject CLI flag names
+    const badFirstConnect = await fetch(`${baseUrl}/api/clients`, {
+      method: 'POST',
+      headers: { Cookie: resCookie, 'X-CSRF-Token': resLoginJson.csrfToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'res-over-days',
+        trafficGb: 10,
+        deviceLimit: 1,
+        expiryMode: 'first_connect',
+        expiryDays: 365,
+        groupIds: [1],
+      }),
+    });
+    assert.equal(badFirstConnect.status, 400);
+
+    const badDashName = await fetch(`${baseUrl}/api/clients`, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'X-CSRF-Token': csrf, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: '-leading-dash', trafficGb: 10 }),
+    });
+    assert.equal(badDashName.status, 400);
+
     // 7. Bulk client create with startNumber
     const bulkRes = await fetch(`${baseUrl}/api/clients`, {
       method: 'POST',

@@ -33,6 +33,24 @@ export function getBinDir(): string {
   return dir;
 }
 
+export function getDaemonGateHookPaths(inboundName: string): {
+  gateScriptPath: string;
+  ovpnConnectPath: string;
+  ovpnDisconnectPath: string;
+  ocservHookPath: string;
+  ikev2UpdownPath: string;
+} {
+  const safeName = inboundName.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const binDir = getBinDir();
+  return {
+    gateScriptPath: path.join(binDir, 'xp-gate.mjs'),
+    ovpnConnectPath: path.join(binDir, `ovpn-connect-${safeName}.sh`),
+    ovpnDisconnectPath: path.join(binDir, `ovpn-disconnect-${safeName}.sh`),
+    ocservHookPath: path.join(binDir, `ocserv-hook-${safeName}.sh`),
+    ikev2UpdownPath: path.join(binDir, 'ikev2-updown.sh'),
+  };
+}
+
 export function generateOpenVpnStaticKey(): string {
   const hex = crypto.randomBytes(256).toString('hex');
   const lines = [
@@ -249,7 +267,8 @@ if (!rec || !rec.s || !rec.h) process.exit(1);
 const actual = crypto.scryptSync(pass, String(rec.s), 32);
 const expected = Buffer.from(String(rec.h), 'hex');
 if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) process.exit(1);
-if (rec.l && Number(rec.l) > 0 && fs.existsSync(${JSON.stringify(liveCountsFile)})) {
+// Skip device_limit check during TLS renegotiation (reneg-sec) when trusted_ip is already established
+if (!process.env.trusted_ip && rec.l && Number(rec.l) > 0 && fs.existsSync(${JSON.stringify(liveCountsFile)})) {
   try {
     const counts = JSON.parse(fs.readFileSync(${JSON.stringify(liveCountsFile)}, 'utf8'));
     const active = Number(counts[String(rec.u).toLowerCase()] || 0);

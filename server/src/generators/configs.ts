@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { getDataDir } from '../config.js';
+import { getDaemonGateHookPaths } from '../drivers/pki.js';
 import { intToIp, parseCidr } from '../services/peerResolver.js';
 import { renderXrayInboundObject } from '../drivers/xrayEngine.js';
 
@@ -34,6 +35,7 @@ export interface PeerEntry {
   downloadMbps?: number | null;
   uploadMbps?: number | null;
   deviceLimit?: number | null;
+  slotIndex?: number;
 }
 
 export interface RenderedConfigFile {
@@ -169,7 +171,7 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
       for (const p of peers) {
         lines.push(
           ``,
-          `# ${p.name}`,
+          `# ${p.name}${p.slotIndex && p.slotIndex > 1 ? ` (device #${p.slotIndex})` : ''}`,
           `[Peer]`,
           `PublicKey = ${p.wgPublicKey}`,
           `AllowedIPs = ${p.tunnelIp}/32`,
@@ -273,20 +275,22 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
         lines.push(`port-share ${sanitizeLine(settings.portShare)}`);
       }
 
+      const hooks = getDaemonGateHookPaths(inbound.name);
+      lines.push(
+        `duplicate-cn`,
+        `script-security 2`,
+        `client-connect ${hooks.ovpnConnectPath}`,
+        `client-disconnect ${hooks.ovpnDisconnectPath}`,
+      );
+
       if (authMode === 'pass' || authMode === 'password') {
         lines.push(
-          `duplicate-cn`,
           `verify-client-cert none`,
           `username-as-common-name`,
-          `script-security 2`,
           `auth-user-pass-verify ${authScript} via-file`,
         );
       } else if (authMode === 'cert+pass' || authMode === 'certificate_password') {
-        lines.push(
-          `duplicate-cn`,
-          `script-security 2`,
-          `auth-user-pass-verify ${authScript} via-file`,
-        );
+        lines.push(`auth-user-pass-verify ${authScript} via-file`);
       }
 
       if (settings.serverCustom) {
@@ -303,9 +307,12 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
     case 'ocserv': {
       const certsDir = path.join(dataDir, 'certs');
       const certTag = inbound.cert_id ? String(inbound.cert_id) : 'default';
+      const ocHooks = getDaemonGateHookPaths(inbound.name);
       const lines = [
         `# Managed by XProtocol Open-Core (${inbound.name})`,
         `auth = "plain[passwd=/etc/ocserv/${inbound.name}.passwd]"`,
+        `connect-script = ${ocHooks.ocservHookPath}`,
+        `disconnect-script = ${ocHooks.ocservHookPath}`,
         `tcp-port = ${inbound.port}`,
         ...(settings.dtls !== false ? [`udp-port = ${inbound.port}`] : []),
         `run-as-user = nobody`,
@@ -365,12 +372,16 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
       const serverId = sanitizeLine(settings.serverId || '');
       const ikeProps = sanitizeLine(settings.ikeProposals || 'aes256-sha256-modp2048,aes128-sha256-modp2048');
       const espProps = sanitizeLine(settings.espProposals || 'aes256-sha256,aes128-sha256');
+      const ikeHooks = getDaemonGateHookPaths(inbound.name);
+      const xfrmIfId = 1000 + Math.max(1, Number(inbound.id || 1));
       const lines = [
         `# Managed by XProtocol Open-Core (${inbound.name})`,
         `connections {`,
         `  ${inbound.name} {`,
         `    version = 2`,
         `    pools = pool-${inbound.name}`,
+        `    if_id_in = ${xfrmIfId}`,
+        `    if_id_out = ${xfrmIfId}`,
         `    proposals = ${ikeProps}`,
         `    rekey_time = ${Number(settings.rekeySeconds ?? 10800)}s`,
         `    dpd_delay = ${Number(settings.dpdSeconds ?? 30)}s`,
@@ -392,6 +403,7 @@ export function renderInboundServerConfig(inbound: InboundRow, peers: PeerEntry[
         `        local_ts = 0.0.0.0/0`,
         `        esp_proposals = ${espProps}`,
         `        rekey_time = ${Number(settings.childRekeySeconds ?? 3600)}s`,
+        `        updown = ${ikeHooks.ikev2UpdownPath}`,
         `      }`,
         `    }`,
         `  }`,
