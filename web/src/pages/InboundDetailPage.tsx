@@ -6,6 +6,7 @@ import { navigate, useLocationState } from '../lib/router';
 import {
   buildDefaultSettings,
   defaultPortForKind,
+  formatInboundApiError,
   formatKindBadge,
   normalizeKind,
   validateCidr,
@@ -392,7 +393,7 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
       });
       navigate(`/inbounds/${created.id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(formatInboundApiError(e instanceof Error ? e.message : String(e), lang));
     } finally {
       setSaving(false);
     }
@@ -432,7 +433,7 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
       setSaveMsg(L(lang, 'Settings saved.', 'تنظیمات ذخیره شد.'));
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(formatInboundApiError(e instanceof Error ? e.message : String(e), lang));
     } finally {
       setSaving(false);
     }
@@ -446,7 +447,7 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
       await apiFetch(`/inbounds/${inbound.id}/${action}`, { method: 'POST' });
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(formatInboundApiError(e instanceof Error ? e.message : String(e), lang));
     } finally {
       setBusyAction(null);
     }
@@ -1328,6 +1329,12 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
 
                 {renderProtocolSpecificSections()}
 
+                {error && (
+                  <div className="mx-5.5 mt-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                    {error}
+                  </div>
+                )}
+
                 <div className="savebar justify-end">
                   <div className="inb-save-actions">
                     <Button variant="secondary" disabled={saving} onClick={() => setStep(2)}>
@@ -1387,6 +1394,12 @@ export function InboundDetailPage({ inboundId }: { inboundId: number | 'new' }) 
               <div className="panel editor">
                 {renderBasicsSection(true)}
                 {renderProtocolSpecificSections()}
+
+                {error && (
+                  <div className="mx-5.5 mt-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                    {error}
+                  </div>
+                )}
 
                 <div className="savebar justify-end">
                   <div className="inb-save-actions">

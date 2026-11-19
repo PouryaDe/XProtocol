@@ -620,6 +620,42 @@ test('Ovira 2.0 end-to-end API: templates, bulk actions, proxy app sub, events, 
     const zeroClient = zeroPayload.items[0];
     const zeroSub = await fetch(`${baseUrl}/sub/${zeroClient.subToken}/data`).then((r) => r.json());
     assert.deepEqual(zeroSub.usageChart, []);
+
+    // 11. Reject creating or editing an inbound onto an already-occupied port on the same node
+    const dupCreateRes = await fetch(`${baseUrl}/api/inbounds`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        kind: 'xray',
+        preset: 'direct',
+        nodeId: 1,
+        port: 29443,
+      }),
+    });
+    assert.equal(dupCreateRes.status, 409);
+    const dupCreateJson = (await dupCreateRes.json()) as { error?: string };
+    assert.ok(String(dupCreateJson.error || '').includes('29443'));
+
+    const freeCreateRes = await fetch(`${baseUrl}/api/inbounds`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        kind: 'xray',
+        preset: 'direct',
+        nodeId: 1,
+        port: 29444,
+      }),
+    });
+    assert.equal(freeCreateRes.status, 201);
+    const freeCreated = (await freeCreateRes.json()) as { id: number };
+    const dupEditRes = await fetch(`${baseUrl}/api/inbounds/${freeCreated.id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ port: 29443 }),
+    });
+    assert.equal(dupEditRes.status, 409);
+    const dupEditJson = (await dupEditRes.json()) as { error?: string };
+    assert.ok(String(dupEditJson.error || '').includes('29443'));
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }

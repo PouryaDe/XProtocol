@@ -162,6 +162,19 @@ export interface CidrInfo {
   usable?: number;
 }
 
+export function formatInboundApiError(msg: string, lang: 'en' | 'fa'): string {
+  if (lang !== 'fa') return msg;
+  const byInbound = /^Port (\d+) is already in use by inbound "([^"]+)"/i.exec(msg);
+  if (byInbound) {
+    return `پورت ${byInbound[1]} هم‌اکنون توسط اینباند «${byInbound[2]}» در حال استفاده است. لطفاً پورت دیگری انتخاب کنید.`;
+  }
+  const byService = /^Port (\d+) is already in use by another service on this server/i.exec(msg);
+  if (byService) {
+    return `پورت ${byService[1]} روی این سرور توسط سرویس دیگری اشغال است. لطفاً پورت دیگری انتخاب کنید یا پورت ${byService[1]} را آزاد کنید.`;
+  }
+  return msg;
+}
+
 export function normalizeKind(raw: string): 'openvpn' | 'ocserv' | 'wireguard' | 'ikev2' | 'l2tp' | 'smartdns' | 'telegram' {
   const k = (raw || '').toLowerCase();
   if (k === 'openconnect' || k === 'ocserv') return 'ocserv';

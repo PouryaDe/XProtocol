@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Loader2, Plus } from 'lucide-react';
 import { apiFetch } from '../lib/api';
+import { formatInboundApiError } from '../lib/inboundTypes';
 import { navigate } from '../lib/router';
 import { useUi } from '../i18n/context';
 import { Button, PageHead } from './UiPrimitives';
@@ -263,7 +264,7 @@ export function XrayWizard({ onBackOtherProtocols }: { onBackOtherProtocols: () 
       setError(
         e.name === 'AbortError'
           ? L('Request timed out. Please try again.', 'زمان درخواست به پایان رسید. لطفاً دوباره تلاش کنید.')
-          : e.message,
+          : formatInboundApiError(e.message, lang),
       );
       setSubmitting(false);
     }

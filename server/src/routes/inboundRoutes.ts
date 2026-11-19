@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import net from 'node:net';
+import dgram from 'node:dgram';
 import { Router } from 'express';
 import { getDb } from '../db/database.js';
 import { generateRealityKeypair, generateShortId, generateSs2022Key, generateWireGuardKeypair } from '../security/auth.js';
@@ -95,6 +97,95 @@ async function applyRuntimeBounded(
 
 function getInboundPeers(inboundId: number, subnet: string): PeerEntry[] {
   return getEligiblePeersForInbound(inboundId, subnet);
+}
+
+function normL4Proto(transport: string | undefined, protocol?: string): 'tcp' | 'udp' {
+  const t = (transport || '').trim().toLowerCase();
+  if (t.startsWith('udp') || t === 'kcp') return 'udp';
+  if (t.startsWith('tcp')) return 'tcp';
+  const p = (protocol || '').trim().toLowerCase();
+  return p === 'wireguard' || p === 'amneziawg' || p === 'openvpn' || p === 'ikev2' || p === 'l2tp' || p === 'smartdns'
+    ? 'udp'
+    : 'tcp';
+}
+
+function bindsBothL4(protocol: string | undefined): boolean {
+  const p = (protocol || '').trim().toLowerCase();
+  return p === 'ocserv' || p === 'openconnect' || p === 'smartdns';
+}
+
+async function isHostPortBusy(port: number, l4: 'tcp' | 'udp'): Promise<boolean> {
+  if (l4 === 'tcp') {
+    return new Promise((resolve) => {
+      const srv = net.createServer();
+      srv.once('error', (err: NodeJS.ErrnoException) => {
+        resolve(err.code === 'EADDRINUSE');
+      });
+      srv.listen({ port, host: '0.0.0.0', exclusive: true }, () => {
+        srv.close(() => resolve(false));
+      });
+    });
+  }
+  return new Promise((resolve) => {
+    const sock = dgram.createSocket('udp4');
+    sock.once('error', (err: NodeJS.ErrnoException) => {
+      try {
+        sock.close();
+      } catch {
+        // ignore
+      }
+      resolve(err.code === 'EADDRINUSE');
+    });
+    sock.bind(port, '0.0.0.0', () => {
+      sock.close(() => resolve(false));
+    });
+  });
+}
+
+async function checkInboundPortConflict(params: {
+  driverMode: 'linux' | 'mock';
+  nodeId: number | null;
+  port: number;
+  transport: string;
+  protocol: string;
+  excludeInboundId?: number | null;
+  checkHostBind?: boolean;
+}): Promise<string | null> {
+  const { driverMode, nodeId, port, transport, protocol, excludeInboundId, checkHostBind = false } = params;
+  if (!nodeId || port <= 0) return null;
+
+  const db = getDb();
+  const targetL4 = normL4Proto(transport, protocol);
+  const rows = db
+    .prepare('SELECT id, name, protocol, transport FROM inbounds WHERE node_id = ? AND port = ? AND (? IS NULL OR id != ?)')
+    .all(nodeId, port, excludeInboundId ?? null, excludeInboundId ?? null) as Array<{
+    id: number;
+    name: string;
+    protocol: string;
+    transport: string;
+  }>;
+
+  const dbConflict = rows.find(
+    (r) =>
+      bindsBothL4(r.protocol) ||
+      bindsBothL4(protocol) ||
+      normL4Proto(r.transport, r.protocol) === targetL4,
+  );
+  if (dbConflict) {
+    return `Port ${port} is already in use by inbound "${dbConflict.name}". Please choose a different port.`;
+  }
+
+  if (checkHostBind && process.platform === 'linux' && driverMode === 'linux') {
+    const node = db.prepare('SELECT is_local FROM nodes WHERE id = ?').get(nodeId) as { is_local: number } | undefined;
+    if (node?.is_local) {
+      const busyPrimary = await isHostPortBusy(port, targetL4);
+      const busySecondary = bindsBothL4(protocol) ? await isHostPortBusy(port, targetL4 === 'tcp' ? 'udp' : 'tcp') : false;
+      if (busyPrimary || busySecondary) {
+        return `Port ${port} is already in use by another service on this server. Please choose a different port or free port ${port}.`;
+      }
+    }
+  }
+  return null;
 }
 
 function defaultSlugPrefix(protocol: string, transport: string): string {
@@ -262,39 +353,61 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
     });
   });
 
-  router.post('/preflight', (req: AuthedRequest, res) => {
+  router.post('/preflight', async (req: AuthedRequest, res) => {
     const acc = req.auth!.account;
     if (!acc.isOwner && acc.permissions.inbounds.manage === 'none') {
       res.status(403).json({ error: 'No permission to manage inbounds' });
       return;
     }
-    const { nodeIds = [], port, ports = {}, excludeInboundId } = req.body as {
+    const {
+      nodeIds = [],
+      port,
+      ports = {},
+      excludeInboundId,
+      transport = 'tcp',
+      protocol = 'xray',
+    } = req.body as {
       nodeIds?: number[];
       port?: number;
       ports?: Record<number, number>;
       excludeInboundId?: number;
+      transport?: string;
+      protocol?: string;
     };
     const db = getDb();
-    const items = nodeIds.map((nodeId) => {
-      const node = db.prepare('SELECT id, enabled, status, is_local FROM nodes WHERE id = ?').get(nodeId) as
-        | { id: number; enabled: number; status: string; is_local: number }
-        | undefined;
-      if (!node) return { nodeId, error: 'Node not found' };
-      if (!node.enabled) return { nodeId, error: 'Node is disabled' };
-      if (!node.is_local && node.status === 'offline') return { nodeId, error: 'Node is unreachable' };
-      const targetPort = Number(ports[nodeId] || port || 0);
-      if (targetPort > 0) {
-        const conflict = db
-          .prepare('SELECT id, name FROM inbounds WHERE node_id = ? AND port = ? AND (? IS NULL OR id != ?)')
-          .get(nodeId, targetPort, excludeInboundId ?? null, excludeInboundId ?? null) as
-          | { id: number; name: string }
+    const excluded = excludeInboundId
+      ? (db.prepare('SELECT port, transport, running FROM inbounds WHERE id = ?').get(excludeInboundId) as
+          | { port: number; transport: string; running: number }
+          | undefined)
+      : undefined;
+    const items = await Promise.all(
+      nodeIds.map(async (nodeId) => {
+        const node = db.prepare('SELECT id, enabled, status, is_local FROM nodes WHERE id = ?').get(nodeId) as
+          | { id: number; enabled: number; status: string; is_local: number }
           | undefined;
-        if (conflict) {
-          return { nodeId, error: `Port ${targetPort} is already used by ${conflict.name}` };
+        if (!node) return { nodeId, error: 'Node not found' };
+        if (!node.enabled) return { nodeId, error: 'Node is disabled' };
+        if (!node.is_local && node.status === 'offline') return { nodeId, error: 'Node is unreachable' };
+        const targetPort = Number(ports[nodeId] || port || 0);
+        if (targetPort > 0) {
+          const checkHostBind =
+            !excluded || !excluded.running || excluded.port !== targetPort;
+          const err = await checkInboundPortConflict({
+            driverMode,
+            nodeId,
+            port: targetPort,
+            transport,
+            protocol,
+            excludeInboundId: excludeInboundId ?? null,
+            checkHostBind,
+          });
+          if (err) {
+            return { nodeId, error: err };
+          }
         }
-      }
-      return { nodeId, error: null };
-    });
+        return { nodeId, error: null };
+      }),
+    );
     res.json({ items });
   });
 
@@ -428,6 +541,26 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
     }
 
     const createdIds: number[] = [];
+    for (const nid of targetNodeIds) {
+      const nodePort = nid && body.ports?.[nid] ? Number(body.ports[nid]) : port;
+      if (nodePort < 1 || nodePort > 65535) {
+        res.status(400).json({ error: 'Port must be 1-65535' });
+        return;
+      }
+      const conflictErr = await checkInboundPortConflict({
+        driverMode,
+        nodeId: nid,
+        port: nodePort,
+        transport,
+        protocol,
+        checkHostBind: body.enabled !== false,
+      });
+      if (conflictErr) {
+        res.status(409).json({ error: conflictErr });
+        return;
+      }
+    }
+
     try {
       for (let i = 0; i < targetNodeIds.length; i++) {
         const nid = targetNodeIds[i];
@@ -526,6 +659,28 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
       const errMsg = validateXraySettings(nextSettings);
       if (errMsg) {
         res.status(400).json({ error: errMsg });
+        return;
+      }
+    }
+
+    const nextPort = body.port !== undefined ? Number(body.port) : existing.port;
+    const nextTransport = body.transport ?? existing.transport;
+    const nextEnabled = body.enabled !== undefined ? Boolean(body.enabled) : Boolean(existing.enabled);
+    if (existing.node_id) {
+      const portOrProtoChanged =
+        existing.port !== nextPort || normL4Proto(existing.transport, existing.protocol) !== normL4Proto(nextTransport, existing.protocol);
+      const needsStart = !existing.running && nextEnabled;
+      const conflictErr = await checkInboundPortConflict({
+        driverMode,
+        nodeId: existing.node_id,
+        port: nextPort,
+        transport: nextTransport,
+        protocol: existing.protocol,
+        excludeInboundId: id,
+        checkHostBind: nextEnabled && (portOrProtoChanged || needsStart),
+      });
+      if (conflictErr) {
+        res.status(409).json({ error: conflictErr });
         return;
       }
     }
@@ -702,6 +857,21 @@ export function createInboundRouter(driverMode: 'linux' | 'mock'): Router {
     if (!row.node_id && action !== 'stop') {
       res.status(400).json({ error: 'Attach this inbound to a node before starting it' });
       return;
+    }
+    if (action === 'start' || (action === 'restart' && !row.running)) {
+      const conflictErr = await checkInboundPortConflict({
+        driverMode,
+        nodeId: row.node_id,
+        port: row.port,
+        transport: row.transport,
+        protocol: row.protocol,
+        excludeInboundId: id,
+        checkHostBind: !row.running,
+      });
+      if (conflictErr) {
+        res.status(409).json({ error: conflictErr });
+        return;
+      }
     }
     db.prepare('UPDATE inbounds SET running = ? WHERE id = ?').run(action === 'stop' ? 0 : 1, id);
     const result = await applyRuntimeBounded(driverMode, { ...row, running: action === 'stop' ? 0 : 1 }, getInboundPeers(id, row.subnet), action);
